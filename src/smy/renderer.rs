@@ -3,10 +3,10 @@ use super::statistics::Statistics;
 
 // ── HTML 报告渲染 ─────────────────────────────────────────────────────────────
 //
-// 粉蓝白配色方案:
-//   主蓝: #7C9BF5   主粉: #F5A0C0   背景: #F0F4FF
-//   卡片: #FFFFFF    文字: #2D3748    次文字: #6B7280
-//   渐变: linear-gradient(135deg, #7C9BF5, #F5A0C0)
+// 标准 MTF 粉蓝白配色方案 (Transgender Flag):
+//   淡蓝: #5BCEFA   粉色: #F5A9B8   白色: #FFFFFF
+//   背景: #FFF9FB    文字: #2D3748    次文字: #6B7280
+//   渐变: linear-gradient(135deg, #5BCEFA, #F5A9B8)
 
 pub fn render(
     stats: &Statistics,
@@ -33,7 +33,7 @@ r#"<!DOCTYPE html>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{
     font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #F0F4FF;
+    background: #FFF9FB;
     min-height: 100vh;
     padding: 30px;
     line-height: 1.6;
@@ -44,13 +44,13 @@ body {{
     margin: 0 auto;
     background: #FFFFFF;
     border-radius: 24px;
-    box-shadow: 0 8px 40px rgba(124,155,245,0.12);
+    box-shadow: 0 8px 40px rgba(245,169,184,0.12);
     overflow: hidden;
 }}
 
 /* ── Header ── */
 .header {{
-    background: linear-gradient(135deg, #7C9BF5 0%, #F5A0C0 100%);
+    background: linear-gradient(135deg, #5BCEFA 0%, #F5A9B8 100%);
     color: #fff;
     padding: 50px 50px 45px;
     text-align: center;
@@ -75,7 +75,7 @@ body {{
     font-weight: 600;
     margin-bottom: 22px;
     color: #4A5568;
-    border-bottom: 2px solid #E8EDF8;
+    border-bottom: 2px solid #F5E0E8;
     padding-bottom: 10px;
     display: flex;
     align-items: center;
@@ -90,21 +90,21 @@ body {{
     margin-bottom: 30px;
 }}
 .stat-card {{
-    background: linear-gradient(135deg, #F8FAFF 0%, #F0F4FF 100%);
+    background: linear-gradient(135deg, #FFF5F8 0%, #FFF9FB 100%);
     padding: 30px 20px;
     text-align: center;
     border-radius: 16px;
-    border: 1px solid #E8EDF8;
+    border: 1px solid #F5E0E8;
     transition: all 0.3s;
 }}
 .stat-card:hover {{
     transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(124,155,245,0.15);
+    box-shadow: 0 8px 24px rgba(245,169,184,0.15);
 }}
 .stat-number {{
     font-size: 2.8em;
     font-weight: 300;
-    color: #7C9BF5;
+    color: #5BCEFA;
     margin-bottom: 6px;
     letter-spacing: -1px;
 }}
@@ -117,13 +117,13 @@ body {{
 
 /* ── Active Period ── */
 .active-period {{
-    background: linear-gradient(135deg, #7C9BF5 0%, #F5A0C0 100%);
+    background: linear-gradient(135deg, #5BCEFA 0%, #F5A9B8 100%);
     color: #fff;
     padding: 35px;
     text-align: center;
     margin: 30px 0;
     border-radius: 18px;
-    box-shadow: 0 6px 20px rgba(124,155,245,0.25);
+    box-shadow: 0 6px 20px rgba(245,169,184,0.25);
 }}
 .active-period .time {{
     font-size: 2.8em;
@@ -139,10 +139,10 @@ body {{
 
 /* ── Hourly Chart ── */
 .chart-container {{
-    background: #FAFBFF;
+    background: #FFFAFB;
     padding: 30px;
     border-radius: 18px;
-    border: 1px solid #E8EDF8;
+    border: 1px solid #F5E0E8;
     margin-bottom: 10px;
 }}
 .chart-title {{
@@ -173,7 +173,7 @@ body {{
 }}
 .bar {{
     height: 16px;
-    background: linear-gradient(90deg, #7C9BF5, #F5A0C0);
+    background: linear-gradient(90deg, #5BCEFA, #F5A9B8);
     border-radius: 8px;
     min-width: 2px;
     transition: width 0.3s;
@@ -204,14 +204,14 @@ body {{
     background: #fff;
     padding: 22px;
     border-radius: 14px;
-    border: 1px solid #E8EDF8;
+    border: 1px solid #F5E0E8;
     transition: all 0.3s;
     display: flex;
     flex-direction: column;
 }}
 .topic-item:hover {{
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(124,155,245,0.1);
+    box-shadow: 0 6px 20px rgba(245,169,184,0.1);
 }}
 .topic-header {{
     display: flex;
@@ -219,7 +219,7 @@ body {{
     margin-bottom: 14px;
 }}
 .topic-number {{
-    background: linear-gradient(135deg, #7C9BF5, #9FB5F8);
+    background: linear-gradient(135deg, #5BCEFA, #91D8FC);
     color: #fff;
     width: 34px;
     height: 34px;
@@ -230,7 +230,7 @@ body {{
     font-weight: 500;
     margin-right: 14px;
     font-size: 0.9em;
-    box-shadow: 0 3px 10px rgba(124,155,245,0.3);
+    box-shadow: 0 3px 10px rgba(245,169,184,0.3);
     flex-shrink: 0;
 }}
 .topic-title {{
@@ -259,12 +259,12 @@ body {{
     background: #fff;
     padding: 22px;
     border-radius: 14px;
-    border: 1px solid #E8EDF8;
+    border: 1px solid #F5E0E8;
     transition: all 0.3s;
 }}
 .user-card:hover {{
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(245,160,192,0.12);
+    box-shadow: 0 6px 20px rgba(245,169,184,0.12);
 }}
 .user-card-header {{
     display: flex;
@@ -275,7 +275,7 @@ body {{
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #F5A0C0, #F8C4D8);
+    background: linear-gradient(135deg, #F5A9B8, #FAD4DC);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -298,16 +298,16 @@ body {{
     flex-wrap: wrap;
 }}
 .badge-title {{
-    background: linear-gradient(135deg, #7C9BF5, #9FB5F8);
+    background: linear-gradient(135deg, #5BCEFA, #91D8FC);
     color: #fff;
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 0.82em;
     font-weight: 500;
-    box-shadow: 0 2px 8px rgba(124,155,245,0.25);
+    box-shadow: 0 2px 8px rgba(245,169,184,0.25);
 }}
 .badge-mbti {{
-    background: linear-gradient(135deg, #F5A0C0, #F8C4D8);
+    background: linear-gradient(135deg, #F5A9B8, #FAD4DC);
     color: #fff;
     padding: 4px 10px;
     border-radius: 14px;
@@ -316,7 +316,7 @@ body {{
 }}
 .user-habit {{
     font-size: 0.88em;
-    color: #7C9BF5;
+    color: #5BCEFA;
     margin: 8px 0 4px;
     font-style: italic;
 }}
@@ -328,16 +328,16 @@ body {{
 
 /* ── Quotes ── */
 .quote-item {{
-    background: linear-gradient(135deg, #FDF2F8 0%, #F0F4FF 100%);
+    background: linear-gradient(135deg, #FFF5F8 0%, #FFF9FB 100%);
     padding: 20px 24px;
     margin-bottom: 16px;
     border-radius: 14px;
-    border: 1px solid #F3E8F0;
+    border: 1px solid #F5E0E8;
     transition: all 0.3s;
 }}
 .quote-item:hover {{
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(245,160,192,0.12);
+    box-shadow: 0 6px 20px rgba(245,169,184,0.12);
 }}
 .quote-content {{
     font-size: 1.08em;
@@ -349,7 +349,7 @@ body {{
 }}
 .quote-author {{
     font-size: 0.9em;
-    color: #F5A0C0;
+    color: #F5A9B8;
     font-weight: 600;
     text-align: right;
     margin-bottom: 6px;
@@ -357,15 +357,15 @@ body {{
 .quote-reason {{
     font-size: 0.82em;
     color: #6B7280;
-    background: rgba(124,155,245,0.08);
+    background: rgba(245,169,184,0.08);
     padding: 8px 12px;
     border-radius: 10px;
-    border-left: 3px solid #7C9BF5;
+    border-left: 3px solid #5BCEFA;
 }}
 
 /* ── Footer ── */
 .footer {{
-    background: linear-gradient(135deg, #7C9BF5 0%, #9FB5F8 100%);
+    background: linear-gradient(135deg, #5BCEFA 0%, #91D8FC 100%);
     color: #fff;
     text-align: center;
     padding: 30px;
