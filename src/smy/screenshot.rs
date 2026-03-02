@@ -1,89 +1,59 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
-use std::sync::OnceLock;
-use tokio::sync::Semaphore;
 use tracing::debug;
 
-// 全局信号量：同时只允许一个截图任务，避免多个 Chrome 实例互相干扰
-static SCREENSHOT_SEM: OnceLock<Semaphore> = OnceLock::new();
-fn sem() -> &'static Semaphore {
-    SCREENSHOT_SEM.get_or_init(|| Semaphore::new(1))
-}
+// ── HTML → JPEG → base64 ────────────────────────────────────────────────────
 
-// ── HTML → PNG → base64 ─────────────────────────────────────────────────────
-
-/// 将 HTML 字符串渲染为截图，返回 JPEG base64 编码
+/// 将 HTML 字符串渲染为截图，返回 JPEG base64 编码。
+/// 依赖系统命令 `wkhtmltoimage`（apt install wkhtmltopdf）。
 pub async fn capture(html: &str) -> Result<String> {
     let html_owned = html.to_string();
-
-    // 排队等待，确保同时只有一个 Chrome 实例在运行
-    let _permit = sem().acquire().await.context("获取截图信号量失败")?;
-
     tokio::task::spawn_blocking(move || capture_sync(&html_owned))
         .await
         .context("截图任务 panic")?
 }
 
 fn capture_sync(html: &str) -> Result<String> {
-    use headless_chrome::{Browser, LaunchOptions};
-    use headless_chrome::protocol::cdp::Page;
+    use std::process::Command;
 
-    let options = LaunchOptions {
-        headless: true,
-        sandbox: false, // root 运行需要 --no-sandbox
-        window_size: Some((1200, 800)),
-        args: vec![
-            std::ffi::OsStr::new("--disable-gpu"),
-            std::ffi::OsStr::new("--no-sandbox"),
-            std::ffi::OsStr::new("--disable-dev-shm-usage"),
-            std::ffi::OsStr::new("--font-render-hinting=none"),
-        ],
-        ..LaunchOptions::default()
-    };
+    // 生成唯一临时文件路径
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let html_path = format!("/tmp/lianbot_smy_{ts}.html");
+    let img_path  = format!("/tmp/lianbot_smy_{ts}.jpg");
 
-    let browser = Browser::new(options).context("启动 headless chrome 失败")?;
-    let tab = browser.new_tab().context("创建标签页失败")?;
+    std::fs::write(&html_path, html).context("写入临时 HTML 失败")?;
 
-    // 写入临时文件（data URL 对大 HTML 不稳定）
-    // 用线程ID+时间戳保证并发时文件名唯一
-    let uniq = format!("{:?}_{}",
-        std::thread::current().id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
-    );
-    let tmp_path = format!("/tmp/lianbot_smy_{}.html", uniq);
-    std::fs::write(&tmp_path, html).context("写入临时 HTML 失败")?;
+    // 调用 wkhtmltoimage 渲染
+    let output = Command::new("wkhtmltoimage")
+        .args([
+            "--quiet",
+            "--format",         "jpg",
+            "--quality",        "85",
+            "--width",          "1200",
+            "--disable-smart-width",
+            "--enable-local-file-access",
+            &html_path,
+            &img_path,
+        ])
+        .output()
+        .context("启动 wkhtmltoimage 失败，请确认已安装: apt install wkhtmltopdf")?;
 
-    let file_url = format!("file://{tmp_path}");
-    tab.navigate_to(&file_url)
-        .context("导航到 HTML 失败")?;
-    tab.wait_until_navigated()
-        .context("等待页面加载失败")?;
+    // 清理 HTML 临时文件
+    let _ = std::fs::remove_file(&html_path);
 
-    // 等待 body 渲染完成
-    tab.wait_for_element("body")
-        .context("等待 body 元素失败")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("wkhtmltoimage 失败: {stderr}");
+    }
 
-    // 短暂等待确保 CSS 渲染完成
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    let img_data = std::fs::read(&img_path).context("读取截图文件失败")?;
+    let _ = std::fs::remove_file(&img_path);
 
-    // 全页面截图 → JPEG（压缩体积，quality=85 保持清晰）
-    let screenshot_data = tab
-        .capture_screenshot(
-            Page::CaptureScreenshotFormatOption::Jpeg,
-            Some(85),
-            None,
-            true, // capture_beyond_viewport = full page
-        )
-        .context("截图失败")?;
-
-    // 清理临时文件
-    let _ = std::fs::remove_file(&tmp_path);
-
-    let size_kb = screenshot_data.len() / 1024;
+    let size_kb = img_data.len() / 1024;
     debug!("截图完成: {size_kb}KB JPEG");
 
-    Ok(B64.encode(&screenshot_data))
+    Ok(B64.encode(&img_data))
 }
