@@ -19,12 +19,12 @@ impl Command for HelpCommand {
 LianBot 命令列表
 ── 简单命令（以 / 开头）──
   /ping    测试在线
+  /stalk   截取主人屏幕并发送到本群
   /help    显示本帮助
 
 ── 复杂命令（格式 <名称> [参数]）──
   <img>    发送图片
     -u / --url <URL>   图片链接（可选，省略则随机）
-  <stalk>  截取主人屏幕并发送到本群
 
 参数格式示例：
   <img> -u https://example.com/a.png
