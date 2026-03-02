@@ -4,6 +4,7 @@ mod config;
 mod error;
 mod handler;
 mod parser;
+mod smy;
 mod typ;
 mod ws;
 
