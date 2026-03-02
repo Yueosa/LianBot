@@ -36,9 +36,6 @@ futures     = "0.3"
 chrono      = { version = "0.4", features = ["serde"] }
 base64      = "0.22"
 
-# HTML 截图
-headless_chrome = "1.0"
-
 [profile.release]
 opt-level      = 2
 codegen-units  = 4
