@@ -46,7 +46,7 @@ impl Command for SmyCommand {
             .send_text(group_id, "📊 正在生成群聊日报，请稍候...")
             .await?;
 
-        info!("开始生成群聊日报: group={group_id} count={count} time={time_str}");
+        info!("[S1] 拉取消息: group={group_id} count={count} time={time_str}");
 
         // ── S1: 拉取消息 ──────────────────────────────────────────────────────
         let messages = smy::fetcher::fetch(&ctx.api, group_id, count, Some(time_str)).await?;
@@ -55,36 +55,47 @@ impl Command for SmyCommand {
             return ctx.api.send_text(group_id, "📭 该时间范围内没有聊天记录").await;
         }
 
-        info!("拉取到 {} 条消息", messages.len());
+        info!("[S1] 拉取完成: {} 条消息", messages.len());
 
         // ── S2: 统计分析 ──────────────────────────────────────────────────────
+        info!("[S2] 统计分析...");
         let stats = smy::statistics::analyze(&messages);
 
         // ── S3: LLM 分析 ─────────────────────────────────────────────────────
+        info!("[S3] 请求 LLM 分析...");
         let llm_result = smy::llm::analyze(&messages, llm_config).await;
 
         if let Err(ref e) = llm_result {
-            warn!("LLM 分析失败，将使用空结果: {e:#}");
+            warn!("[S3] LLM 分析失败，将使用空结果: {e:#}");
+        } else {
+            info!("[S3] LLM 分析完成");
         }
         let llm_result = llm_result.unwrap_or_default();
 
         // ── S4: 渲染 HTML ────────────────────────────────────────────────────
+        info!("[S4] 渲染 HTML...");
         let html = smy::renderer::render(&stats, &llm_result, time_str, &messages);
+        info!("[S4] HTML 渲染完成: {}KB", html.len() / 1024);
 
         // ── S5: 截图 ─────────────────────────────────────────────────────────
+        info!("[S5] 调用 Chrome 截图...");
         let base64_img = match smy::screenshot::capture(&html).await {
-            Ok(b) => b,
+            Ok(b) => {
+                info!("[S5] 截图完成: {}KB", b.len() / 1024);
+                b
+            }
             Err(e) => {
-                warn!("截图失败: {e:#}");
+                warn!("[S5] 截图失败: {e:#}");
                 return ctx.api.send_text(group_id, &format!("❌ 截图失败: {e}")).await;
             }
         };
 
         // ── S6: 发送图片 ─────────────────────────────────────────────────────
+        info!("[S6] 发送图片...");
         let file = format!("base64://{base64_img}");
         ctx.api.send_image(group_id, &file).await?;
 
-        info!("群聊日报发送完成: group={group_id}");
+        info!("[S6] 群聊日报发送完成: group={group_id}");
         Ok(())
     }
 }
