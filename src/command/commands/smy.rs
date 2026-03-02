@@ -32,24 +32,27 @@ impl Command for SmyCommand {
             }
         };
 
-        // 解析参数
+        // 解析参数：-n 和 -t 独立判断，只有用户显式指定 -t 时才按时间拉取
         let count: u32 = ctx
             .get(&["-n", "--count"])
             .and_then(|s| s.parse().ok())
             .unwrap_or(DEFAULT_COUNT);
 
-        let time_str = ctx
-            .get(&["-t", "--time"])
-            .unwrap_or(DEFAULT_TIME);
+        let time_opt = ctx.get(&["-t", "--time"]);
+
+        let mode_desc = match &time_opt {
+            Some(t) => format!("time={t} (时间模式)"),
+            None => format!("count={count} (条数模式)"),
+        };
 
         ctx.api
             .send_text(group_id, "📊 正在生成群聊日报，请稍候...")
             .await?;
 
-        info!("[S1] 拉取消息: group={group_id} count={count} time={time_str}");
+        info!("[S1] 拉取消息: group={group_id} {mode_desc}");
 
         // ── S1: 拉取消息 ──────────────────────────────────────────────────────
-        let messages = smy::fetcher::fetch(&ctx.api, group_id, count, Some(time_str)).await?;
+        let messages = smy::fetcher::fetch(&ctx.api, group_id, count, time_opt).await?;
 
         if messages.is_empty() {
             return ctx.api.send_text(group_id, "📭 该时间范围内没有聊天记录").await;
@@ -74,7 +77,7 @@ impl Command for SmyCommand {
 
         // ── S4: 渲染 HTML ────────────────────────────────────────────────────
         info!("[S4] 渲染 HTML...");
-        let html = smy::renderer::render(&stats, &llm_result, time_str, &messages);
+        let html = smy::renderer::render(&stats, &llm_result, &mode_desc, &messages);
         info!("[S4] HTML 渲染完成: {}KB", html.len() / 1024);
 
         // ── S5: 截图 ─────────────────────────────────────────────────────────
