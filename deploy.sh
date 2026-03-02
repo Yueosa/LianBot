@@ -69,6 +69,16 @@ if [[ "$MODE" == "update" ]]; then
     cp "$BINARY_SRC" "$BINARY_DST"
     chmod 755 "$BINARY_DST"
 
+    # 若项目根目录有 config.toml，同步到部署目录
+    if [[ -f "config.toml" ]]; then
+        info "同步配置文件 config.toml → $LIANBOT_DIR/config.toml ..."
+        cp "config.toml" "$LIANBOT_DIR/config.toml"
+        chmod 640 "$LIANBOT_DIR/config.toml"
+        chown "$LIANBOT_USER:$LIANBOT_USER" "$LIANBOT_DIR/config.toml"
+    else
+        warn "项目根目录无 config.toml，跳过配置同步（保留旧配置）"
+    fi
+
     info "重载 systemd 并重启服务..."
     systemctl daemon-reload
     systemctl restart lianbot
