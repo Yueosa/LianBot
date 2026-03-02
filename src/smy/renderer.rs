@@ -43,7 +43,7 @@ r#"<!DOCTYPE html>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{
     font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #FFF9FB;
+    background: #5BCEFA;
     min-height: 100vh;
     padding: 30px;
     line-height: 1.6;
