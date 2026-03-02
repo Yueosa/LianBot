@@ -57,12 +57,17 @@ impl Config {
 
         let mut config: Config = toml::from_str(&toml_str)?;
 
+        // 空字符串 token 视为未配置
+        if config.napcat.token.as_deref() == Some("") {
+            config.napcat.token = None;
+        }
+
         // .env 环境变量覆盖
         if let Ok(v) = std::env::var("NAPCAT_URL") {
             config.napcat.url = v;
         }
         if let Ok(v) = std::env::var("NAPCAT_TOKEN") {
-            config.napcat.token = Some(v);
+            config.napcat.token = if v.is_empty() { None } else { Some(v) };
         }
         if let Ok(v) = std::env::var("SERVER_HOST") {
             config.server.host = v;
