@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde_json::Value;
+use tracing::info;
 
 use crate::api::ApiClient;
 
@@ -35,10 +36,11 @@ pub fn parse_duration(s: &str) -> Option<i64> {
 
 // ── 消息拉取 ──────────────────────────────────────────────────────────────────
 
-const PAGE_SIZE: u32 = 100;
+/// 时间模式下一次性拉取的最大条数
+const TIME_MODE_COUNT: u32 = 2000;
 
 /// 从 NapCat 拉取历史消息并结构化。
-/// - 若提供 `time_filter`（如 "1d" / "6h"），则分页拉取直到覆盖整个时间段，忽略 `count` 限制。
+/// - 若提供 `time_filter`（如 "1d" / "6h"），则一次性拉取大量消息，再按时间过滤。
 /// - 若只提供 `count`（无 `time_filter`），则拉取最近 `count` 条。
 pub async fn fetch(
     api: &ApiClient,
@@ -57,69 +59,23 @@ pub async fn fetch(
             .get_group_msg_history(group_id, count)
             .await
             .context("拉取群消息历史失败")?;
+        info!("[fetcher] 条数模式: API返回{}条", raw.len());
         return Ok(parse_raw_messages(&raw, None));
     }
 
-    // 有时间过滤：分页拉取，直到最早一条消息超出时间范围
-    let cutoff = cutoff.unwrap();
-    let mut all: Vec<ChatMessage> = Vec::new();
-    let mut oldest_seq: Option<i64> = None;
-    let mut prev_first_seq: Option<i64> = None;
-    const MAX_PAGES: usize = 50; // 最多拉 50×100=5000 条，防止死循环
-
-    for _ in 0..MAX_PAGES {
-        let raw = api
-            .get_group_msg_history_paged(group_id, PAGE_SIZE, oldest_seq)
-            .await
-            .context("分页拉取群消息历史失败")?;
-
-        if raw.is_empty() {
-            break;
-        }
-
-        // 最早一条消息的时间和 seq（批次按时间升序，第一条最早）
-        let first_time = raw
-            .first()
-            .and_then(|m| m.get("time").and_then(Value::as_i64))
-            .unwrap_or(now);
-        let first_seq = raw
-            .first()
-            .and_then(|m| {
-                m.get("message_seq").and_then(Value::as_i64)
-                    .or_else(|| m.get("message_id").and_then(Value::as_i64))
-            });
-
-        // 如果游标没有推进（API 返回同一批），直接终止防死循环
-        if first_seq.is_some() && first_seq == prev_first_seq {
-            break;
-        }
-        prev_first_seq = first_seq;
-
-        // 解析本批次消息（只保留 cutoff 之后的）
-        let parsed = parse_raw_messages(&raw, Some(cutoff));
-        all.extend(parsed);
-
-        // 最早一条已早于 cutoff，无需再翻页
-        if first_time < cutoff {
-            break;
-        }
-
-        // 批次不足，说明已到消息记录开头
-        if raw.len() < PAGE_SIZE as usize {
-            break;
-        }
-
-        // 取最早一条的 seq 作为下一页游标（优先 message_seq，fallback message_id）
-        oldest_seq = first_seq;
-        if oldest_seq.is_none() {
-            // API 不支持分页游标，退回单次拉取模式
-            break;
-        }
-    }
+    // 有时间过滤：一次性拉取大量消息，按时间过滤
+    let raw = api
+        .get_group_msg_history(group_id, TIME_MODE_COUNT)
+        .await
+        .context("拉取群消息历史失败")?;
+    info!("[fetcher] 时间模式: API返回{}条, cutoff={}", raw.len(), cutoff.unwrap());
+    let messages = parse_raw_messages(&raw, cutoff);
+    info!("[fetcher] 时间过滤后: {}条", messages.len());
 
     // 按时间升序排列
-    all.sort_by_key(|m| m.time);
-    Ok(all)
+    let mut messages = messages;
+    messages.sort_by_key(|m| m.time);
+    Ok(messages)
 }
 
 /// 将 NapCat 返回的原始 JSON 消息列表解析为 ChatMessage
