@@ -23,7 +23,12 @@ fn capture_sync(html: &str) -> Result<String> {
     let html_path = format!("/tmp/lianbot_smy_{ts}.html");
     let img_path  = format!("/tmp/lianbot_smy_{ts}.png");
 
-    std::fs::write(&html_path, html).context("写入临时 HTML 失败")?;
+    // 在 HTML 末尾注入 JS：设置 body 高度为实际内容高度，避免截图产生大片空白
+    let patched_html = html.replace(
+        "</body>",
+        r#"<script>document.body.style.height=document.body.scrollHeight+'px';</script></body>"#,
+    );
+    std::fs::write(&html_path, &patched_html).context("写入临时 HTML 失败")?;
 
     let chrome = find_chrome()?;
     debug!("使用 Chrome: {chrome}");
@@ -31,6 +36,7 @@ fn capture_sync(html: &str) -> Result<String> {
     // 确保 Chrome 数据目录存在
     let _ = std::fs::create_dir_all("/tmp/lianbot-chrome");
 
+    // 第一步：用最小视口截图，让 Chrome 自动扩展到内容高度
     let output = Command::new(&chrome)
         .env("HOME", "/tmp/lianbot-chrome")
         .args([
@@ -45,7 +51,7 @@ fn capture_sync(html: &str) -> Result<String> {
             "--crash-dumps-dir=/tmp/lianbot-chrome-crashes",
             "--disable-breakpad",
             &format!("--screenshot={img_path}"),
-            "--window-size=1200,10000",
+            "--window-size=1200,1",
             &format!("file://{html_path}"),
         ])
         .output()
