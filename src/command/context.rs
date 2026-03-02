@@ -42,9 +42,4 @@ impl CommandContext {
         }
         None
     }
-
-    /// 检查是否存在某个标志参数（Flag 或有值均视为存在）
-    pub fn has(&self, keys: &[&str]) -> bool {
-        keys.iter().any(|k| self.params.contains_key(*k))
-    }
 }

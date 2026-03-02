@@ -14,14 +14,6 @@ impl Command for ImgCommand {
     fn help(&self) -> &str { "发送图片  -u/--url <图片链接>（可选）" }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
-        // 安全检查：拒绝手动指定群号
-        if ctx.has(&["-i", "--id"]) {
-            return ctx
-                .api
-                .send_text(ctx.group_id, "⚠️ 风险提示: 手动指定群聊 ID 功能已关闭")
-                .await;
-        }
-
         let url = ctx
             .get(&["-u", "--url"])
             .unwrap_or(DEFAULT_IMAGE_URL);
