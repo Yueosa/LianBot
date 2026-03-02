@@ -1,0 +1,35 @@
+[package]
+name    = "stalk_hypr"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "stalk_hypr"
+path = "src/main.rs"
+
+[dependencies]
+# 异步运行时
+tokio = { version = "1", features = ["full"] }
+
+# WebSocket
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util      = "0.3"
+
+# 图片压缩（grim 输出 PNG → JPEG）
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# base64 编码
+base64 = "0.22"
+
+# hyprctl JSON 解析
+serde_json = "1"
+
+# 环境变量
+dotenvy = "0.15"
+
+# 检查可执行文件是否存在
+which = "6"
+
+# 日志
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
