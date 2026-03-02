@@ -23,39 +23,55 @@ fn capture_sync(html: &str) -> Result<String> {
     let html_path = format!("/tmp/lianbot_smy_{ts}.html");
     let img_path  = format!("/tmp/lianbot_smy_{ts}.png");
 
-    // 在 HTML 末尾注入 JS：设置 body 高度为实际内容高度，避免截图产生大片空白
+    // 注入 JS：将实际内容高度写入 <title>，供第一步测量
     let patched_html = html.replace(
         "</body>",
-        r#"<script>document.body.style.height=document.body.scrollHeight+'px';</script></body>"#,
+        "<script>document.title=document.documentElement.scrollHeight;</script></body>",
     );
     std::fs::write(&html_path, &patched_html).context("写入临时 HTML 失败")?;
 
     let chrome = find_chrome()?;
     debug!("使用 Chrome: {chrome}");
 
-    // 确保 Chrome 数据目录存在
     let _ = std::fs::create_dir_all("/tmp/lianbot-chrome");
 
-    // 第一步：用最小视口截图，让 Chrome 自动扩展到内容高度
-    let output = Command::new(&chrome)
-        .env("HOME", "/tmp/lianbot-chrome")
-        .args([
-            "--headless=new",
-            "--no-sandbox",
-            "--disable-gpu",
-            "--disable-dev-shm-usage",
-            "--hide-scrollbars",
-            "--run-all-compositor-stages-before-draw",
-            "--virtual-time-budget=5000",
-            "--user-data-dir=/tmp/lianbot-chrome",
-            "--crash-dumps-dir=/tmp/lianbot-chrome-crashes",
-            "--disable-breakpad",
-            &format!("--screenshot={img_path}"),
-            "--window-size=1200,1",
-            &format!("file://{html_path}"),
-        ])
-        .output()
-        .context("启动 Chrome 失败，请确认已安装 google-chrome-stable 或 chromium")?;
+    let base_args: Vec<&str> = vec![
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--user-data-dir=/tmp/lianbot-chrome",
+        "--crash-dumps-dir=/tmp/lianbot-chrome-crashes",
+        "--disable-breakpad",
+    ];
+
+    // ── 第一步：dump-dom 测量内容高度 ──
+    let mut cmd1 = Command::new(&chrome);
+    cmd1.env("HOME", "/tmp/lianbot-chrome");
+    for a in &base_args { cmd1.arg(a); }
+    cmd1.args(["--virtual-time-budget=3000", "--dump-dom"]);
+    cmd1.arg(format!("file://{html_path}"));
+
+    let dom_output = cmd1.output().context("Chrome dump-dom 失败")?;
+    let dom_str = String::from_utf8_lossy(&dom_output.stdout);
+    let height = extract_title_height(&dom_str).unwrap_or(4000);
+    let height = height.clamp(600, 20000) + 40; // +40px 底部留白
+    debug!("测量内容高度: {height}px");
+
+    // ── 第二步：用精确高度截图 ──
+    let mut cmd2 = Command::new(&chrome);
+    cmd2.env("HOME", "/tmp/lianbot-chrome");
+    for a in &base_args { cmd2.arg(a); }
+    cmd2.args([
+        "--hide-scrollbars",
+        "--run-all-compositor-stages-before-draw",
+        "--virtual-time-budget=5000",
+    ]);
+    cmd2.arg(format!("--screenshot={img_path}"));
+    cmd2.arg(format!("--window-size=1200,{height}"));
+    cmd2.arg(format!("file://{html_path}"));
+
+    let output = cmd2.output().context("Chrome 截图失败")?;
 
     // 清理 HTML 临时文件
     let _ = std::fs::remove_file(&html_path);
@@ -69,9 +85,16 @@ fn capture_sync(html: &str) -> Result<String> {
     let _ = std::fs::remove_file(&img_path);
 
     let size_kb = img_data.len() / 1024;
-    debug!("截图完成: {size_kb}KB PNG");
+    debug!("截图完成: {size_kb}KB PNG ({height}px 高)");
 
     Ok(B64.encode(&img_data))
+}
+
+/// 从 dump-dom 输出中提取 `<title>高度数字</title>`
+fn extract_title_height(dom: &str) -> Option<u32> {
+    let start = dom.find("<title>")? + 7;
+    let end = dom[start..].find("</title>")? + start;
+    dom[start..end].trim().parse().ok()
 }
 
 /// 查找系统中的 Chrome / Chromium 可执行文件
