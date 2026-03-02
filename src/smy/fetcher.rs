@@ -64,8 +64,10 @@ pub async fn fetch(
     let cutoff = cutoff.unwrap();
     let mut all: Vec<ChatMessage> = Vec::new();
     let mut oldest_seq: Option<i64> = None;
+    let mut prev_first_seq: Option<i64> = None;
+    const MAX_PAGES: usize = 50; // 最多拉 50×100=5000 条，防止死循环
 
-    loop {
+    for _ in 0..MAX_PAGES {
         let raw = api
             .get_group_msg_history_paged(group_id, PAGE_SIZE, oldest_seq)
             .await
@@ -75,11 +77,23 @@ pub async fn fetch(
             break;
         }
 
-        // 最早一条消息的时间（批次按时间升序，第一条最早）
+        // 最早一条消息的时间和 seq（批次按时间升序，第一条最早）
         let first_time = raw
             .first()
             .and_then(|m| m.get("time").and_then(Value::as_i64))
             .unwrap_or(now);
+        let first_seq = raw
+            .first()
+            .and_then(|m| {
+                m.get("message_seq").and_then(Value::as_i64)
+                    .or_else(|| m.get("message_id").and_then(Value::as_i64))
+            });
+
+        // 如果游标没有推进（API 返回同一批），直接终止防死循环
+        if first_seq.is_some() && first_seq == prev_first_seq {
+            break;
+        }
+        prev_first_seq = first_seq;
 
         // 解析本批次消息（只保留 cutoff 之后的）
         let parsed = parse_raw_messages(&raw, Some(cutoff));
@@ -95,11 +109,10 @@ pub async fn fetch(
             break;
         }
 
-        // 取最早一条的 message_seq 作为下一页的游标
-        oldest_seq = raw
-            .first()
-            .and_then(|m| m.get("message_seq").and_then(Value::as_i64));
+        // 取最早一条的 seq 作为下一页游标（优先 message_seq，fallback message_id）
+        oldest_seq = first_seq;
         if oldest_seq.is_none() {
+            // API 不支持分页游标，退回单次拉取模式
             break;
         }
     }
