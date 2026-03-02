@@ -47,7 +47,7 @@ pub fn analyze(messages: &[ChatMessage]) -> Statistics {
     }
 
     // 最活跃时段
-    let peak_hour = hourly.iter().enumerate().max_by_key(|(_, &c)| c).map(|(h, _)| h).unwrap_or(0);
+    let peak_hour = hourly.iter().enumerate().max_by_key(|&(_, c)| c).map(|(h, _)| h).unwrap_or(0);
     let most_active_hour = format!("{:02}:00 - {:02}:00", peak_hour, (peak_hour + 1) % 24);
 
     // Top speakers (按发言数降序)
