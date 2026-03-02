@@ -1,12 +1,23 @@
 use anyhow::{Context, Result};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+use std::sync::OnceLock;
+use tokio::sync::Semaphore;
 use tracing::debug;
+
+// 全局信号量：同时只允许一个截图任务，避免多个 Chrome 实例互相干扰
+static SCREENSHOT_SEM: OnceLock<Semaphore> = OnceLock::new();
+fn sem() -> &'static Semaphore {
+    SCREENSHOT_SEM.get_or_init(|| Semaphore::new(1))
+}
 
 // ── HTML → PNG → base64 ─────────────────────────────────────────────────────
 
 /// 将 HTML 字符串渲染为截图，返回 JPEG base64 编码
 pub async fn capture(html: &str) -> Result<String> {
     let html_owned = html.to_string();
+
+    // 排队等待，确保同时只有一个 Chrome 实例在运行
+    let _permit = sem().acquire().await.context("获取截图信号量失败")?;
 
     tokio::task::spawn_blocking(move || capture_sync(&html_owned))
         .await
@@ -34,7 +45,15 @@ fn capture_sync(html: &str) -> Result<String> {
     let tab = browser.new_tab().context("创建标签页失败")?;
 
     // 写入临时文件（data URL 对大 HTML 不稳定）
-    let tmp_path = format!("/tmp/lianbot_smy_{}.html", std::process::id());
+    // 用线程ID+时间戳保证并发时文件名唯一
+    let uniq = format!("{:?}_{}",
+        std::thread::current().id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
+    let tmp_path = format!("/tmp/lianbot_smy_{}.html", uniq);
     std::fs::write(&tmp_path, html).context("写入临时 HTML 失败")?;
 
     let file_url = format!("file://{tmp_path}");
