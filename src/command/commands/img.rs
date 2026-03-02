@@ -11,7 +11,7 @@ pub struct ImgCommand;
 #[async_trait]
 impl Command for ImgCommand {
     fn name(&self) -> &str { "img" }
-    fn help(&self) -> &str { "发送图片  -u/--url <图片链接>（可选）" }
+    fn help(&self) -> &str { "发送图片\n  无参数: 随机ACG图片\n  -u / --url <链接>: 指定图片URL\n\n示例:\n  <img>\n  <img> -u https://example.com/a.png\n  <img> --url=https://example.com/a.png" }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let url = ctx

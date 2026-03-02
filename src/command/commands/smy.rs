@@ -15,7 +15,7 @@ pub struct SmyCommand;
 #[async_trait]
 impl Command for SmyCommand {
     fn name(&self) -> &str { "smy" }
-    fn help(&self) -> &str { "群聊日报  -n <条数>(默认200)  -t <时间>(如30m/2h/1d, 默认12h)" }
+    fn help(&self) -> &str { "群聊日报 - AI分析群聊并生成分析报告\n  -n / --count <条数>: 拉取消息数量(默认200)\n  -t / --time <时间>: 时间范围(默认12h)\n    支持: 30m / 2h / 1d 等\n\n示例:\n  <smy>\n  <smy> -n 100 -t 6h\n  <日报> -t 1d" }
 
     fn aliases(&self) -> Vec<&str> {
         vec!["日报"]
