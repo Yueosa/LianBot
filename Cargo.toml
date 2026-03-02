@@ -33,3 +33,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 async-trait = "0.1"
 once_cell   = "1"
 futures     = "0.3"
+
+[profile.release]
+opt-level      = 2
+codegen-units  = 4
+lto            = false
