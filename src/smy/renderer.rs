@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use super::fetcher::ChatMessage;
 use super::llm::LlmResult;
 use super::statistics::Statistics;
 
@@ -6,20 +9,27 @@ use super::statistics::Statistics;
 // 标准 MTF 粉蓝白配色方案 (Transgender Flag):
 //   淡蓝: #5BCEFA   粉色: #F5A9B8   白色: #FFFFFF
 //   背景: #FFF9FB    文字: #2D3748    次文字: #6B7280
-//   渐变: linear-gradient(135deg, #5BCEFA, #F5A9B8)
+//   纯色为主，不使用蓝粉渐变
 
 pub fn render(
     stats: &Statistics,
     llm: &LlmResult,
     group_name: &str,
+    messages: &[ChatMessage],
 ) -> String {
+    // 构建 nickname → user_id 映射（用于头像 URL）
+    let mut name_to_uid: HashMap<String, i64> = HashMap::new();
+    for msg in messages {
+        name_to_uid.entry(msg.nickname.clone()).or_insert(msg.user_id);
+    }
+
     let date = chrono::Utc::now() + chrono::Duration::hours(8);
     let date_str = date.format("%Y年%m月%d日").to_string();
     let datetime_str = date.format("%Y-%m-%d %H:%M").to_string();
 
     let hourly_chart = render_hourly_chart(&stats.hourly_distribution);
     let topics_html = render_topics(&llm.topics);
-    let titles_html = render_user_titles(&llm.user_titles);
+    let titles_html = render_user_titles(&llm.user_titles, &name_to_uid);
     let quotes_html = render_quotes(&llm.golden_quotes);
 
     format!(
@@ -50,7 +60,7 @@ body {{
 
 /* ── Header ── */
 .header {{
-    background: linear-gradient(135deg, #5BCEFA 0%, #F5A9B8 100%);
+    background: #5BCEFA;
     color: #fff;
     padding: 50px 50px 45px;
     text-align: center;
@@ -90,7 +100,7 @@ body {{
     margin-bottom: 30px;
 }}
 .stat-card {{
-    background: linear-gradient(135deg, #FFF5F8 0%, #FFF9FB 100%);
+    background: #FFF5F8;
     padding: 30px 20px;
     text-align: center;
     border-radius: 16px;
@@ -117,13 +127,13 @@ body {{
 
 /* ── Active Period ── */
 .active-period {{
-    background: linear-gradient(135deg, #5BCEFA 0%, #F5A9B8 100%);
+    background: #F5A9B8;
     color: #fff;
     padding: 35px;
     text-align: center;
     margin: 30px 0;
     border-radius: 18px;
-    box-shadow: 0 6px 20px rgba(245,169,184,0.25);
+    box-shadow: 0 6px 20px rgba(245,169,184,0.2);
 }}
 .active-period .time {{
     font-size: 2.8em;
@@ -173,7 +183,7 @@ body {{
 }}
 .bar {{
     height: 16px;
-    background: linear-gradient(90deg, #5BCEFA, #F5A9B8);
+    background: #5BCEFA;
     border-radius: 8px;
     min-width: 2px;
     transition: width 0.3s;
@@ -219,7 +229,7 @@ body {{
     margin-bottom: 14px;
 }}
 .topic-number {{
-    background: linear-gradient(135deg, #5BCEFA, #91D8FC);
+    background: #5BCEFA;
     color: #fff;
     width: 34px;
     height: 34px;
@@ -230,7 +240,7 @@ body {{
     font-weight: 500;
     margin-right: 14px;
     font-size: 0.9em;
-    box-shadow: 0 3px 10px rgba(245,169,184,0.3);
+    box-shadow: 0 2px 8px rgba(91,206,250,0.3);
     flex-shrink: 0;
 }}
 .topic-title {{
@@ -247,6 +257,10 @@ body {{
     color: #374151;
     line-height: 1.65;
     font-size: 0.95em;
+}}
+.topic-detail .hl-name {{
+    color: #F5A9B8;
+    font-weight: 600;
 }}
 
 /* ── User Titles ── */
@@ -275,15 +289,10 @@ body {{
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #F5A9B8, #FAD4DC);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2em;
-    color: #fff;
+    background: #F5A9B8;
     margin-right: 14px;
     flex-shrink: 0;
-    font-weight: 500;
+    object-fit: cover;
 }}
 .user-name {{
     font-weight: 600;
@@ -298,16 +307,15 @@ body {{
     flex-wrap: wrap;
 }}
 .badge-title {{
-    background: linear-gradient(135deg, #5BCEFA, #91D8FC);
+    background: #5BCEFA;
     color: #fff;
     padding: 4px 14px;
     border-radius: 20px;
     font-size: 0.82em;
     font-weight: 500;
-    box-shadow: 0 2px 8px rgba(245,169,184,0.25);
 }}
 .badge-mbti {{
-    background: linear-gradient(135deg, #F5A9B8, #FAD4DC);
+    background: #F5A9B8;
     color: #fff;
     padding: 4px 10px;
     border-radius: 14px;
@@ -328,7 +336,7 @@ body {{
 
 /* ── Quotes ── */
 .quote-item {{
-    background: linear-gradient(135deg, #FFF5F8 0%, #FFF9FB 100%);
+    background: #FFF5F8;
     padding: 20px 24px;
     margin-bottom: 16px;
     border-radius: 14px;
@@ -365,13 +373,12 @@ body {{
 
 /* ── Footer ── */
 .footer {{
-    background: linear-gradient(135deg, #5BCEFA 0%, #91D8FC 100%);
+    background: #5BCEFA;
     color: #fff;
     text-align: center;
     padding: 30px;
     font-size: 0.9em;
     font-weight: 300;
-    opacity: 0.95;
 }}
 </style>
 </head>
@@ -489,27 +496,33 @@ fn render_topics(topics: &[super::llm::Topic]) -> String {
         .iter()
         .enumerate()
         .map(|(i, t)| {
+            // detail 中的 @名字 替换为高亮 span
+            let detail_escaped = html_escape(&t.detail);
+            let detail_highlighted = highlight_names(&detail_escaped, &t.contributors);
             let contribs = t.contributors.iter().map(|c| html_escape(c)).collect::<Vec<_>>().join("、");
             format!(
                 r#"<div class="topic-item"><div class="topic-header"><div class="topic-number">{num}</div><div class="topic-title">{title}</div></div><div class="topic-contributors">参与者: {contribs}</div><div class="topic-detail">{detail}</div></div>"#,
                 num = i + 1,
                 title = html_escape(&t.topic),
                 contribs = contribs,
-                detail = html_escape(&t.detail),
+                detail = detail_highlighted,
             )
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-fn render_user_titles(titles: &[super::llm::UserTitle]) -> String {
+fn render_user_titles(titles: &[super::llm::UserTitle], name_to_uid: &HashMap<String, i64>) -> String {
     titles
         .iter()
         .map(|u| {
-            let initial = u.name.chars().next().unwrap_or('?');
+            let avatar_url = name_to_uid
+                .get(&u.name)
+                .map(|uid| format!("https://q1.qlogo.cn/g?b=qq&nk={uid}&s=640"))
+                .unwrap_or_default();
             format!(
-                r#"<div class="user-card"><div class="user-card-header"><div class="user-avatar">{initial}</div><div><div class="user-name">{name}</div><div class="user-badges"><span class="badge-title">{title}</span><span class="badge-mbti">{mbti}</span></div></div></div><div class="user-habit">「{habit}」</div><div class="user-reason">{reason}</div></div>"#,
-                initial = initial,
+                r#"<div class="user-card"><div class="user-card-header"><img class="user-avatar" src="{avatar}" alt=""><div><div class="user-name">{name}</div><div class="user-badges"><span class="badge-title">{title}</span><span class="badge-mbti">{mbti}</span></div></div></div><div class="user-habit">「{habit}」</div><div class="user-reason">{reason}</div></div>"#,
+                avatar = avatar_url,
                 name = html_escape(&u.name),
                 title = html_escape(&u.title),
                 mbti = html_escape(&u.mbti),
@@ -534,6 +547,19 @@ fn render_quotes(quotes: &[super::llm::Quote]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// 将 detail 中出现的 @名字 替换为高亮 HTML span
+fn highlight_names(html_text: &str, contributors: &[String]) -> String {
+    let mut result = html_text.to_string();
+    for name in contributors {
+        let escaped_name = html_escape(name);
+        // 替换 @名字 形式
+        let pattern = format!("@{}", escaped_name);
+        let replacement = format!(r#"<span class="hl-name">{}</span>"#, escaped_name);
+        result = result.replace(&pattern, &replacement);
+    }
+    result
 }
 
 fn html_escape(s: &str) -> String {
