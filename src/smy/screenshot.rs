@@ -28,7 +28,11 @@ fn capture_sync(html: &str) -> Result<String> {
     let chrome = find_chrome()?;
     debug!("使用 Chrome: {chrome}");
 
+    // 确保 Chrome 数据目录存在
+    let _ = std::fs::create_dir_all("/tmp/lianbot-chrome");
+
     let output = Command::new(&chrome)
+        .env("HOME", "/tmp/lianbot-chrome")
         .args([
             "--headless=new",
             "--no-sandbox",
