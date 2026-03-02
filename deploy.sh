@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# install.sh — LianBot 服务器一键部署脚本
+# deploy.sh — LianBot 服务器一键部署 / 更新脚本
 #
 # 使用方式（git clone 后在项目根目录运行）：
-#   sudo bash install.sh
+#   sudo bash deploy.sh
+#
+# 脚本会自动检测是否已有安装：
+#   - 首次安装：创建用户、目录、配置文件、systemd 服务并启动
+#   - 更新模式：重新编译、替换二进制、重启服务，保留已有配置
 #
 # 环境变量（可选，用于非交互式部署）：
 #   LIANBOT_USER      运行 lianbot 的系统用户，默认 lianbot
 #   LIANBOT_DIR       工作目录，默认 /opt/lianbot
-#   SKIP_CONFIG       设为 1 则跳过配置文件交互，默认 0
+#   SKIP_CONFIG       设为 1 则跳过配置文件交互（仅首次安装有效），默认 0
 
 set -euo pipefail
 
@@ -20,7 +24,7 @@ error() { echo -e "${RED}[ERR]${NC}   $*" >&2; exit 1; }
 
 # ── 权限检查 ──────────────────────────────────────────────────────────────────
 
-[[ $EUID -eq 0 ]] || error "请使用 sudo 运行此脚本: sudo bash install.sh"
+[[ $EUID -eq 0 ]] || error "请使用 sudo 运行此脚本: sudo bash deploy.sh"
 
 # ── 变量 ──────────────────────────────────────────────────────────────────────
 
@@ -34,6 +38,15 @@ BINARY_DST="$LIANBOT_DIR/lianbot"
 # 脚本必须在项目根目录运行
 [[ -f "Cargo.toml" ]] || error "请在 LianBot 项目根目录运行此脚本"
 
+# ── 自动检测模式 ───────────────────────────────────────────────────────────────
+
+if [[ -f "$BINARY_DST" || -f "$SERVICE_FILE" ]]; then
+    MODE="update"
+else
+    MODE="install"
+fi
+info "检测到运行模式：$MODE"
+
 # ── 依赖检查 ──────────────────────────────────────────────────────────────────
 
 info "检查依赖..."
@@ -45,6 +58,34 @@ command -v systemctl &>/dev/null || error "未找到 systemctl，此脚本仅支
 info "编译 release 二进制..."
 cargo build --release
 info "编译完成: $BINARY_SRC"
+
+# ── 更新模式：替换二进制并重启服务后直接退出 ──────────────────────────────────
+
+if [[ "$MODE" == "update" ]]; then
+    info "停止服务（如已运行）..."
+    systemctl stop lianbot 2>/dev/null || true
+
+    info "替换二进制 $BINARY_DST ..."
+    cp "$BINARY_SRC" "$BINARY_DST"
+    chmod 755 "$BINARY_DST"
+
+    info "重载 systemd 并重启服务..."
+    systemctl daemon-reload
+    systemctl restart lianbot
+
+    echo ""
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}  LianBot 更新完成！${NC}"
+    echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo "  服务状态:  systemctl status lianbot"
+    echo "  实时日志:  journalctl -u lianbot -f"
+    echo "  配置文件:  $LIANBOT_DIR/config.toml"
+    echo ""
+    info "当前服务状态:"
+    systemctl status lianbot --no-pager || true
+    exit 0
+fi
 
 # ── 创建系统用户 ──────────────────────────────────────────────────────────────
 
