@@ -24,7 +24,8 @@ LianBot 命令列表
 
 ── 复杂命令（格式 <名称> [参数]）──
   <img>    发送图片
-    -u / --url <URL>   图片链接（可选，省略则随机）
+    无参数  随机发送ACG图片
+    -u / --url <URL>   图片链接
 
 参数格式示例：
   <img> -u https://example.com/a.png
