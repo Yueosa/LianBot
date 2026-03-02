@@ -13,6 +13,8 @@ pub struct Config {
     pub server: ServerConfig,
     pub napcat: NapcatConfig,
     pub bot: BotConfig,
+    /// LLM 配置（可选，缺少时 smy 命令将跳过 AI 分析）
+    pub llm: Option<LlmConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,9 +41,23 @@ pub struct BotConfig {
     pub whitelist: Vec<i64>,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct LlmConfig {
+    /// OpenAI 兼容 API 地址
+    #[serde(default = "default_llm_url")]
+    pub api_url: String,
+    /// API Key
+    pub api_key: String,
+    /// 模型名称
+    #[serde(default = "default_llm_model")]
+    pub model: String,
+}
+
 // ── 默认值 ─────────────────────────────────────────────────────────────────────
 fn default_host() -> String { "0.0.0.0".to_string() }
 fn default_port() -> u16 { 8080 }
+fn default_llm_url() -> String { "https://api.deepseek.com/v1".to_string() }
+fn default_llm_model() -> String { "deepseek-chat".to_string() }
 
 // ── 加载逻辑 ───────────────────────────────────────────────────────────────────
 
