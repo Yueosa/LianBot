@@ -69,7 +69,7 @@ impl Command for SmyCommand {
         let llm_result = llm_result.unwrap_or_default();
 
         // ── S4: 渲染 HTML ────────────────────────────────────────────────────
-        let html = smy::renderer::render(&stats, &llm_result, time_str);
+        let html = smy::renderer::render(&stats, &llm_result, time_str, &messages);
 
         // ── S5: 截图 ─────────────────────────────────────────────────────────
         let base64_img = match smy::screenshot::capture(&html).await {
