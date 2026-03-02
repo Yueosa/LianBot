@@ -115,7 +115,7 @@ impl Dispatcher {
             }
             None => {
                 debug!("未知简单命令: {name}");
-                Ok(())
+                self.api.send_text(group_id, &format!("❓ 未知命令: {name}，输入 /help 查看命令列表")).await
             }
         }
     }
@@ -131,12 +131,17 @@ impl Dispatcher {
     ) -> anyhow::Result<()> {
         match self.registry.get_advanced(&name) {
             Some(cmd) => {
+                // 拦截 -h / --help → 显示命令帮助
+                if params.contains_key("-h") || params.contains_key("--help") {
+                    let help = format!("<{}> {}", cmd.name(), cmd.help());
+                    return self.api.send_text(group_id, &help).await;
+                }
                 let ctx = self.build_ctx(group_id, user_id, params);
                 cmd.execute(ctx).await
             }
             None => {
                 debug!("未知复杂命令: {name}");
-                Ok(())
+                self.api.send_text(group_id, &format!("❓ 未知命令: <{name}>，输入 /help 查看命令列表")).await
             }
         }
     }
