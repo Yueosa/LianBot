@@ -55,7 +55,7 @@ fn capture_sync(html: &str) -> Result<String> {
     let dom_output = cmd1.output().context("Chrome dump-dom 失败")?;
     let dom_str = String::from_utf8_lossy(&dom_output.stdout);
     let height = extract_title_height(&dom_str).unwrap_or(4000);
-    let height = height.clamp(600, 20000) + 40; // +40px 底部留白
+    let height = height.clamp(600, 20000);
     debug!("测量内容高度: {height}px");
 
     // ── 第二步：用精确高度截图 ──
