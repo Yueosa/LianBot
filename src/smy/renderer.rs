@@ -44,7 +44,6 @@ r#"<!DOCTYPE html>
 body {{
     font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: #5BCEFA;
-    min-height: 100vh;
     padding: 30px;
     line-height: 1.6;
     color: #2D3748;
