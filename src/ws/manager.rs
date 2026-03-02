@@ -102,9 +102,14 @@ impl WsManager {
         }
 
         if let Some(rest) = text.strip_prefix("stalk_result:") {
-            if let Some((group_str, img_b64)) = rest.split_once(':') {
+            if let Some((group_str, img_data)) = rest.split_once(':') {
                 if let Ok(group_id) = group_str.parse::<i64>() {
-                    let file = format!("base64://{img_b64}");
+                    // 兼容 data URL 格式 "data:image/jpeg;base64,<data>" 和裸 base64
+                    let pure_b64 = img_data
+                        .find(";base64,")
+                        .map(|i| &img_data[i + 8..])
+                        .unwrap_or(img_data);
+                    let file = format!("base64://{pure_b64}");
                     if let Err(e) = api.send_image(group_id, &file).await {
                         warn!("发送截图失败: {e}");
                     }
