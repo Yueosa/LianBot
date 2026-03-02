@@ -35,26 +35,85 @@ pub fn parse_duration(s: &str) -> Option<i64> {
 
 // ── 消息拉取 ──────────────────────────────────────────────────────────────────
 
-/// 从 NapCat 拉取历史消息并结构化
+const PAGE_SIZE: u32 = 100;
+
+/// 从 NapCat 拉取历史消息并结构化。
+/// - 若提供 `time_filter`（如 "1d" / "6h"），则分页拉取直到覆盖整个时间段，忽略 `count` 限制。
+/// - 若只提供 `count`（无 `time_filter`），则拉取最近 `count` 条。
 pub async fn fetch(
     api: &ApiClient,
     group_id: i64,
     count: u32,
     time_filter: Option<&str>,
 ) -> Result<Vec<ChatMessage>> {
-    let raw = api
-        .get_group_msg_history(group_id, count)
-        .await
-        .context("拉取群消息历史失败")?;
-
     let now = chrono::Utc::now().timestamp();
     let cutoff = time_filter
         .and_then(parse_duration)
         .map(|secs| now - secs);
 
+    // 无时间过滤：直接拉取最近 count 条
+    if cutoff.is_none() {
+        let raw = api
+            .get_group_msg_history(group_id, count)
+            .await
+            .context("拉取群消息历史失败")?;
+        return Ok(parse_raw_messages(&raw, None));
+    }
+
+    // 有时间过滤：分页拉取，直到最早一条消息超出时间范围
+    let cutoff = cutoff.unwrap();
+    let mut all: Vec<ChatMessage> = Vec::new();
+    let mut oldest_seq: Option<i64> = None;
+
+    loop {
+        let raw = api
+            .get_group_msg_history_paged(group_id, PAGE_SIZE, oldest_seq)
+            .await
+            .context("分页拉取群消息历史失败")?;
+
+        if raw.is_empty() {
+            break;
+        }
+
+        // 最早一条消息的时间（批次按时间升序，第一条最早）
+        let first_time = raw
+            .first()
+            .and_then(|m| m.get("time").and_then(Value::as_i64))
+            .unwrap_or(now);
+
+        // 解析本批次消息（只保留 cutoff 之后的）
+        let parsed = parse_raw_messages(&raw, Some(cutoff));
+        all.extend(parsed);
+
+        // 最早一条已早于 cutoff，无需再翻页
+        if first_time < cutoff {
+            break;
+        }
+
+        // 批次不足，说明已到消息记录开头
+        if raw.len() < PAGE_SIZE as usize {
+            break;
+        }
+
+        // 取最早一条的 message_seq 作为下一页的游标
+        oldest_seq = raw
+            .first()
+            .and_then(|m| m.get("message_seq").and_then(Value::as_i64));
+        if oldest_seq.is_none() {
+            break;
+        }
+    }
+
+    // 按时间升序排列
+    all.sort_by_key(|m| m.time);
+    Ok(all)
+}
+
+/// 将 NapCat 返回的原始 JSON 消息列表解析为 ChatMessage
+fn parse_raw_messages(raw: &[serde_json::Value], cutoff: Option<i64>) -> Vec<ChatMessage> {
     let mut messages = Vec::with_capacity(raw.len());
 
-    for msg in &raw {
+    for msg in raw {
         // 跳过 Bot 自身发的消息
         if msg.get("post_type").and_then(Value::as_str) == Some("message_sent") {
             continue;
@@ -99,7 +158,7 @@ pub async fn fetch(
         });
     }
 
-    Ok(messages)
+    messages
 }
 
 /// 从消息段数组提取文本、是否含图片、表情计数
