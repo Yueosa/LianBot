@@ -183,8 +183,19 @@ pub async fn analyze(messages: &[ChatMessage], config: &LlmConfig) -> Result<Llm
 
     let mut result = LlmResult::default();
 
-    // 第一次调用：话题总结
-    match call_llm(config, &build_topics_prompt(truncated)).await {
+    // 两次 LLM 调用并行执行，大幅减少等待时间
+    let topics_prompt = build_topics_prompt(truncated);
+    let titles_prompt = build_titles_prompt(truncated);
+    let config1 = config.clone();
+    let config2 = config.clone();
+
+    let (topics_res, titles_res) = tokio::join!(
+        call_llm(&config1, &topics_prompt),
+        call_llm(&config2, &titles_prompt),
+    );
+
+    // 解析话题结果
+    match topics_res {
         Ok(raw) => {
             let cleaned = clean_json(&raw);
             match serde_json::from_str::<Vec<Topic>>(cleaned) {
@@ -195,11 +206,10 @@ pub async fn analyze(messages: &[ChatMessage], config: &LlmConfig) -> Result<Llm
         Err(e) => warn!("LLM 话题分析失败: {e}"),
     }
 
-    // 第二次调用：称号 + 金句
-    match call_llm(config, &build_titles_prompt(truncated)).await {
+    // 解析称号+金句结果
+    match titles_res {
         Ok(raw) => {
             let cleaned = clean_json(&raw);
-            // 解析外层 JSON 对象
             match serde_json::from_str::<serde_json::Value>(cleaned) {
                 Ok(v) => {
                     if let Some(arr) = v.get("user_titles") {
