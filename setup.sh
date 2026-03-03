@@ -194,6 +194,24 @@ cfg_arr() {
     ' config.toml
 }
 
+# plg_val <section> <key> <fallback>  →  从 plugins.toml 读标量值（去引号）
+plg_val() {
+    local section="$1" key="$2" fallback="$3"
+    if [[ ! -f "plugins.toml" ]]; then echo "$fallback"; return; fi
+    local val
+    val=$(awk -v sec="[${section}]" -v k="${key}" '
+        $0 == sec       { in_sec=1; next }
+        /^\[/           { in_sec=0 }
+        in_sec && $1==k {
+            sub(/[^=]+=[ \t]*/, "")
+            gsub(/["'"'"']/, "")
+            sub(/[ \t]+$/, "")
+            print; exit
+        }
+    ' plugins.toml)
+    echo "${val:-$fallback}"
+}
+
 gen_config() {
     load_features
     clear
@@ -361,6 +379,8 @@ gen_plugins() {
     sep
     echo ""
 
+    [[ -f "plugins.toml" ]] && info "检测到已有 plugins.toml，将以当前值作为默认，直接回车即保留原值。" && echo ""
+
     local has_smy=0  has_alive=0
     [[ ${FEAT_SELECTED[cmd-smy]}   -eq 1 ]] && has_smy=1
     [[ ${FEAT_SELECTED[cmd-alive]} -eq 1 ]] && has_alive=1
@@ -376,16 +396,21 @@ gen_plugins() {
 
     if [[ $has_smy -eq 1 ]]; then
         echo "  [smy]  群聊日报插件配置"
-        ask SMY_COUNT  "默认拉取消息条数（10-2000）" "200"
-        ask SMY_WIDTH  "截图宽度（像素）" "1200"
+        ask SMY_COUNT  "默认拉取消息条数（10-2000）" "$(plg_val smy default_count '200')"
+        ask SMY_WIDTH  "截图宽度（像素）"             "$(plg_val smy screenshot_width '1200')"
         echo ""
+        # 检测 plugins.toml 里是否已有 [smy.llm]
         local ENABLE_LLM=0 LLM_URL="" LLM_KEY="" LLM_MODEL=""
-        read -rp "  是否启用 AI 总结（smy.llm）？(y/N): " _llm_confirm
-        if [[ "${_llm_confirm,,}" == "y" ]]; then
+        local _llm_key; _llm_key=$(plg_val 'smy.llm' api_key "")
+        local _llm_default="N"
+        [[ -n "$_llm_key" ]] && _llm_default="Y（已配置）"
+        read -rp "  是否启用 AI 总结（smy.llm）？(y/N) [${_llm_default}]: " _llm_confirm
+        # 若已有配置且用户直接回车，视为继续启用
+        if [[ "${_llm_confirm,,}" == "y" ]] || [[ -z "$_llm_confirm" && -n "$_llm_key" ]]; then
             ENABLE_LLM=1
-            ask LLM_URL   "OpenAI 兼容 API 地址" "https://api.deepseek.com/v1"
-            ask LLM_KEY   "API Key" ""
-            ask LLM_MODEL "模型名称" "deepseek-chat"
+            ask LLM_URL   "OpenAI 兼容 API 地址" "$(plg_val 'smy.llm' api_url 'https://api.deepseek.com/v1')"
+            ask LLM_KEY   "API Key"               "$(plg_val 'smy.llm' api_key '')"
+            ask LLM_MODEL "模型名称"               "$(plg_val 'smy.llm' model  'deepseek-chat')"
         fi
         echo ""
         CONTENT+=$(cat <<TOML
@@ -411,8 +436,8 @@ TOML
 
     if [[ $has_alive -eq 1 ]]; then
         echo "  [alive]  存活探测插件配置"
-        ask ALIVE_URL     "探测 API 地址" "https://alive.example.com/api/status"
-        ask ALIVE_TIMEOUT "超时秒数" "5"
+        ask ALIVE_URL     "探测 API 地址" "$(plg_val alive api_url 'https://alive.example.com/api/status')"
+        ask ALIVE_TIMEOUT "超时秒数"     "$(plg_val alive timeout_secs '5')"
         echo ""
         CONTENT+=$(cat <<TOML
 
