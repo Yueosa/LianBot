@@ -299,9 +299,9 @@ TOML
         echo "  已选 core-log-file，配置日志文件目录（留空则仅 stdout）"
         local _ldir; _ldir=$(cfg_val log log_dir "")
         if [[ -n "$_ldir" ]]; then
-            ask LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "$_ldir"
+            ask LOG_DIR "log_dir（如 /opt/lianbot/logs）" "$_ldir"
         else
-            ask_optional LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "仅 stdout"
+            ask_optional LOG_DIR "log_dir（如 /opt/lianbot/logs）" "仅 stdout"
         fi
         if [[ -n "$LOG_DIR" ]]; then
             ask LOG_MAXDAYS "日志保留天数" "$(cfg_val log max_days '30')"
