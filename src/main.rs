@@ -17,7 +17,6 @@ use axum::extract::WebSocketUpgrade;
 #[cfg(feature = "core-ws")]
 use axum::routing::get;
 use tracing::info;
-use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::{
     core::{
@@ -42,18 +41,13 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 日志（RUST_LOG 环境变量控制级别，默认 info）
-    fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
-
-    // 加载配置
+    // 优先加载配置，再初始化日志（日志级别/目录由配置决定）
     core::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
     core::plugin_config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
     let cfg = core::config::Config::global();
+
+    // 初始化日志（stdout 始终开启；log_dir 有值时额外写文件）
+    let _log_guard = core::logger::init(&cfg.log);
     info!("配置加载成功");
     info!("  NapCat URL : {}", cfg.napcat.url);
     info!("  服务监听   : {}:{}", cfg.server.host, cfg.server.port);

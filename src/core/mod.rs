@@ -2,6 +2,7 @@ pub mod api;
 pub mod config;
 pub mod plugin_config;
 pub mod error;
+pub mod logger;
 pub mod parser;
 pub mod dispatcher;
 pub mod pool;
