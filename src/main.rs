@@ -19,6 +19,7 @@ use crate::{
     core::{
         api::ApiClient,
         dispatcher::Dispatcher,
+        pool::cache::MemoryPool,
         registry::CommandRegistry,
         typ::OneBotEvent,
         ws::WsManager,
@@ -62,7 +63,8 @@ async fn main() -> anyhow::Result<()> {
     ));
     let ws = WsManager::new();
     let registry = Arc::new(CommandRegistry::default());
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry));
+    let pool = MemoryPool::new(&cfg.pool);
+    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool));
 
     let state = AppState {
         dispatcher,
