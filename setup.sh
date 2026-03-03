@@ -542,12 +542,12 @@ show_logs() {
     if [[ -n "$log_dir" ]]; then
         local today
         today=$(date -u +%Y-%m-%d)   # tracing-appender 用 UTC 命名文件
-        local log_file="${log_dir}/lianbot.log.${today}"
+        local log_file="${log_dir}/lianbot.log.utc.${today}"
 
         # 找不到今日文件时，用目录里最新的一个
         if [[ ! -f "$log_file" ]]; then
             local latest
-            latest=$(ls -1t "${log_dir}"/lianbot.log.* 2>/dev/null | head -1)
+            latest=$(ls -1t "${log_dir}"/lianbot.log.utc.* 2>/dev/null | head -1)
             if [[ -n "$latest" ]]; then
                 warn "今日日志尚未生成，显示最近文件：$latest"
                 echo ""
