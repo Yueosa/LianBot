@@ -23,8 +23,6 @@ whitelist = [123456789, 987654321]
 # 用户黑名单：永远忽略这些 QQ 号（user_whitelist 非空时此项无效）
 # user_blacklist = [222222222, 333333333]
 
-# ── LLM 配置（用于 <smy> 命令的 AI 分析）───────────────────────────────────
-[llm]
-api_url = "https://api.deepseek.com/v1"   # OpenAI 兼容接口
-api_key = "sk-your-deepseek-key"            # DeepSeek API Key
-model   = "deepseek-chat"                   # 模型名称
+# ── LLM 配置 ─────────────────────────────────────────────────────────────────
+# LLM 及其他插件私有配置已迁移至 plugins.toml
+# 请参考 plugins.example.toml

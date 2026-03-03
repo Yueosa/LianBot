@@ -13,8 +13,6 @@ pub struct Config {
     pub server: ServerConfig,
     pub napcat: NapcatConfig,
     pub bot: BotConfig,
-    /// LLM 配置（可选，缺少时 smy 命令将跳过 AI 分析）
-    pub llm: Option<LlmConfig>,
 }
 
 #[derive(Debug, Deserialize)]

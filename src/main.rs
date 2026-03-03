@@ -48,6 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
     // 加载配置
     core::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+    core::plugin_config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
     let cfg = core::config::Config::global();
     info!("配置加载成功");
     info!("  NapCat URL : {}", cfg.napcat.url);

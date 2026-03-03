@@ -1,5 +1,6 @@
 pub mod api;
 pub mod config;
+pub mod plugin_config;
 pub mod error;
 pub mod parser;
 pub mod dispatcher;

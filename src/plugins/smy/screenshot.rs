@@ -2,7 +2,6 @@ use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use tracing::debug;
 
-const SCREENSHOT_WIDTH: u32 = 1200;
 const MEASURE_VIEWPORT_HEIGHT: u32 = 2000;
 const MIN_SCREENSHOT_HEIGHT: u32 = 600;
 const MAX_SCREENSHOT_HEIGHT: u32 = 20_000;
@@ -12,14 +11,15 @@ const HEIGHT_SAFETY_PADDING: u32 = 24;
 
 /// 将 HTML 字符串渲染为截图，返回 PNG base64 编码。
 /// 依赖系统安装的 Chrome / Chromium（通过 CLI `--screenshot` 模式）。
-pub async fn capture(html: &str) -> Result<String> {
+/// `width` 为截图宽度（像素），通常取 `SmyPluginConfig::screenshot_width`。
+pub async fn capture(html: &str, width: u32) -> Result<String> {
     let html_owned = html.to_string();
-    tokio::task::spawn_blocking(move || capture_sync(&html_owned))
+    tokio::task::spawn_blocking(move || capture_sync(&html_owned, width))
         .await
         .context("截图任务 panic")?
 }
 
-fn capture_sync(html: &str) -> Result<String> {
+fn capture_sync(html: &str, width: u32) -> Result<String> {
     use std::process::Command;
 
     let ts = std::time::SystemTime::now()
@@ -60,7 +60,7 @@ fn capture_sync(html: &str) -> Result<String> {
         "--virtual-time-budget=3000",
         "--dump-dom",
     ]);
-    cmd1.arg(format!("--window-size={SCREENSHOT_WIDTH},{MEASURE_VIEWPORT_HEIGHT}"));
+    cmd1.arg(format!("--window-size={width},{MEASURE_VIEWPORT_HEIGHT}"));
     cmd1.arg(format!("file://{html_path}"));
 
     let dom_output = cmd1.output().context("Chrome dump-dom 失败")?;
@@ -73,7 +73,7 @@ fn capture_sync(html: &str) -> Result<String> {
         measured_height,
         target_height,
         height,
-        SCREENSHOT_WIDTH
+        width
     );
 
     // ── 第二步：用精确高度截图 ──
@@ -86,7 +86,7 @@ fn capture_sync(html: &str) -> Result<String> {
         "--virtual-time-budget=5000",
     ]);
     cmd2.arg(format!("--screenshot={img_path}"));
-    cmd2.arg(format!("--window-size={SCREENSHOT_WIDTH},{height}"));
+    cmd2.arg(format!("--window-size={width},{height}"));
     cmd2.arg(format!("file://{html_path}"));
 
     let output = cmd2.output().context("Chrome 截图失败")?;
@@ -105,7 +105,7 @@ fn capture_sync(html: &str) -> Result<String> {
     let size_kb = img_data.len() / 1024;
     debug!(
         "截图完成: {size_kb}KB PNG ({}x{}), measured={}px",
-        SCREENSHOT_WIDTH,
+        width,
         height,
         measured_height
     );
@@ -154,7 +154,7 @@ mod tests {
 
         let html = r#"<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body style=\"margin:0;padding:30px;background:#5BCEFA;\"><div style=\"width:1200px;margin:0 auto;background:#fff;border-radius:16px;padding:24px;\"><h1>smy smoke</h1><p>hello screenshot</p><div style=\"height:1200px;background:#f8fafc;\"></div><footer style=\"margin-top:12px;background:#5BCEFA;color:#fff;padding:12px;\">footer</footer></div></body></html>"#;
 
-        let b64 = capture_sync(html).expect("capture_sync should succeed");
+        let b64 = capture_sync(html, 1200).expect("capture_sync should succeed");
         assert!(!b64.is_empty(), "base64 output should not be empty");
 
         let bytes = B64.decode(b64).expect("base64 should decode");

@@ -4,6 +4,39 @@ pub mod llm;
 pub mod renderer;
 pub mod screenshot;
 
+use serde::Deserialize;
+
+use crate::core::config::LlmConfig;
+
+/// smy 插件配置，从 `plugins.toml` 的 `[smy]` 段加载。
+/// 所有字段均有默认值，`plugins.toml` 不存在时也可正常运行。
+#[derive(Debug, Deserialize)]
+pub struct SmyPluginConfig {
+    /// 默认拉取消息条数（10-2000）
+    #[serde(default = "SmyPluginConfig::default_count")]
+    pub default_count: u32,
+    /// 截图宽度（像素）
+    #[serde(default = "SmyPluginConfig::default_screenshot_width")]
+    pub screenshot_width: u32,
+    /// LLM 配置（可选，缺少时 -a/--ai 报错提示未配置）
+    pub llm: Option<LlmConfig>,
+}
+
+impl SmyPluginConfig {
+    fn default_count() -> u32 { 200 }
+    fn default_screenshot_width() -> u32 { 1200 }
+}
+
+impl Default for SmyPluginConfig {
+    fn default() -> Self {
+        Self {
+            default_count: SmyPluginConfig::default_count(),
+            screenshot_width: SmyPluginConfig::default_screenshot_width(),
+            llm: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod preview_tests {
 	use std::fs;
@@ -118,7 +151,7 @@ mod preview_tests {
 		let html_path = format!("{out_dir}/smy_preview.html");
 		fs::write(&html_path, &html).expect("write html should succeed");
 
-		let b64 = super::screenshot::capture(&html)
+		let b64 = super::screenshot::capture(&html, 1200)
 			.await
 			.expect("capture should succeed");
 		let png = B64.decode(b64).expect("decode base64 should succeed");

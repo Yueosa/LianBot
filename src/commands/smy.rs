@@ -3,10 +3,9 @@ use async_trait::async_trait;
 use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
+use crate::core::plugin_config::PluginConfig;
 use crate::plugins::smy;
-
-/// 默认拉取消息条数
-const DEFAULT_COUNT: u32 = 200;
+use crate::plugins::smy::SmyPluginConfig;
 
 pub struct SmyCommand;
 
@@ -28,14 +27,15 @@ impl Command for SmyCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let group_id = ctx.group_id;
+        let cfg = PluginConfig::global().get_section::<SmyPluginConfig>("smy");
 
         // AI 总结开关：默认关闭，用户显式传 -a/--ai 才启用
         let with_ai = ["-a", "--ai"].iter().any(|k| ctx.params.contains_key(*k));
 
         // 仅在启用 AI 时检查 LLM 配置
         let llm_config = if with_ai {
-            match &ctx.config.llm {
-                Some(c) => Some(c),
+            match &cfg.llm {
+                Some(c) => Some(c.clone()),
                 None => {
                     return ctx.api.send_text(group_id, "❌ 未配置 LLM，无法进行 AI 总结（可去掉 -a 使用纯统计模式）").await;
                 }
@@ -48,7 +48,7 @@ impl Command for SmyCommand {
         let count: u32 = ctx
             .get(&["-n", "--count"])
             .and_then(|s| s.parse().ok())
-            .unwrap_or(DEFAULT_COUNT);
+            .unwrap_or(cfg.default_count);
 
         let time_opt = ctx.get(&["-t", "--time"]);
 
@@ -81,7 +81,7 @@ impl Command for SmyCommand {
         // ── S3: LLM 分析（可选） ──────────────────────────────────────────────
         let llm_result = if let Some(config) = llm_config {
             info!("[S3] 请求 LLM 分析...");
-            let llm_result = smy::llm::analyze(&messages, config).await;
+            let llm_result = smy::llm::analyze(&messages, &config).await;
 
             if let Err(ref e) = llm_result {
                 warn!("[S3] LLM 分析失败，将使用空结果: {e:#}");
@@ -101,7 +101,7 @@ impl Command for SmyCommand {
 
         // ── S5: 截图 ─────────────────────────────────────────────────────────
         info!("[S5] 调用 Chrome 截图...");
-        let base64_img = match smy::screenshot::capture(&html).await {
+        let base64_img = match smy::screenshot::capture(&html, cfg.screenshot_width).await {
             Ok(b) => {
                 info!("[S5] 截图完成: {}KB", b.len() / 1024);
                 b

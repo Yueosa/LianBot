@@ -1,0 +1,19 @@
+# LianBot 插件配置文件
+# 复制本文件为 plugins.toml 后按需修改
+# 所有选项均为可选，缺省时使用内置默认值
+
+# ── smy 命令（群聊日报）──────────────────────────────────────────────────────
+[smy]
+default_count    = 200    # 默认拉取消息条数（10-2000）
+screenshot_width = 1200   # 截图宽度（像素）
+
+# LLM 配置（可选，缺少时 -a/--ai 参数将报错提示未配置）
+[smy.llm]
+api_url = "https://api.deepseek.com/v1"   # OpenAI 兼容接口
+api_key = "sk-your-deepseek-key"           # API Key
+model   = "deepseek-chat"                  # 模型名称
+
+# ── alive 命令（设备在线状态）────────────────────────────────────────────────
+[alive]
+api_url      = "https://alive.yeastar.xin/api/status"   # 接口地址
+timeout_secs = 5                                         # 请求超时（秒）
