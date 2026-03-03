@@ -13,6 +13,8 @@ pub struct Config {
     pub server: ServerConfig,
     pub napcat: NapcatConfig,
     pub bot: BotConfig,
+    #[serde(default)]
+    pub pool: PoolConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,11 +60,32 @@ pub struct LlmConfig {
     pub model: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PoolConfig {
+    /// 每个群的内存缓冲最大消息条数，默认 2000
+    #[serde(default = "default_pool_capacity")]
+    pub per_group_capacity: usize,
+    /// 内存淘汰阈值（秒），超过此时间的消息被清理，默认 1 天
+    #[serde(default = "default_pool_evict")]
+    pub evict_after_secs: i64,
+}
+
+impl Default for PoolConfig {
+    fn default() -> Self {
+        Self {
+            per_group_capacity: default_pool_capacity(),
+            evict_after_secs: default_pool_evict(),
+        }
+    }
+}
+
 // ── 默认值 ─────────────────────────────────────────────────────────────────────
 fn default_host() -> String { "0.0.0.0".to_string() }
 fn default_port() -> u16 { 8080 }
 fn default_llm_url() -> String { "https://api.deepseek.com/v1".to_string() }
 fn default_llm_model() -> String { "deepseek-chat".to_string() }
+fn default_pool_capacity() -> usize { 2000 }
+fn default_pool_evict() -> i64 { 86400 }
 
 // ── 加载逻辑 ───────────────────────────────────────────────────────────────────
 

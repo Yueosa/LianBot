@@ -8,6 +8,7 @@ use crate::{
         api::ApiClient,
         config::Config,
         parser::{CommandParser, ParsedCommand, ParamValue},
+        pool::{MessagePool, Pool, PoolMessage},
         registry::CommandRegistry,
         typ::{MessageEvent, OneBotEvent},
         ws::WsManager,
@@ -27,6 +28,7 @@ pub struct Dispatcher {
     api: Arc<ApiClient>,
     ws: Arc<WsManager>,
     registry: Arc<CommandRegistry>,
+    pool: Arc<Pool>,
 }
 
 impl Dispatcher {
@@ -35,8 +37,9 @@ impl Dispatcher {
         api: Arc<ApiClient>,
         ws: Arc<WsManager>,
         registry: Arc<CommandRegistry>,
+        pool: Arc<Pool>,
     ) -> Self {
-        Self { config, api, ws, registry }
+        Self { config, api, ws, registry, pool }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
@@ -98,7 +101,12 @@ impl Dispatcher {
             return Ok(()); // 纯图片/语音等，跳过
         }
 
-        // 4. 尝试解析命令
+        // 4. 写入消息池（在路由前）
+        if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
+            self.pool.push(pool_msg).await;
+        }
+
+        // 5. 尝试解析命令
         match CommandParser::parse(&text) {
             Some(ParsedCommand::Simple { name, trailing }) => {
                 self.dispatch_simple(group_id, event.user_id, name, trailing).await
@@ -219,6 +227,7 @@ impl Dispatcher {
             ws: self.ws.clone(),
             config: self.config,
             registry: self.registry.clone(),
+            pool: self.pool.clone(),
         }
     }
 }
