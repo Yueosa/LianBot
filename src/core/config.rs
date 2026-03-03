@@ -96,9 +96,11 @@ impl Default for PoolConfig {
 /// 日志配置
 #[derive(Debug, Deserialize)]
 pub struct LogConfig {
-    /// 日志文件目录（相对或绝对路径），不设置则仅输出到 stdout / journald
+    /// 日志文件目录 — 仅编译时启用 core-log-file 后生效
+    #[cfg(feature = "core-log-file")]
     pub log_dir: Option<String>,
-    /// 保留天数（启动时清理超期日志文件），默认 30
+    /// 保留天数（启动时清理超期日志文件），默认 30 — 仅 core-log-file
+    #[cfg(feature = "core-log-file")]
     #[serde(default = "default_log_max_days")]
     pub max_days: u32,
     /// 日志级别（trace/debug/info/warn/error），默认 info
@@ -109,7 +111,9 @@ pub struct LogConfig {
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
+            #[cfg(feature = "core-log-file")]
             log_dir:  None,
+            #[cfg(feature = "core-log-file")]
             max_days: default_log_max_days(),
             level:    default_log_level(),
         }
