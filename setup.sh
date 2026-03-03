@@ -396,12 +396,12 @@ run_deploy() {
         read -rp "  按 Enter 返回..." _
         return
     fi
-    echo "  将运行：sudo bash deploy.sh"
+    echo "  将运行：sudo env PATH=\"$PATH\" bash deploy.sh"
     echo ""
     read -rp "  确认继续？(y/N): " confirm
     [[ "${confirm,,}" == "y" ]] || return
     echo ""
-    sudo bash deploy.sh
+    sudo env PATH="$PATH" bash deploy.sh
     echo ""
     read -rp "  按 Enter 返回主菜单..." _
 }

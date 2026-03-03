@@ -43,6 +43,20 @@ done
 
 [[ $EUID -eq 0 ]] || error "请使用 sudo 运行此脚本: sudo bash deploy.sh"
 
+# ── 注入 cargo PATH（sudo 会丢弃用户的 ~/.cargo/bin）────────────────────────────
+
+# 优先使用调用方通过 SUDO_USER 找到的 cargo
+if ! command -v cargo &>/dev/null; then
+    _cargo_candidates=(
+        "/root/.cargo/bin"
+        "${SUDO_USER:+$(getent passwd "$SUDO_USER" | cut -d: -f6)/.cargo/bin}"
+        "/usr/local/cargo/bin"
+    )
+    for _p in "${_cargo_candidates[@]}"; do
+        [[ -n "$_p" && -x "$_p/cargo" ]] && { export PATH="$_p:$PATH"; break; }
+    done
+fi
+
 # ── 变量 ──────────────────────────────────────────────────────────────────────
 
 LIANBOT_USER="${LIANBOT_USER:-lianbot}"
