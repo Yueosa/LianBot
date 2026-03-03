@@ -96,16 +96,16 @@ impl CommandRegistry {
     }
 }
 
-/// 构建并注册所有内置命令
+/// 构建并注册所有内置命令（仅注册已启用 feature 的命令）
 impl Default for CommandRegistry {
     fn default() -> Self {
         let mut registry = Self::new();
-        registry.register(Arc::new(commands::ping::PingCommand));
-        registry.register(Arc::new(commands::help::HelpCommand));
-        registry.register(Arc::new(commands::img::ImgCommand));
-        registry.register(Arc::new(commands::stalk::StalkCommand));
-        registry.register(Arc::new(commands::smy::SmyCommand));
-        registry.register(Arc::new(commands::alive::AliveCommand));
+        #[cfg(feature = "cmd-ping")]  registry.register(Arc::new(commands::ping::PingCommand));
+        #[cfg(feature = "cmd-help")]  registry.register(Arc::new(commands::help::HelpCommand));
+        #[cfg(feature = "cmd-img")]   registry.register(Arc::new(commands::img::ImgCommand));
+        #[cfg(feature = "cmd-stalk")] registry.register(Arc::new(commands::stalk::StalkCommand));
+        #[cfg(feature = "cmd-smy")]   registry.register(Arc::new(commands::smy::SmyCommand));
+        #[cfg(feature = "cmd-alive")] registry.register(Arc::new(commands::alive::AliveCommand));
         registry
     }
 }

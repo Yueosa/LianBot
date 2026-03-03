@@ -6,12 +6,16 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    extract::{State, WebSocketUpgrade},
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, post},
+    routing::post,
     Json,
 };
+#[cfg(feature = "core-ws")]
+use axum::extract::WebSocketUpgrade;
+#[cfg(feature = "core-ws")]
+use axum::routing::get;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt};
 
@@ -74,9 +78,10 @@ async fn main() -> anyhow::Result<()> {
 
     // 路由
     let app = Router::new()
-        .route("/",       post(onebot_handler))   // OneBot HTTP 反向代理上报
-        .route("/wstalk", get(ws_handler))         // WebSocket 截图客户端
-        .with_state(state);
+        .route("/", post(onebot_handler));   // OneBot HTTP 反向代理上报
+    #[cfg(feature = "core-ws")]
+    let app = app.route("/wstalk", get(ws_handler)); // WebSocket 截图客户端
+    let app = app.with_state(state);
 
     // 启动服务
     let addr = format!("{}:{}", cfg.server.host, cfg.server.port);
@@ -107,6 +112,7 @@ async fn onebot_handler(
 }
 
 /// WebSocket 截图客户端接入（GET /wstalk）
+#[cfg(feature = "core-ws")]
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,

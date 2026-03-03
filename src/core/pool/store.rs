@@ -293,7 +293,11 @@ fn cleanup(path: &str, retain_days: u32, max_rows_per_group: usize) -> Result<()
     let conn = open(path)?;
 
     // 1. 时间淘汰
-    let cutoff = chrono::Utc::now().timestamp() - (retain_days as i64) * 86400;
+    let now_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let cutoff = now_ts - (retain_days as i64) * 86400;
     let deleted: usize = conn.execute(
         "DELETE FROM messages WHERE timestamp < ?1",
         params![cutoff],
@@ -414,7 +418,10 @@ mod tests {
         let cfg = test_cfg(tmp.path().to_str().unwrap());
         let pool = HybridPool::new(&cfg).await.unwrap();
 
-        let now = chrono::Utc::now().timestamp();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
         for i in 1..=5i64 {
             pool.push(make_msg(1, 100, now - (5 - i), &format!("msg{i}"))).await;
         }
@@ -437,7 +444,10 @@ mod tests {
         let cfg = test_cfg(tmp.path().to_str().unwrap());
         let pool = HybridPool::new(&cfg).await.unwrap();
 
-        let base = chrono::Utc::now().timestamp() - 100;
+        let base = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0) - 100;
         for i in 1..=10i64 {
             pool.push(make_msg(1, 100, base + i * 10, "x")).await;
         }
