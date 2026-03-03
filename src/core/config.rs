@@ -15,6 +15,8 @@ pub struct Config {
     pub bot: BotConfig,
     #[serde(default)]
     pub pool: PoolConfig,
+    #[serde(default)]
+    pub log: LogConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +93,29 @@ impl Default for PoolConfig {
     }
 }
 
+/// 日志配置
+#[derive(Debug, Deserialize)]
+pub struct LogConfig {
+    /// 日志文件目录（相对或绝对路径），不设置则仅输出到 stdout / journald
+    pub log_dir: Option<String>,
+    /// 保留天数（启动时清理超期日志文件），默认 30
+    #[serde(default = "default_log_max_days")]
+    pub max_days: u32,
+    /// 日志级别（trace/debug/info/warn/error），默认 info
+    #[serde(default = "default_log_level")]
+    pub level: String,
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            log_dir:  None,
+            max_days: default_log_max_days(),
+            level:    default_log_level(),
+        }
+    }
+}
+
 // ── 默认值 ─────────────────────────────────────────────────────────────────────
 fn default_host() -> String { "0.0.0.0".to_string() }
 fn default_port() -> u16 { 8080 }
@@ -101,6 +126,8 @@ fn default_pool_evict() -> i64 { 86400 }
 fn default_sqlite_path() -> String { "lianbot.db".to_string() }
 fn default_sqlite_retain_days() -> u32 { 30 }
 fn default_sqlite_max_rows() -> usize { 50_000 }
+fn default_log_max_days() -> u32 { 30 }
+fn default_log_level() -> String { "info".to_string() }
 
 // ── 加载逻辑 ───────────────────────────────────────────────────────────────────
 
