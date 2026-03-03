@@ -52,15 +52,25 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
         match fs::create_dir_all(dir) {
             Err(e) => eprintln!("[logger] 无法创建日志目录 {dir}: {e}，回退到纯 stdout"),
             Ok(()) => {
-                let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log");
-                let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-                let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false);
-                tracing_subscriber::registry()
-                    .with(filter)
-                    .with(stdout_layer)
-                    .with(file_layer)
-                    .init();
-                return Some(guard);
+                // 写入前检测目录是否真的可写，避免 tracing-appender panic
+                let probe = std::path::Path::new(dir).join(".lianbot_write_probe");
+                match fs::write(&probe, b"") {
+                    Err(e) => {
+                        eprintln!("[logger] 日志目录不可写 {dir}: {e}，回退到纯 stdout");
+                    }
+                    Ok(()) => {
+                        let _ = fs::remove_file(&probe);
+                        let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log");
+                        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+                        let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false);
+                        tracing_subscriber::registry()
+                            .with(filter)
+                            .with(stdout_layer)
+                            .with(file_layer)
+                            .init();
+                        return Some(guard);
+                    }
+                }
             }
         }
     }
