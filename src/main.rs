@@ -19,7 +19,6 @@ use crate::{
     core::{
         api::ApiClient,
         dispatcher::Dispatcher,
-        pool::cache::MemoryPool,
         registry::CommandRegistry,
         typ::OneBotEvent,
         ws::WsManager,
@@ -63,7 +62,8 @@ async fn main() -> anyhow::Result<()> {
     ));
     let ws = WsManager::new();
     let registry = Arc::new(CommandRegistry::default());
-    let pool = MemoryPool::new(&cfg.pool);
+    let pool = core::pool::create_pool(&cfg.pool).await
+        .map_err(|e| anyhow::anyhow!("消息池初始化失败: {e}"))?;
     let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool));
 
     let state = AppState {
