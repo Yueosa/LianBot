@@ -157,6 +157,43 @@ ask_optional() {
     printf -v "$var" '%s' "$val"
 }
 
+# ── 读取已有 config.toml 中的值（pre-fill 用） ────────────────────────────────
+
+# cfg_val <section> <key> <fallback>  →  输出标量值（去引号）
+cfg_val() {
+    local section="$1" key="$2" fallback="$3"
+    if [[ ! -f "config.toml" ]]; then echo "$fallback"; return; fi
+    local val
+    val=$(awk -v sec="[${section}]" -v k="${key}" '
+        $0 == sec       { in_sec=1; next }
+        /^\[/           { in_sec=0 }
+        in_sec && $1==k {
+            sub(/[^=]+=[ \t]*/, "")
+            gsub(/["'"'"']/, "")
+            sub(/[ \t]+$/, "")
+            print; exit
+        }
+    ' config.toml)
+    echo "${val:-$fallback}"
+}
+
+# cfg_arr <section> <key>  →  输出逗号分隔的数组元素（用于 whitelist 等）
+cfg_arr() {
+    local section="$1" key="$2"
+    if [[ ! -f "config.toml" ]]; then echo ""; return; fi
+    awk -v sec="[${section}]" -v k="${key}" '
+        $0 == sec       { in_sec=1; next }
+        /^\[/           { in_sec=0 }
+        in_sec && $1==k {
+            if (match($0, /\[([^\]]*)\]/, a)) {
+                gsub(/ /, "", a[1])
+                print a[1]
+            }
+            exit
+        }
+    ' config.toml
+}
+
 gen_config() {
     load_features
     clear
@@ -164,45 +201,66 @@ gen_config() {
     sep
     echo ""
 
+    # ── 从已有 config.toml 预填默认值 ─────────────────────────────────────────
+    local pre_exists=0
+    [[ -f "config.toml" ]] && pre_exists=1 && info "检测到已有 config.toml，将以当前值作为默认，直接回车即保留原值。" && echo ""
+
     local has_sqlite=0
     [[ ${FEAT_SELECTED[core-pool-sqlite]} -eq 1 ]] && has_sqlite=1
 
     # ── NapCat ────────────────────────────────────────────────────────────────
     echo "  [napcat]"
-    ask NAPCAT_URL  "NapCat HTTP URL"   "http://127.0.0.1:3000"
-    ask_optional NAPCAT_TOKEN "Bearer Token" "未设置则留空"
+    ask NAPCAT_URL   "NapCat HTTP URL"  "$(cfg_val napcat url 'http://127.0.0.1:3000')"
+    local _tok; _tok=$(cfg_val napcat token "")
+    if [[ -n "$_tok" ]]; then
+        ask NAPCAT_TOKEN "Bearer Token" "$_tok"
+    else
+        ask_optional NAPCAT_TOKEN "Bearer Token" "未设置则留空"
+    fi
     echo ""
 
     # ── Server ────────────────────────────────────────────────────────────────
     echo "  [server]"
-    ask SERVER_HOST "监听地址" "0.0.0.0"
-    ask SERVER_PORT "监听端口" "8080"
+    ask SERVER_HOST "监听地址" "$(cfg_val server host '0.0.0.0')"
+    ask SERVER_PORT "监听端口" "$(cfg_val server port '8080')"
     echo ""
 
     # ── Bot ───────────────────────────────────────────────────────────────────
     echo "  [bot]"
+    local _wl; _wl=$(cfg_arr bot whitelist)
     echo "  群白名单（多个群号用英文逗号分隔，如 123456,789012）"
-    read -rp "  whitelist: " WHITELIST_RAW
+    read -rp "  whitelist [${_wl:-（空）}]: " WHITELIST_RAW
+    WHITELIST_RAW="${WHITELIST_RAW:-$_wl}"
     WHITELIST_TOML="[$(echo "$WHITELIST_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
     [[ "$WHITELIST_TOML" == "[]" ]] && warn "群白名单为空，Bot 将不响应任何群消息！"
     echo ""
     echo "  用户级过滤（留空 = 不限制，user_whitelist 优先级高于 user_blacklist）"
-    ask_optional USER_WHITELIST "user_whitelist（QQ 号逗号分隔）" "不限制"
-    ask_optional USER_BLACKLIST "user_blacklist（QQ 号逗号分隔）" "不限制"
+    local _uw; _uw=$(cfg_arr bot user_whitelist)
+    local _ub; _ub=$(cfg_arr bot user_blacklist)
+    if [[ -n "$_uw" ]]; then
+        ask USER_WHITELIST "user_whitelist（QQ 号逗号分隔）" "$_uw"
+    else
+        ask_optional USER_WHITELIST "user_whitelist（QQ 号逗号分隔）" "不限制"
+    fi
+    if [[ -n "$_ub" ]]; then
+        ask USER_BLACKLIST "user_blacklist（QQ 号逗号分隔）" "$_ub"
+    else
+        ask_optional USER_BLACKLIST "user_blacklist（QQ 号逗号分隔）" "不限制"
+    fi
     echo ""
 
     # ── Pool ──────────────────────────────────────────────────────────────────
     echo "  [pool]"
-    ask POOL_CAPACITY    "每群内存缓冲最大条数" "2000"
-    ask POOL_EVICT_SECS  "内存淘汰阈值（秒）" "86400"
+    ask POOL_CAPACITY   "每群内存缓冲最大条数" "$(cfg_val pool per_group_capacity '2000')"
+    ask POOL_EVICT_SECS "内存淘汰阈值（秒）"   "$(cfg_val pool evict_after_secs '86400')"
 
     local SQLITE_BLOCK=""
     if [[ $has_sqlite -eq 1 ]]; then
         echo ""
         echo "  已选 core-pool-sqlite，配置 SQLite 参数："
-        ask SQLITE_PATH      "SQLite 文件路径" "lianbot.db"
-        ask SQLITE_RETAIN    "保留天数（超出则清理）" "30"
-        ask SQLITE_MAX_ROWS  "每群最大保留条数" "50000"
+        ask SQLITE_PATH     "SQLite 文件路径"       "$(cfg_val pool sqlite_path 'lianbot.db')"
+        ask SQLITE_RETAIN   "保留天数（超出则清理）" "$(cfg_val pool sqlite_retain_days '30')"
+        ask SQLITE_MAX_ROWS "每群最大保留条数"       "$(cfg_val pool sqlite_max_rows_per_group '50000')"
         SQLITE_BLOCK=$(cat <<TOML
 
 sqlite_path               = "$SQLITE_PATH"
@@ -212,6 +270,26 @@ TOML
 )
     fi
 
+    # ── Log ───────────────────────────────────────────────────────────────────
+    echo ""
+    echo "  [log]"
+    echo "  日志文件目录（留空则仅输出到 stdout / journald，不写文件）"
+    local _ldir; _ldir=$(cfg_val log log_dir "")
+    if [[ -n "$_ldir" ]]; then
+        ask LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "$_ldir"
+    else
+        ask_optional LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "仅 stdout"
+    fi
+    local LOG_LEVEL_BLOCK="" LOG_MAXDAYS_BLOCK=""
+    if [[ -n "$LOG_DIR" ]]; then
+        ask LOG_LEVEL   "日志级别（trace/debug/info/warn/error）" "$(cfg_val log level 'info')"
+        ask LOG_MAXDAYS "日志保留天数"                            "$(cfg_val log max_days '30')"
+        LOG_LEVEL_BLOCK="
+level    = \"$LOG_LEVEL\""
+        LOG_MAXDAYS_BLOCK="
+max_days = $LOG_MAXDAYS"
+    fi
+
     # 格式化 user 列表为 TOML 数组
     local UW_TOML="[]" UB_TOML="[]"
     if [[ -n "$USER_WHITELIST" ]]; then
@@ -219,6 +297,16 @@ TOML
     fi
     if [[ -n "$USER_BLACKLIST" ]]; then
         UB_TOML="[$(echo "$USER_BLACKLIST" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
+    fi
+
+    local LOG_BLOCK=""
+    if [[ -n "$LOG_DIR" ]]; then
+        LOG_BLOCK=$(cat <<TOML
+
+[log]
+log_dir  = "$LOG_DIR"$LOG_MAXDAYS_BLOCK$LOG_LEVEL_BLOCK
+TOML
+)
     fi
 
     # 预览
@@ -241,7 +329,7 @@ user_blacklist = $UB_TOML
 
 [pool]
 per_group_capacity = $POOL_CAPACITY
-evict_after_secs   = $POOL_EVICT_SECS$SQLITE_BLOCK
+evict_after_secs   = $POOL_EVICT_SECS$SQLITE_BLOCK$LOG_BLOCK
 TOML
 )
     echo ""
