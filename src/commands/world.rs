@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
+use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind};
 
@@ -20,6 +21,7 @@ impl Command for WorldCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
+        info!("[world] 请求新闻, 群={}", ctx.group_id);
         let resp = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()?
@@ -30,6 +32,12 @@ impl Command for WorldCommand {
             .json::<WorldResponse>()
             .await
             .context("解析 60s 看世界响应失败")?;
+
+        if resp.data.is_empty() {
+            warn!("[world] 获取到空新闻列表, 群={}", ctx.group_id);
+        } else {
+            info!("[world] 获取 {} 条新闻, 群={}", resp.data.len(), ctx.group_id);
+        }
 
         let text = format!(
             "📰 60秒看世界\n\n{}\n\n数据来源：api.ecylt.com",
