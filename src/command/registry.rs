@@ -83,6 +83,7 @@ impl Default for CommandRegistry {
         registry.register(Arc::new(commands::img::ImgCommand));
         registry.register(Arc::new(commands::stalk::StalkCommand));
         registry.register(Arc::new(commands::smy::SmyCommand));
+        registry.register(Arc::new(commands::alive::AliveCommand));
         registry
     }
 }
