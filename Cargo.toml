@@ -27,8 +27,9 @@ anyhow = "1"
 
 # 日志
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "time"] }
 tracing-appender = { version = "0.2", optional = true }
+time = { version = "0.3", features = ["macros"] }
 
 # 工具
 async-trait = "0.1"
