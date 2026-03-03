@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::{info, warn};
 
-use crate::commands::{Command, CommandContext};
+use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
 use crate::plugins::smy;
 
 /// 默认拉取消息条数
@@ -13,11 +13,18 @@ pub struct SmyCommand;
 #[async_trait]
 impl Command for SmyCommand {
     fn name(&self) -> &str { "smy" }
-    fn help(&self) -> &str { "群聊日报 - 统计分析 + 可选 AI 总结\n  -n / --count <条数>: 拉取消息数量(默认200)\n  -t / --time <时间>: 时间范围\n    支持: 30m / 2h / 1d 等\n  -a / --ai: 开启 AI 总结（默认关闭）\n\n示例:\n  <smy>\n  <smy> -n 100 -t 6h\n  <smy> -a -t 1d\n  <日报> --ai" }
-
-    fn aliases(&self) -> Vec<&str> {
-        vec!["日报"]
+    fn help(&self) -> &str { "群聊日报：统计分析 + 可选 AI 总结" }
+    fn aliases(&self) -> &[&str] { &["日报"] }
+    fn kind(&self) -> CommandKind { CommandKind::Advanced }
+    fn declared_params(&self) -> &[ParamSpec] {
+        static PARAMS: &[ParamSpec] = &[
+            ParamSpec { keys: &["-a", "--ai"],    kind: ParamKind::Flag,                                                         required: false, help: "开启 AI 文字总结" },
+            ParamSpec { keys: &["-n", "--count"], kind: ParamKind::Value(ValueConstraint::Integer { min: Some(10), max: Some(2000) }), required: false, help: "拉取消息条数（10-2000，默认 200）" },
+            ParamSpec { keys: &["-t", "--time"],  kind: ParamKind::Value(ValueConstraint::Any),                                  required: false, help: "时间范围，如 30m / 2h / 1d" },
+        ];
+        PARAMS
     }
+    fn dependencies(&self) -> &[Dependency] { &[Dependency::Config] }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let group_id = ctx.group_id;

@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 
-use crate::commands::{Command, CommandContext};
+use crate::commands::{Command, CommandContext, CommandKind};
 
 const ALIVE_URL: &str = "https://alive.yeastar.xin/api/status";
 
@@ -36,6 +36,7 @@ pub struct AliveCommand;
 impl Command for AliveCommand {
     fn name(&self) -> &str { "/alive" }
     fn help(&self) -> &str { "查看主人当前的设备在线状态" }
+    fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let resp = reqwest::Client::builder()

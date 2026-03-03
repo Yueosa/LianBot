@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::commands::{Command, CommandContext};
+use crate::commands::{Command, CommandContext, CommandKind, Dependency};
 
 pub struct StalkCommand;
 
@@ -9,6 +9,8 @@ pub struct StalkCommand;
 impl Command for StalkCommand {
     fn name(&self) -> &str { "/stalk" }
     fn help(&self) -> &str { "截取主人当前屏幕并发到群里（查设备状态请用 /alive）" }
+    fn kind(&self) -> CommandKind { CommandKind::Simple }
+    fn dependencies(&self) -> &[Dependency] { &[Dependency::Ws] }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         if !ctx.ws.has_clients().await {
