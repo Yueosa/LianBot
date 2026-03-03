@@ -290,10 +290,14 @@ gen_plugins() {
         ask SMY_COUNT  "默认拉取消息条数（10-2000）" "200"
         ask SMY_WIDTH  "截图宽度（像素）" "1200"
         echo ""
-        echo "  [smy.llm]  AI 总结配置（留空 = 不启用 AI，可后续在 plugins.toml 手动添加）"
-        ask_optional LLM_URL   "OpenAI 兼容 API 地址" "如 https://api.deepseek.com/v1"
-        ask_optional LLM_KEY   "API Key" "sk-xxx"
-        ask_optional LLM_MODEL "模型名称" "如 deepseek-chat"
+        local ENABLE_LLM=0 LLM_URL="" LLM_KEY="" LLM_MODEL=""
+        read -rp "  是否启用 AI 总结（smy.llm）？(y/N): " _llm_confirm
+        if [[ "${_llm_confirm,,}" == "y" ]]; then
+            ENABLE_LLM=1
+            ask LLM_URL   "OpenAI 兼容 API 地址" "https://api.deepseek.com/v1"
+            ask LLM_KEY   "API Key" ""
+            ask LLM_MODEL "模型名称" "deepseek-chat"
+        fi
         echo ""
         CONTENT+=$(cat <<TOML
 [smy]
@@ -301,14 +305,13 @@ default_count    = $SMY_COUNT
 screenshot_width = $SMY_WIDTH
 TOML
 )
-        if [[ -n "$LLM_URL" && -n "$LLM_KEY" ]]; then
-            local model_val="${LLM_MODEL:-deepseek-chat}"
+        if [[ $ENABLE_LLM -eq 1 ]]; then
             CONTENT+=$(cat <<TOML
 
 [smy.llm]
 api_url = "$LLM_URL"
 api_key = "$LLM_KEY"
-model   = "$model_val"
+model   = "$LLM_MODEL"
 TOML
 )
         else
