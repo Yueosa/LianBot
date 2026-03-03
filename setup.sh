@@ -528,10 +528,14 @@ run_deploy() {
 }
 
 show_logs() {
-    # 从本地 config.toml 读取 log_dir（若已生成）
+    # 优先读部署目录的 config.toml（服务实际使用的），回退到本地
+    local deployed_cfg="${LIANBOT_DIR:-/opt/lianbot}/config.toml"
+    local read_from="config.toml"
+    [[ -f "$deployed_cfg" ]] && read_from="$deployed_cfg"
+
     local log_dir=""
-    if [[ -f "config.toml" ]]; then
-        log_dir=$(grep -E '^\s*log_dir\s*=' config.toml 2>/dev/null \
+    if [[ -f "$read_from" ]]; then
+        log_dir=$(grep -E '^\s*log_dir\s*=' "$read_from" 2>/dev/null \
                   | head -1 | sed 's/.*=\s*"\(.*\)".*/\1/')
     fi
 
