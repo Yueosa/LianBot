@@ -1,8 +1,18 @@
+use time::macros::{format_description, offset};
+use tracing_subscriber::fmt::time::OffsetTime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::core::config::LogConfig;
+
+/// CST (+08:00) 时区计时器。
+fn cst_timer() -> OffsetTime<&'static [time::format_description::FormatItem<'static>]> {
+    OffsetTime::new(
+        offset!(+8),
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6]+08:00"),
+    )
+}
 
 /// 不透明的日志 Guard，持有至 `main()` 结束以确保所有日志刷盘。
 /// 未启用 `core-log-file` 时为零大小占位类型，无运行时开销。
@@ -24,7 +34,7 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(&cfg.level));
 
-    let stdout_layer = fmt::layer().with_writer(std::io::stdout);
+    let stdout_layer = fmt::layer().with_writer(std::io::stdout).with_timer(cst_timer());
 
     // 文件日志层（仅 core-log-file feature 编译进来）
     #[cfg(feature = "core-log-file")]
@@ -62,7 +72,7 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
                         let _ = fs::remove_file(&probe);
                         let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log");
                         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-                        let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false);
+                        let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false).with_timer(cst_timer());
                         tracing_subscriber::registry()
                             .with(filter)
                             .with(stdout_layer)
