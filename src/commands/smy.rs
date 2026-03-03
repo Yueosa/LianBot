@@ -66,7 +66,7 @@ impl Command for SmyCommand {
         info!("[S1] 拉取消息: group={group_id} {mode_desc}");
 
         // ── S1: 拉取消息 ──────────────────────────────────────────────────────
-        let messages = smy::fetcher::fetch(&ctx.api, group_id, count, time_opt).await?;
+        let messages = smy::fetcher::fetch(&ctx.api, &ctx.pool, group_id, count, time_opt).await?;
 
         if messages.is_empty() {
             return ctx.api.send_text(group_id, "📭 该时间范围内没有聊天记录").await;

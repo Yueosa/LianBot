@@ -13,6 +13,7 @@ use crate::core::{
     api::ApiClient,
     config::Config,
     parser::ParamValue,
+    pool::Pool,
     registry::CommandRegistry,
     ws::WsManager,
 };
@@ -119,6 +120,8 @@ pub struct CommandContext {
     pub config: &'static Config,
     /// 命令注册表（供 /help 等命令枚举全部命令）
     pub registry: Arc<CommandRegistry>,
+    /// 消息池（per-group 内存缓冲）
+    pub pool: Arc<Pool>,
 }
 
 impl CommandContext {
