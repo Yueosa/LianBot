@@ -1,8 +1,11 @@
 pub mod cache;
+#[cfg(feature = "core-pool-sqlite")]
+pub mod store;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::core::typ::event::{MessageEvent, Sender};
@@ -45,7 +48,7 @@ pub enum MsgKind {
 }
 
 /// 单个消息段
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Segment {
     pub kind: String,
     pub data: Value,
@@ -219,8 +222,21 @@ pub trait MessagePool: Send + Sync {
     async fn range(&self, gid: i64, since: i64, until: i64) -> Vec<PoolMessage>;
 }
 
-// ── 类型别名 ──────────────────────────────────────────────────────────────────
+// ── 类型别名 & 工厂函数 ────────────────────────────────────────────────────────
 
-/// 默认消息池实现（内存缓冲）。
-/// 启用 `core-pool-sqlite` feature 后切换为 HybridPool（暂未实现）。
+/// 消息池的具体实现类型（feature 决定）。
+#[cfg(not(feature = "core-pool-sqlite"))]
 pub type Pool = cache::MemoryPool;
+#[cfg(feature = "core-pool-sqlite")]
+pub type Pool = store::HybridPool;
+
+/// 统一的消息池创建入口，在 `main.rs` 中调用。
+/// - 默认：MemoryPool
+/// - `--features core-pool-sqlite`：HybridPool（内存 + SQLite）
+pub async fn create_pool(cfg: &crate::core::config::PoolConfig) -> anyhow::Result<std::sync::Arc<Pool>> {
+    #[cfg(not(feature = "core-pool-sqlite"))]
+    { Ok(cache::MemoryPool::new(cfg)) }
+
+    #[cfg(feature = "core-pool-sqlite")]
+    { store::HybridPool::new(cfg).await }
+}
