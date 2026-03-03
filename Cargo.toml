@@ -1,6 +1,6 @@
 [package]
 name = "LianBot"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
@@ -28,7 +28,7 @@ anyhow = "1"
 # 日志
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-tracing-appender = "0.2"
+tracing-appender = { version = "0.2", optional = true }
 
 # 工具
 async-trait = "0.1"
@@ -60,6 +60,7 @@ cmd-world = []                            # /world 60秒看世界
 # ── 基础设施 feature ────────────────────────────────────────────────────────
 core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由
 core-pool-sqlite = ["dep:rusqlite"]       # SQLite 持久化消息池
+core-log-file    = ["dep:tracing-appender"] # 每日滚动日志文件（需配置 log_dir）
 
 [dev-dependencies]
 tempfile = "3"
