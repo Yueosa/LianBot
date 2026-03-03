@@ -107,7 +107,11 @@ mod tests {
     }
 
     fn pool(cap: usize, evict: i64) -> Arc<MemoryPool> {
-        MemoryPool::new(&PoolConfig { per_group_capacity: cap, evict_after_secs: evict })
+        MemoryPool::new(&PoolConfig {
+            per_group_capacity: cap,
+            evict_after_secs:   evict,
+            ..PoolConfig::default()
+        })
     }
 
     #[tokio::test]
