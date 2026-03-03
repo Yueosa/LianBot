@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
+use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind};
 use crate::core::plugin_config::PluginConfig;
@@ -60,6 +61,7 @@ impl Command for AliveCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = PluginConfig::global().get_section::<AlivePluginConfig>("alive");
+        info!("[alive] 请求设备状态, url={}, 群={}", cfg.api_url, ctx.group_id);
         let resp = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(cfg.timeout_secs))
             .build()?
@@ -73,11 +75,14 @@ impl Command for AliveCommand {
 
         // 私密模式
         if resp.privacy {
+            warn!("[alive] 主人开启了私密模式, 群={}", ctx.group_id);
             return ctx
                 .api
                 .send_text(ctx.group_id, "主人开启了私密模式哦！不能看！")
                 .await;
         }
+
+        info!("[alive] 设备数={}, 群={}", resp.devices.len(), ctx.group_id);
 
         let mut lines: Vec<String> = Vec::new();
 
