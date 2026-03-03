@@ -541,7 +541,7 @@ show_logs() {
 
     if [[ -n "$log_dir" ]]; then
         local today
-        today=$(date +%Y-%m-%d)
+        today=$(date -u +%Y-%m-%d)   # tracing-appender 用 UTC 命名文件
         local log_file="${log_dir}/lianbot.log.${today}"
 
         # 找不到今日文件时，用目录里最新的一个
