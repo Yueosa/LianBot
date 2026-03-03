@@ -89,16 +89,17 @@ pub async fn fetch(
 
     // ── 条数模式：优先查 pool ────────────────────────────────────────────────
     let pool_msgs = pool.recent(group_id, count as usize).await;
-    if !pool_msgs.is_empty() {
-        info!("[fetcher] 条数模式: pool命中 {} 条", pool_msgs.len());
+    if pool_msgs.len() >= count as usize {
+        info!("[fetcher] 条数模式: pool命中 {} 条 (满足请求数 {})", pool_msgs.len(), count);
         return Ok(pool_msgs.iter().map(pool_msg_to_chat).collect());
     }
-    // pool 未命中 → API fallback + back-seeding
+    // pool 条数不足（冷启动或积累未够）→ API fallback + back-seeding
+    info!("[fetcher] 条数模式: pool仅有 {} 条 < 请求 {} 条, 回退 API", pool_msgs.len(), count);
     let raw = api
         .get_group_msg_history(group_id, count)
         .await
         .context("拉取群消息历史失败")?;
-    info!("[fetcher] 条数模式: pool未命中, API返回 {} 条", raw.len());
+    info!("[fetcher] 条数模式: API返回 {} 条", raw.len());
     back_seed_pool(pool, &raw, group_id).await;
     Ok(parse_raw_messages(&raw, None))
 }
