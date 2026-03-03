@@ -407,6 +407,35 @@ run_deploy() {
     read -rp "  按 Enter 返回主菜单..." _
 }
 
+show_logs() {
+    # 从本地 config.toml 读取 log_dir（若已生成）
+    local log_dir=""
+    if [[ -f "config.toml" ]]; then
+        log_dir=$(grep -E '^\s*log_dir\s*=' config.toml 2>/dev/null \
+                  | head -1 | sed 's/.*=\s*"\(.*\)".*/\1/')
+    fi
+
+    if [[ -n "$log_dir" ]]; then
+        local today
+        today=$(date +%Y-%m-%d)
+        local log_file="${log_dir}/lianbot.log.${today}"
+        if [[ -f "$log_file" ]]; then
+            info "实时跟踪日志文件：$log_file（Ctrl-C 退出）"
+            echo ""
+            tail -f "$log_file"
+        else
+            warn "今日日志文件尚不存在：$log_file"
+            warn "Bot 尚未写入文件日志，检查 config.toml 中的 [log] 配置"
+            echo ""
+            read -rp "  按 Enter 返回主菜单..." _
+        fi
+    else
+        info "未配置 log_dir，回退到 journald 日志（Ctrl-C 退出）"
+        echo ""
+        sudo journalctl -u lianbot -f
+    fi
+}
+
 # ── 主菜单 ────────────────────────────────────────────────────────────────────
 
 main_menu() {
@@ -434,6 +463,7 @@ main_menu() {
         echo "  3  生成 plugins.toml"
         echo "  4  编译验证（check_features.sh）"
         echo "  5  部署到服务器（deploy.sh）"
+        echo "  6  实时查看日志"
         echo ""
         echo "  0  退出"
         echo ""
@@ -445,8 +475,9 @@ main_menu() {
             3) gen_plugins ;;
             4) run_check ;;
             5) run_deploy ;;
+            6) show_logs ;;
             0) echo ""; info "再见！"; echo ""; exit 0 ;;
-            *) warn "请输入 0-5"; sleep 0.5 ;;
+            *) warn "请输入 0-6"; sleep 0.5 ;;
         esac
     done
 }
