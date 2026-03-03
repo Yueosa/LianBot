@@ -16,6 +16,58 @@ use crate::core::{
     ws::WsManager,
 };
 
+// ── Command 元数据类型 ────────────────────────────────────────────────────────
+
+/// 命令类型：决定 dispatcher 如何路由。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandKind {
+    /// `/ping`、`/alive` — 由 `/` 开头触发，不接受参数
+    Simple,
+    /// `<smy>`、`<img>` — 由 `<>` 包裹触发，接受参数
+    Advanced,
+}
+
+/// 参数值约束，用于 dispatcher 自动校验和 `--help` 生成类型提示。
+#[derive(Debug, Clone, Copy)]
+pub enum ValueConstraint {
+    /// 任意字符串，不校验
+    Any,
+    /// 整数范围，`min`/`max` 为 `None` 表示无限制
+    Integer { min: Option<i64>, max: Option<i64> },
+    /// 枚举值，输入必须是其中之一
+    OneOf(&'static [&'static str]),
+}
+
+/// 参数值类型。
+#[derive(Debug, Clone, Copy)]
+pub enum ParamKind {
+    /// 纯 flag，`--ai`，无值
+    Flag,
+    /// 携带值，并附带约束条件
+    Value(ValueConstraint),
+}
+
+/// 单条参数规格说明，供 dispatcher 校验和 `--help` 自动生成使用。
+#[derive(Debug, Clone, Copy)]
+pub struct ParamSpec {
+    /// 所有键别名，如 `&["-n", "--count"]`
+    pub keys: &'static [&'static str],
+    pub kind: ParamKind,
+    pub required: bool,
+    pub help: &'static str,
+}
+
+/// 可选依赖声明，供 Phase 4 feature gate 检查使用。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dependency {
+    /// 需要 `plugins.toml` 中的配置段（如 LLM）
+    Config,
+    /// 需要 `WsManager`（WebSocket 客户端已连接）
+    Ws,
+    /// 需要消息池（Phase 3）
+    Pool,
+}
+
 // ── Command Trait ─────────────────────────────────────────────────────────────
 
 /// 所有命令实现此 trait。
@@ -24,13 +76,26 @@ pub trait Command: Send + Sync {
     /// 命令主名，如 `"img"`、`"/ping"`
     fn name(&self) -> &str;
 
-    /// 别名列表（默认为空）
-    fn aliases(&self) -> Vec<&str> {
-        vec![]
+    /// 别名列表（默认为空），返回静态切片
+    fn aliases(&self) -> &[&str] {
+        &[]
     }
 
-    /// 单行帮助描述
+    /// 单行或多行帮助描述
     fn help(&self) -> &str;
+
+    /// 命令类型（必须实现）
+    fn kind(&self) -> CommandKind;
+
+    /// 声明的参数规格，用于校验和帮助生成（默认为空）
+    fn declared_params(&self) -> &[ParamSpec] {
+        &[]
+    }
+
+    /// 可选依赖声明（默认为空）
+    fn dependencies(&self) -> &[Dependency] {
+        &[]
+    }
 
     /// 执行命令
     async fn execute(&self, ctx: CommandContext) -> anyhow::Result<()>;
