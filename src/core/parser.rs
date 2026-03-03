@@ -5,8 +5,8 @@ use std::collections::HashMap;
 /// 命令解析器的输出类型
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParsedCommand {
-    /// 简单命令：`/ping`
-    Simple { name: String },
+    /// 简单命令：`/ping`（`trailing` 保留名称后的所有 token，用于 `-h`/`--help` 拦截）
+    Simple { name: String, trailing: Vec<String> },
 
     /// 复杂命令：`<img> -u https://... --scale=2`
     Advanced {
@@ -63,10 +63,12 @@ impl CommandParser {
     }
 
     // ── 内部：简单命令 ────────────────────────────────────────────────────────
-    // 格式：`/name [ignored rest]`
+    // 格式：`/name [trailing...]`
     fn parse_simple(s: &str) -> Option<ParsedCommand> {
-        let name = s.split_whitespace().next()?.to_string();
-        Some(ParsedCommand::Simple { name })
+        let mut tokens = s.split_whitespace();
+        let name = tokens.next()?.to_string();
+        let trailing: Vec<String> = tokens.map(|t| t.to_string()).collect();
+        Some(ParsedCommand::Simple { name, trailing })
     }
 
     // ── 内部：复杂命令 ────────────────────────────────────────────────────────
@@ -196,7 +198,7 @@ mod tests {
     #[test]
     fn test_simple_command() {
         let r = CommandParser::parse("/ping").unwrap();
-        assert_eq!(r, ParsedCommand::Simple { name: "/ping".into() });
+        assert_eq!(r, ParsedCommand::Simple { name: "/ping".into(), trailing: vec![] });
     }
 
     #[test]

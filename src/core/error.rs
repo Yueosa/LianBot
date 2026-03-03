@@ -8,6 +8,9 @@ pub enum AppError {
     #[error("命令解析失败: {0}")]
     Parse(String),
 
+    #[error("命令 {cmd} 参数错误: {detail}")]
+    InvalidParam { cmd: String, detail: String },
+
     #[error("API 请求失败: {0}")]
     Api(#[from] reqwest::Error),
 

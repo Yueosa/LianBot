@@ -57,20 +57,41 @@ impl CommandRegistry {
         self.advanced_cmds.get(name)
     }
 
-    /// 生成所有命令的帮助文本
+    /// 生成 /help 输出的完整命令列表文本。
+    /// 按名称排序，别名重复条目自动去除，别名在名称旁展示。
     pub fn help_text(&self) -> String {
-        let mut lines = vec!["── 简单命令 ──".to_string()];
-        let mut simple: Vec<_> = self.simple_cmds.values().collect();
-        simple.dedup_by_key(|c| c.name());
-        for cmd in simple {
-            lines.push(format!("  {}  {}", cmd.name(), cmd.help()));
+        // 用 HashSet 按主名去重，避免别名条目重复出现
+        let mut seen = std::collections::HashSet::new();
+        let mut simple: Vec<&Arc<dyn Command>> = self.simple_cmds.values()
+            .filter(|c| seen.insert(c.name()))
+            .collect();
+        simple.sort_by_key(|c| c.name());
+
+        seen.clear();
+        let mut advanced: Vec<&Arc<dyn Command>> = self.advanced_cmds.values()
+            .filter(|c| seen.insert(c.name()))
+            .collect();
+        advanced.sort_by_key(|c| c.name());
+
+        let mut lines = vec![
+            "LianBot 命令列表".to_string(),
+            "── 简单命令（/ 开头）──".to_string(),
+        ];
+        for cmd in &simple {
+            lines.push(format!("  {:<10}  {}", cmd.name(), cmd.help()));
         }
-        lines.push("── 复杂命令 ──".to_string());
-        let mut advanced: Vec<_> = self.advanced_cmds.values().collect();
-        advanced.dedup_by_key(|c| c.name());
-        for cmd in advanced {
-            lines.push(format!("  <{}>  {}", cmd.name(), cmd.help()));
+        lines.push("── 复杂命令（<名称> [参数]）──".to_string());
+        for cmd in &advanced {
+            let aliases = cmd.aliases();
+            let name_part = if aliases.is_empty() {
+                format!("<{}>", cmd.name())
+            } else {
+                format!("<{}> / <{}>", cmd.name(), aliases.join("> / <"))
+            };
+            lines.push(format!("  {:<18}  {}", name_part, cmd.help()));
         }
+        lines.push(String::new());
+        lines.push("💡 输入 <命令> --help 查看详细参数".to_string());
         lines.join("\n")
     }
 }
