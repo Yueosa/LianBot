@@ -36,7 +36,7 @@ BOT_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
 
 # 从 .build_features 加载，否则使用默认值
 declare -A FEAT_SELECTED
-ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world core-pool-sqlite)
+ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world core-pool-sqlite core-log-file)
 DEFAULT_ON=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world)
 
 load_features() {
@@ -78,6 +78,7 @@ FEAT_LABELS=(
     "cmd-help           /help 自动生成命令列表"
     "cmd-alive          /alive 存活检查"
     "cmd-img            <img> 发图命令"
+    "core-log-file      日志写入文件（每日滚动，需配置 log_dir）"
     "cmd-stalk          <stalk> 截图（需 stalk_hypr 客户端）"
     "cmd-smy            <smy> 群聊日报（含 chrono、base64）"
     "cmd-world          /world 60秒看世界新闻速览"
@@ -223,8 +224,9 @@ gen_config() {
     local pre_exists=0
     [[ -f "config.toml" ]] && pre_exists=1 && info "检测到已有 config.toml，将以当前值作为默认，直接回车即保留原值。" && echo ""
 
-    local has_sqlite=0
+    local has_sqlite=0 has_log_file=0
     [[ ${FEAT_SELECTED[core-pool-sqlite]} -eq 1 ]] && has_sqlite=1
+    [[ ${FEAT_SELECTED[core-log-file]}    -eq 1 ]] && has_log_file=1
 
     # ── NapCat ────────────────────────────────────────────────────────────────
     echo "  [napcat]"
@@ -291,22 +293,26 @@ TOML
     # ── Log ───────────────────────────────────────────────────────────────────
     echo ""
     echo "  [log]"
-    echo "  日志文件目录（留空则仅输出到 stdout / journald，不写文件）"
-    local _ldir; _ldir=$(cfg_val log log_dir "")
-    if [[ -n "$_ldir" ]]; then
-        ask LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "$_ldir"
-    else
-        ask_optional LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "仅 stdout"
-    fi
-    local LOG_LEVEL_BLOCK="" LOG_MAXDAYS_BLOCK=""
-    if [[ -n "$LOG_DIR" ]]; then
-        ask LOG_LEVEL   "日志级别（trace/debug/info/warn/error）" "$(cfg_val log level 'info')"
-        ask LOG_MAXDAYS "日志保留天数"                            "$(cfg_val log max_days '30')"
-        LOG_LEVEL_BLOCK="
-level    = \"$LOG_LEVEL\""
-        LOG_MAXDAYS_BLOCK="
+    local LOG_DIR="" LOG_LEVEL_BLOCK="" LOG_MAXDAYS_BLOCK=""
+    ask LOG_LEVEL "日志级别（trace/debug/info/warn/error）" "$(cfg_val log level 'info')"
+    if [[ $has_log_file -eq 1 ]]; then
+        echo "  已选 core-log-file，配置日志文件目录（留空则仅 stdout）"
+        local _ldir; _ldir=$(cfg_val log log_dir "")
+        if [[ -n "$_ldir" ]]; then
+            ask LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "$_ldir"
+        else
+            ask_optional LOG_DIR "log_dir（如 logs 或 /var/log/lianbot）" "仅 stdout"
+        fi
+        if [[ -n "$LOG_DIR" ]]; then
+            ask LOG_MAXDAYS "日志保留天数" "$(cfg_val log max_days '30')"
+            LOG_MAXDAYS_BLOCK="
 max_days = $LOG_MAXDAYS"
+        fi
+    else
+        info "  未选 core-log-file，仅输出到 stdout，log_dir 不生效"
     fi
+    LOG_LEVEL_BLOCK="
+level = \"$LOG_LEVEL\""
 
     # 格式化 user 列表为 TOML 数组
     local UW_TOML="[]" UB_TOML="[]"
@@ -317,15 +323,16 @@ max_days = $LOG_MAXDAYS"
         UB_TOML="[$(echo "$USER_BLACKLIST" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
     fi
 
-    local LOG_BLOCK=""
-    if [[ -n "$LOG_DIR" ]]; then
-        LOG_BLOCK=$(cat <<TOML
+    local LOG_DIR_LINE=""
+    [[ -n "$LOG_DIR" ]] && LOG_DIR_LINE="
+log_dir  = \"$LOG_DIR\"$LOG_MAXDAYS_BLOCK"
 
-[log]
-log_dir  = "$LOG_DIR"$LOG_MAXDAYS_BLOCK$LOG_LEVEL_BLOCK
+    local LOG_BLOCK
+    LOG_BLOCK=$(cat <<TOML
+
+[log]$LOG_DIR_LINE$LOG_LEVEL_BLOCK
 TOML
 )
-    fi
 
     # 预览
     echo ""
