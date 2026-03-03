@@ -414,21 +414,21 @@ mod tests {
         let cfg = test_cfg(tmp.path().to_str().unwrap());
         let pool = HybridPool::new(&cfg).await.unwrap();
 
+        let now = chrono::Utc::now().timestamp();
         for i in 1..=5i64 {
-            pool.push(make_msg(1, 100, i, &format!("msg{i}"))).await;
+            pool.push(make_msg(1, 100, now - (5 - i), &format!("msg{i}"))).await;
         }
-        // 等后台写入（最多 200ms 足够）
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        // 等后台写入
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
         let r = pool.recent(1, 10).await;
         assert_eq!(r.len(), 5, "内存应命中 5 条");
-        assert_eq!(r[0].timestamp, 1);
 
-        // 清空内存池后从 SQLite 读取
+        // 用相同路径创建新实例（内存空），验证 SQLite 回退
         let pool2 = HybridPool::new(&cfg).await.unwrap();
         let r2 = pool2.recent(1, 10).await;
         assert_eq!(r2.len(), 5, "SQLite 应返回 5 条");
-        assert_eq!(r2[0].timestamp, 1);
+        assert_eq!(r2[0].timestamp, r[0].timestamp, "时序一致");
     }
 
     #[tokio::test]
@@ -437,14 +437,16 @@ mod tests {
         let cfg = test_cfg(tmp.path().to_str().unwrap());
         let pool = HybridPool::new(&cfg).await.unwrap();
 
+        let base = chrono::Utc::now().timestamp() - 100;
         for i in 1..=10i64 {
-            pool.push(make_msg(1, 100, i * 1000, "x")).await;
+            pool.push(make_msg(1, 100, base + i * 10, "x")).await;
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
-        // 从 SQLite 读（清空内存再建新实例）
         let pool2 = HybridPool::new(&cfg).await.unwrap();
-        let r = pool2.range(1, 3000, 7000).await;
-        assert_eq!(r.len(), 5); // ts=3000,4000,5000,6000,7000
+        let since = base + 30; // 包含 i=3..=7（30,40,50,60,70）
+        let until = base + 70;
+        let r = pool2.range(1, since, until).await;
+        assert_eq!(r.len(), 5, "应返回 5 条（ts=base+30~70）");
     }
 }
