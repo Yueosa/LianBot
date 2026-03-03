@@ -45,6 +45,8 @@ run  "cmd-stalk（自动拉入 core-ws）"          --no-default-features --feat
 # ── 标准场景 ──────────────────────────────────────────────────────────────────
 run  "default（全命令集）"                    
 run  "default + SQLite"                        --features core-pool-sqlite
+run  "default + 文件日志"                      --features core-log-file
+run  "default + SQLite + 文件日志"              --features core-pool-sqlite,core-log-file
 run  "all-features"                            --all-features
 
 # ── 测试场景 ──────────────────────────────────────────────────────────────────
