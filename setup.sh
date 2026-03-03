@@ -543,16 +543,27 @@ show_logs() {
         local today
         today=$(date +%Y-%m-%d)
         local log_file="${log_dir}/lianbot.log.${today}"
-        if [[ -f "$log_file" ]]; then
-            info "实时跟踪日志文件：$log_file（Ctrl-C 退出）"
-            echo ""
-            tail -f "$log_file"
-        else
-            warn "今日日志文件尚不存在：$log_file"
-            warn "Bot 尚未写入文件日志，检查 config.toml 中的 [log] 配置"
-            echo ""
-            read -rp "  按 Enter 返回主菜单..." _
+
+        # 找不到今日文件时，用目录里最新的一个
+        if [[ ! -f "$log_file" ]]; then
+            local latest
+            latest=$(ls -1t "${log_dir}"/lianbot.log.* 2>/dev/null | head -1)
+            if [[ -n "$latest" ]]; then
+                warn "今日日志尚未生成，显示最近文件：$latest"
+                echo ""
+                log_file="$latest"
+            else
+                warn "日志目录 $log_dir 中暂无日志文件"
+                warn "Bot 可能尚未写入文件日志，检查 config.toml 中的 [log] 配置"
+                echo ""
+                read -rp "  按 Enter 返回主菜单..." _
+                return
+            fi
         fi
+
+        info "实时跟踪日志文件：$log_file（Ctrl-C 退出）"
+        echo ""
+        tail -f "$log_file"
     else
         info "未配置 log_dir，回退到 journald 日志（Ctrl-C 退出）"
         echo ""
