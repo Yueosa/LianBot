@@ -36,8 +36,8 @@ BOT_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
 
 # 从 .build_features 加载，否则使用默认值
 declare -A FEAT_SELECTED
-ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy core-pool-sqlite)
-DEFAULT_ON=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy)
+ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world core-pool-sqlite)
+DEFAULT_ON=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world)
 
 load_features() {
     # 默认全部设为 off
@@ -80,6 +80,7 @@ FEAT_LABELS=(
     "cmd-img            <img> 发图命令"
     "cmd-stalk          <stalk> 截图（需 stalk_hypr 客户端）"
     "cmd-smy            <smy> 群聊日报（含 chrono、base64）"
+    "cmd-world          /world 60秒看世界新闻速览"
     "core-pool-sqlite   SQLite 消息持久化（编译较慢，非默认）"
 )
 
@@ -102,12 +103,12 @@ select_features() {
         echo ""
         sep
         echo ""
-        echo "  输入编号切换选中/取消，s 保存并返回，q 取消不保存："
+        echo "  输入编号切换选中/取消，s 保存并返回，q 取消不保存（共 8 项）："
         echo ""
         read -rp "  > " choice
 
         case "$choice" in
-            [1-7])
+            [1-8])
                 local idx=$((choice - 1))
                 local f="${ALL_FEATURES[$idx]}"
                 if [[ ${FEAT_SELECTED[$f]} -eq 1 ]]; then
@@ -130,7 +131,7 @@ select_features() {
                 return
                 ;;
             *)
-                warn "请输入 1-7、s 或 q"
+                warn "请输入 1-8、s 或 q"
                 sleep 0.5
                 ;;
         esac
