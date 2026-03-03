@@ -124,6 +124,18 @@ impl MessagePool for HybridPool {
             Err(e)     => { warn!("[pool] spawn_blocking 失败: {e}"); vec![] }
         }
     }
+
+    async fn oldest_timestamp(&self, gid: i64) -> Option<i64> {
+        // SQLite 包含完整历史，优先查询（比内存覆盖更早）
+        let path = Arc::clone(&self.db_path);
+        if let Ok(Ok(ts)) = tokio::task::spawn_blocking(move || sqlite_oldest(&path, gid)).await {
+            if ts.is_some() {
+                return ts;
+            }
+        }
+        // SQLite 无记录（刚初始化）→ 回落内存
+        self.memory.oldest_timestamp(gid).await
+    }
 }
 
 // ── 后台 writer task ──────────────────────────────────────────────────────────
@@ -261,6 +273,17 @@ fn sqlite_range(path: &str, gid: i64, since: i64, until: i64) -> Result<Vec<Pool
         .filter_map(|r| r.ok().flatten())
         .collect();
     Ok(rows)
+}
+
+fn sqlite_oldest(path: &str, gid: i64) -> Result<Option<i64>> {
+    use rusqlite::OptionalExtension;
+    let conn = open(path)?;
+    let ts: Option<i64> = conn.query_row(
+        "SELECT MIN(timestamp) FROM messages WHERE group_id = ?1",
+        params![gid],
+        |r| r.get(0),
+    ).optional()?;
+    Ok(ts)
 }
 
 fn row_to_msg(row: &rusqlite::Row<'_>) -> rusqlite::Result<Option<PoolMessage>> {

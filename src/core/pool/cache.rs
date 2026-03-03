@@ -82,6 +82,11 @@ impl MessagePool for MemoryPool {
             .cloned()
             .collect()
     }
+
+    async fn oldest_timestamp(&self, gid: i64) -> Option<i64> {
+        let guard = self.groups.read().await;
+        guard.get(&gid)?.front().map(|m| m.timestamp)
+    }
 }
 
 // ── 测试 ──────────────────────────────────────────────────────────────────────

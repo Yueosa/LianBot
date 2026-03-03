@@ -220,6 +220,11 @@ pub trait MessagePool: Send + Sync {
 
     /// 读取群 gid 在 [since, until] 时间范围内的消息（秒级时间戳）
     async fn range(&self, gid: i64, since: i64, until: i64) -> Vec<PoolMessage>;
+
+    /// 返回群 gid 在 pool 中最早一条消息的时间戳（秒级）。
+    /// 用于判断 pool 是否覆盖了某个时间窗口：若 oldest <= cutoff，则覆盖完整。
+    /// 无任何消息时返回 None。
+    async fn oldest_timestamp(&self, gid: i64) -> Option<i64>;
 }
 
 // ── 类型别名 & 工厂函数 ────────────────────────────────────────────────────────
