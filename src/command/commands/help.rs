@@ -16,12 +16,13 @@ impl Command for HelpCommand {
 LianBot 命令列表
 ── 简单命令（/ 开头）──
   /ping    测试在线
-  /stalk   截取主人屏幕
+  /alive   查看主人设备在线状态
+  /stalk   截取主人当前屏幕
   /help    显示本帮助
 
 ── 复杂命令（<名称> [参数]）──
   <img>    发送图片
-  <smy>    群聊日报
+  <smy>    群聊日报（加 -a 开启 AI 总结）
 
 💡 输入 <命令> --help 查看详细用法
    例如: <img> --help";
