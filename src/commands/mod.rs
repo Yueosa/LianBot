@@ -4,6 +4,7 @@
 #[cfg(feature = "cmd-stalk")] pub mod stalk;
 #[cfg(feature = "cmd-smy")]   pub mod smy;
 #[cfg(feature = "cmd-alive")] pub mod alive;
+#[cfg(feature = "cmd-world")] pub mod world;
 
 use std::{collections::HashMap, sync::Arc};
 
