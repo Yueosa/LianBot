@@ -104,12 +104,12 @@ select_features() {
         echo ""
         sep
         echo ""
-        echo "  输入编号切换选中/取消，s 保存并返回，q 取消不保存（共 8 项）："
+        echo "  输入编号切换选中/取消，s 保存并返回，q 取消不保存（共 9 项）："
         echo ""
         read -rp "  > " choice
 
         case "$choice" in
-            [1-8])
+            [1-9])
                 local idx=$((choice - 1))
                 local f="${ALL_FEATURES[$idx]}"
                 if [[ ${FEAT_SELECTED[$f]} -eq 1 ]]; then
@@ -132,7 +132,7 @@ select_features() {
                 return
                 ;;
             *)
-                warn "请输入 1-8、s 或 q"
+                warn "请输入 1-9、s 或 q"
                 sleep 0.5
                 ;;
         esac
