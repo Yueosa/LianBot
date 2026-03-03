@@ -36,6 +36,14 @@ futures     = "0.3"
 chrono      = { version = "0.4", features = ["serde"] }
 base64      = "0.22"
 
+# 持久化（可选，通过 feature 控制）
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+
+[features]
+# 启用 SQLite 持久化消息池
+# cargo build --features core-pool-sqlite
+core-pool-sqlite = ["dep:rusqlite"]
+
 [profile.release]
 opt-level      = 2
 codegen-units  = 4
