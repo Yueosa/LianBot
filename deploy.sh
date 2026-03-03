@@ -225,6 +225,24 @@ fix_sqlite_perms() {
     fi
 }
 
+# ── 创建并授权日志目录（若已启用 core-log-file） ─────────────────────────────
+
+fix_log_dir_perms() {
+    local dir="$1"
+    if ! has_feature "core-log-file"; then return; fi
+    local log_dir
+    if [[ -f "$dir/config.toml" ]]; then
+        log_dir=$(grep -E '^\s*log_dir\s*=' "$dir/config.toml" | head -1 \
+                  | sed 's/.*=\s*"\(.*\)".*/\1/' || true)
+    fi
+    [[ -z "$log_dir" ]] && return          # 未配置 log_dir，无需处理
+    [[ "$log_dir" != /* ]] && log_dir="$dir/$log_dir"  # 相对路径转绝对
+    info "创建日志目录并设置权限：$log_dir"
+    mkdir -p "$log_dir"
+    chown "$LIANBOT_USER:$LIANBOT_USER" "$log_dir"
+    chmod 750 "$log_dir"
+}
+
 # ── 更新模式 ──────────────────────────────────────────────────────────────────
 
 if [[ "$MODE" == "update" ]]; then
@@ -237,6 +255,7 @@ if [[ "$MODE" == "update" ]]; then
 
     sync_configs "$LIANBOT_DIR"
     fix_sqlite_perms "$LIANBOT_DIR"
+    fix_log_dir_perms "$LIANBOT_DIR"
 
     info "重载 systemd 并重启服务..."
     systemctl daemon-reload
@@ -298,6 +317,7 @@ else
 fi
 
 fix_sqlite_perms "$LIANBOT_DIR"
+fix_log_dir_perms "$LIANBOT_DIR"
 chown "$LIANBOT_USER:$LIANBOT_USER" "$LIANBOT_DIR"
 
 # ── 创建 systemd 服务 ─────────────────────────────────────────────────────────
