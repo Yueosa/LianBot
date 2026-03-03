@@ -242,4 +242,11 @@ mod tests {
         assert!(CommandParser::parse("普通消息").is_none());
         assert!(CommandParser::parse("").is_none());
     }
+
+    #[test]
+    fn test_ai_flags() {
+        let params = CommandParser::parse_params("-a --ai");
+        assert_eq!(params.get("-a"), Some(&ParamValue::Flag));
+        assert_eq!(params.get("--ai"), Some(&ParamValue::Flag));
+    }
 }
