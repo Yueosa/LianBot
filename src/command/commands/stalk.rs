@@ -8,7 +8,7 @@ pub struct StalkCommand;
 #[async_trait]
 impl Command for StalkCommand {
     fn name(&self) -> &str { "/stalk" }
-    fn help(&self) -> &str { "截取主人当前屏幕并发到群里（仅主人在用电脑时有效）" }
+    fn help(&self) -> &str { "截取主人当前屏幕并发到群里（查设备状态请用 /alive）" }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         if !ctx.ws.has_clients().await {
