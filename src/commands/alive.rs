@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
 
-use crate::command::{Command, CommandContext};
+use crate::commands::{Command, CommandContext};
 
 const ALIVE_URL: &str = "https://alive.yeastar.xin/api/status";
 

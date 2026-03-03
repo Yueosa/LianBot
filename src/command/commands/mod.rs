@@ -1,6 +1,0 @@
-pub mod ping;
-pub mod help;
-pub mod img;
-pub mod stalk;
-pub mod smy;
-pub mod alive;

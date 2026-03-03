@@ -2,8 +2,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::{info, warn};
 
-use crate::command::{Command, CommandContext};
-use crate::smy;
+use crate::commands::{Command, CommandContext};
+use crate::plugins::smy;
 
 /// 默认拉取消息条数
 const DEFAULT_COUNT: u32 = 200;

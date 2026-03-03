@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
-use super::{Command, commands};
+use crate::commands::Command;
+use crate::commands;
 
 // ── 命令注册表 ─────────────────────────────────────────────────────────────────
 //

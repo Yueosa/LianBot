@@ -1,16 +1,42 @@
+pub mod ping;
+pub mod help;
+pub mod img;
+pub mod stalk;
+pub mod smy;
+pub mod alive;
+
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{
+use async_trait::async_trait;
+
+use crate::core::{
     api::ApiClient,
     config::Config,
     parser::ParamValue,
     ws::WsManager,
 };
 
+// ── Command Trait ─────────────────────────────────────────────────────────────
+
+/// 所有命令实现此 trait。
+#[async_trait]
+pub trait Command: Send + Sync {
+    /// 命令主名，如 `"img"`、`"/ping"`
+    fn name(&self) -> &str;
+
+    /// 别名列表（默认为空）
+    fn aliases(&self) -> Vec<&str> {
+        vec![]
+    }
+
+    /// 单行帮助描述
+    fn help(&self) -> &str;
+
+    /// 执行命令
+    async fn execute(&self, ctx: CommandContext) -> anyhow::Result<()>;
+}
+
 // ── 命令上下文 ─────────────────────────────────────────────────────────────────
-//
-// 执行命令时传入的全部信息：来源、参数、及所有共享资源句柄。
-// 命令实现只需持有 &CommandContext，不需要关心外部状态如何构建。
 
 pub struct CommandContext {
     /// 触发命令的群号

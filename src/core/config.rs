@@ -1,7 +1,7 @@
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 
-use crate::error::AppError;
+use crate::core::error::AppError;
 
 /// 全局配置单例
 static CONFIG: OnceCell<Config> = OnceCell::new();

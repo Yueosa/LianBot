@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::command::{Command, CommandContext};
+use crate::commands::{Command, CommandContext};
 
 /// 默认随机图片 API
 const DEFAULT_IMAGE_URL: &str = "https://www.loliapi.com/bg/";

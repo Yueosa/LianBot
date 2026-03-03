@@ -3,12 +3,15 @@ use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 use crate::{
-    api::ApiClient,
-    command::{CommandContext, CommandRegistry},
-    config::Config,
-    parser::{CommandParser, ParsedCommand},
-    typ::{MessageEvent, OneBotEvent},
-    ws::WsManager,
+    commands::CommandContext,
+    core::{
+        api::ApiClient,
+        config::Config,
+        parser::{CommandParser, ParsedCommand, ParamValue},
+        registry::CommandRegistry,
+        typ::{MessageEvent, OneBotEvent},
+        ws::WsManager,
+    },
 };
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
@@ -127,7 +130,7 @@ impl Dispatcher {
         group_id: i64,
         user_id: i64,
         name: String,
-        params: std::collections::HashMap<String, crate::parser::ParamValue>,
+        params: std::collections::HashMap<String, ParamValue>,
     ) -> anyhow::Result<()> {
         match self.registry.get_advanced(&name) {
             Some(cmd) => {
@@ -167,7 +170,7 @@ impl Dispatcher {
         &self,
         group_id: i64,
         user_id: i64,
-        params: std::collections::HashMap<String, crate::parser::ParamValue>,
+        params: std::collections::HashMap<String, ParamValue>,
     ) -> CommandContext {
         CommandContext {
             group_id,

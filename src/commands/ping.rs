@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::command::{Command, CommandContext};
+use crate::commands::{Command, CommandContext};
 
 pub struct PingCommand;
 

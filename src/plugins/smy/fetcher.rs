@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 use tracing::info;
 
-use crate::api::ApiClient;
+use crate::core::api::ApiClient;
 
 // ── 结构化消息 ─────────────────────────────────────────────────────────────────
 

@@ -1,12 +1,6 @@
-mod api;
-mod command;
-mod config;
-mod error;
-mod handler;
-mod parser;
-mod smy;
-mod typ;
-mod ws;
+mod core;
+mod commands;
+mod plugins;
 
 use std::sync::Arc;
 
@@ -22,11 +16,13 @@ use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::{
-    api::ApiClient,
-    command::CommandRegistry,
-    handler::Dispatcher,
-    typ::OneBotEvent,
-    ws::WsManager,
+    core::{
+        api::ApiClient,
+        dispatcher::Dispatcher,
+        registry::CommandRegistry,
+        typ::OneBotEvent,
+        ws::WsManager,
+    },
 };
 
 // ── 共享状态 ──────────────────────────────────────────────────────────────────
@@ -51,8 +47,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // 加载配置
-    config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
-    let cfg = config::Config::global();
+    core::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+    let cfg = core::config::Config::global();
     info!("配置加载成功");
     info!("  NapCat URL : {}", cfg.napcat.url);
     info!("  服务监听   : {}:{}", cfg.server.host, cfg.server.port);

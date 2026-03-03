@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use tracing::warn;
 
-use crate::config::LlmConfig;
+use crate::core::config::LlmConfig;
 use super::fetcher::{ChatMessage, format_for_llm};
 
 // ── LLM 分析结果 ─────────────────────────────────────────────────────────────
