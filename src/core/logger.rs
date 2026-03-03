@@ -48,7 +48,7 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
             .unwrap_or(SystemTime::UNIX_EPOCH);
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
-                if !entry.file_name().to_string_lossy().starts_with("lianbot.log") { continue; }
+                if !entry.file_name().to_string_lossy().starts_with("lianbot.log.utc") { continue; }
                 if let Ok(meta) = entry.metadata() {
                     if let Ok(mtime) = meta.modified() {
                         if mtime < cutoff {
@@ -70,7 +70,7 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
                     }
                     Ok(()) => {
                         let _ = fs::remove_file(&probe);
-                        let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log");
+                        let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log.utc");
                         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
                         let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false).with_timer(cst_timer());
                         tracing_subscriber::registry()
