@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind, ParamKind, ParamSpec, ValueConstraint};
 
@@ -44,8 +44,10 @@ impl Command for ImgCommand {
             .get(&["-u", "--url"])
             .unwrap_or(DEFAULT_IMAGE_URL);
 
+        info!("[img] 解析图片 URL: {url}, 群={}", ctx.group_id);
         match resolve_final_url(url).await {
             Some(final_url) => {
+                info!("[img] 最终 URL: {final_url}");
                 ctx.api.send_text_image(ctx.group_id, &final_url, &final_url).await
             }
             None => {
