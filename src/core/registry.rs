@@ -106,6 +106,7 @@ impl Default for CommandRegistry {
         #[cfg(feature = "cmd-stalk")] registry.register(Arc::new(commands::stalk::StalkCommand));
         #[cfg(feature = "cmd-smy")]   registry.register(Arc::new(commands::smy::SmyCommand));
         #[cfg(feature = "cmd-alive")] registry.register(Arc::new(commands::alive::AliveCommand));
+        #[cfg(feature = "cmd-world")] registry.register(Arc::new(commands::world::WorldCommand));
         registry
     }
 }
