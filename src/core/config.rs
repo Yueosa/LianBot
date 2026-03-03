@@ -39,6 +39,13 @@ pub struct NapcatConfig {
 pub struct BotConfig {
     /// 允许响应的群号白名单
     pub whitelist: Vec<i64>,
+    /// 用户白名单：非空时仅响应列表内的 QQ 号
+    /// 优先级高于 user_blacklist，两者同时设置时黑名单无效
+    #[serde(default)]
+    pub user_whitelist: Vec<i64>,
+    /// 用户黑名单：永远忽略这些 QQ 号（user_whitelist 非空时此项无效）
+    #[serde(default)]
+    pub user_blacklist: Vec<i64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

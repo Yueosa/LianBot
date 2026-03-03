@@ -80,7 +80,17 @@ impl Dispatcher {
             return Ok(());
         }
 
-        // 3. 提取文本
+        // 3. 用户过滤（白名单优先于黑名单）
+        let user_id = event.user_id;
+        if !self.config.bot.user_whitelist.is_empty() {
+            if !self.config.bot.user_whitelist.contains(&user_id) {
+                return Ok(()); // 不在用户白名单，忽略
+            }
+        } else if self.config.bot.user_blacklist.contains(&user_id) {
+            return Ok(()); // 在用户黑名单，忽略
+        }
+
+        // 4. 提取文本
         let text = event.full_text();
         info!("[群 {group_id}] {}: {text}", event.user_id);
 
