@@ -33,16 +33,30 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 async-trait = "0.1"
 once_cell   = "1"
 futures     = "0.3"
-chrono      = { version = "0.4", features = ["serde"] }
-base64      = "0.22"
+chrono      = { version = "0.4", features = ["serde"], optional = true }
+base64      = { version = "0.22", optional = true }
 
 # 持久化（可选，通过 feature 控制）
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 
 [features]
-# 启用 SQLite 持久化消息池
-# cargo build --features core-pool-sqlite
-core-pool-sqlite = ["dep:rusqlite"]
+# 默认启用全部命令
+default = [
+    "cmd-ping", "cmd-help", "cmd-alive",
+    "cmd-smy", "cmd-img", "cmd-stalk",
+]
+
+# ── 各命令独立 feature ──────────────────────────────────────────────────────
+cmd-ping  = []
+cmd-help  = []
+cmd-alive = []
+cmd-img   = []
+cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
+cmd-smy   = ["dep:chrono", "dep:base64"]  # 截图(base64) + 时间处理(chrono)
+
+# ── 基础设施 feature ────────────────────────────────────────────────────────
+core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由
+core-pool-sqlite = ["dep:rusqlite"]       # SQLite 持久化消息池
 
 [dev-dependencies]
 tempfile = "3"
