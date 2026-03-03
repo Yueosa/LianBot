@@ -66,23 +66,34 @@ pub async fn fetch(
         .map(|secs| now - secs);
 
     if let Some(cut) = cutoff {
-        // ── 时间模式：优先查 pool ────────────────────────────────────────────
+        // ── 时间模式：检查 pool 是否完整覆盖时间窗口 ──────────────────────────
         let pool_msgs = pool.range(group_id, cut, now).await;
-        if !pool_msgs.is_empty() {
-            info!("[fetcher] 时间模式: pool命中 {} 条 (cutoff={})", pool_msgs.len(), cut);
+        let oldest    = pool.oldest_timestamp(group_id).await;
+        // pool 覆盖完整：有窗口内消息 且 最早记录 <= cutoff（说明 pool 已有 cutoff 之前的数据）
+        if !pool_msgs.is_empty() && oldest.map_or(false, |t| t <= cut) {
+            info!("[fetcher] 时间模式: pool完整覆盖 {} 条 (oldest={}, cutoff={})",
+                pool_msgs.len(), oldest.unwrap(), cut);
             let mut messages: Vec<ChatMessage> = pool_msgs.iter().map(pool_msg_to_chat).collect();
             messages.sort_by_key(|m| m.time);
             return Ok(messages);
         }
-        // pool 未命中 → API fallback + back-seeding
+        // pool 未完整覆盖（冷启动 / pool 起点比 cutoff 新）→ API fallback
+        info!("[fetcher] 时间模式: pool起点={:?} > cutoff={}, 回退 API", oldest, cut);
         let raw = api
             .get_group_msg_history(group_id, TIME_MODE_COUNT)
             .await
             .context("拉取群消息历史失败")?;
-        info!("[fetcher] 时间模式: pool未命中, API返回 {} 条, cutoff={}", raw.len(), cut);
+        info!("[fetcher] 时间模式: API返回 {} 条, cutoff={}", raw.len(), cut);
         back_seed_pool(pool, &raw, group_id).await;
         let mut messages = parse_raw_messages(&raw, Some(cut));
         messages.sort_by_key(|m| m.time);
+        // 若 API 返回的最早时间戳仍 > cutoff，说明服务端历史已穷尽
+        if let Some(earliest) = messages.first().map(|m| m.time) {
+            if earliest > cut {
+                info!("[fetcher] 时间模式: 服务端历史已穷尽（最早={}, cutoff={}），返回现有 {} 条",
+                    earliest, cut, messages.len());
+            }
+        }
         info!("[fetcher] 时间过滤后: {} 条", messages.len());
         return Ok(messages);
     }
