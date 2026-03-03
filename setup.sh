@@ -78,11 +78,11 @@ FEAT_LABELS=(
     "cmd-help           /help 自动生成命令列表"
     "cmd-alive          /alive 存活检查"
     "cmd-img            <img> 发图命令"
-    "core-log-file      日志写入文件（每日滚动，需配置 log_dir）"
     "cmd-stalk          <stalk> 截图（需 stalk_hypr 客户端）"
     "cmd-smy            <smy> 群聊日报（含 chrono、base64）"
     "cmd-world          /world 60秒看世界新闻速览"
     "core-pool-sqlite   SQLite 消息持久化（编译较慢，非默认）"
+    "core-log-file      日志写入文件（每日滚动，需配置 log_dir）"
 )
 
 select_features() {
