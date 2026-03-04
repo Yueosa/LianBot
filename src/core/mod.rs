@@ -1,11 +1,12 @@
 pub mod api;
-pub mod config;
 pub mod plugin_config;
-pub mod error;
-pub mod logger;
 pub mod parser;
 pub mod dispatcher;
 pub mod pool;
 pub mod registry;
 pub mod typ;
 pub mod ws;
+
+pub use crate::kernel::config;
+pub use crate::kernel::error;
+pub use crate::kernel::logger;

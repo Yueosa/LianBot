@@ -4,7 +4,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::core::config::LogConfig;
+use crate::kernel::config::LogConfig;
 
 /// CST (+08:00) 时区计时器。
 fn cst_timer() -> OffsetTime<&'static [time::format_description::FormatItem<'static>]> {

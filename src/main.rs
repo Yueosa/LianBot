@@ -1,4 +1,5 @@
 mod core;
+mod kernel;
 mod commands;
 mod plugins;
 
