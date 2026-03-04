@@ -97,7 +97,7 @@ impl Default for CommandRegistry {
         let mut registry = Self::new();
         #[cfg(feature = "cmd-ping")]  registry.register(Arc::new(commands::ping::PingCommand));
         #[cfg(feature = "cmd-help")]  registry.register(Arc::new(commands::help::HelpCommand));
-        #[cfg(feature = "cmd-img")]   registry.register(Arc::new(commands::img::ImgCommand));
+        #[cfg(feature = "cmd-acg")]   registry.register(Arc::new(commands::acg::AcgCommand));
         #[cfg(feature = "cmd-stalk")] registry.register(Arc::new(commands::stalk::StalkCommand));
         #[cfg(feature = "cmd-smy")]   registry.register(Arc::new(commands::smy::SmyCommand));
         #[cfg(feature = "cmd-alive")] registry.register(Arc::new(commands::alive::AliveCommand));

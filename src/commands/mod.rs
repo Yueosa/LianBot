@@ -1,6 +1,6 @@
 #[cfg(feature = "cmd-ping")]  pub mod ping;
 #[cfg(feature = "cmd-help")]  pub mod help;
-#[cfg(feature = "cmd-img")]   pub mod img;
+#[cfg(feature = "cmd-acg")]   pub mod acg;
 #[cfg(feature = "cmd-stalk")] pub mod stalk;
 #[cfg(feature = "cmd-smy")]   pub mod smy;
 #[cfg(feature = "cmd-alive")] pub mod alive;
