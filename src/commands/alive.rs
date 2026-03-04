@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind};
-use crate::core::plugin_config::PluginConfig;
+use crate::runtime::plugin_config::PluginConfig;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use once_cell::sync::OnceCell;
 use serde::de::DeserializeOwned;
 
-use crate::core::error::AppError;
+use crate::kernel::error::AppError;
 
 static PLUGIN_CONFIG: OnceCell<PluginConfig> = OnceCell::new();
 

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
-use crate::core::plugin_config::PluginConfig;
+use crate::runtime::plugin_config::PluginConfig;
 use crate::plugins::smy;
 use crate::plugins::smy::SmyPluginConfig;
 
