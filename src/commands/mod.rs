@@ -37,7 +37,8 @@ pub enum ValueConstraint {
     Any,
     /// 整数范围，`min`/`max` 为 `None` 表示无限制
     Integer { min: Option<i64>, max: Option<i64> },
-    /// 枚举值，输入必须是其中之一
+    /// 枚举值，输入必须是其中之一（当前暂无命令使用，保留供未来扩展）
+    #[allow(dead_code)]
     OneOf(&'static [&'static str]),
 }
 
@@ -61,6 +62,8 @@ pub struct ParamSpec {
 }
 
 /// 可选依赖声明，供 Phase 4 feature gate 检查使用。
+/// 当前 dispatcher 尚未消费此信息，预留供未来 runtime 依赖检查。
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dependency {
     /// 需要 `plugins.toml` 中的配置段（如 LLM）
@@ -95,7 +98,8 @@ pub trait Command: Send + Sync {
         &[]
     }
 
-    /// 可选依赖声明（默认为空）
+    /// 可选依赖声明（默认为空，Dispatcher 尚未消费，预留 Phase 4）
+    #[allow(dead_code)]
     fn dependencies(&self) -> &[Dependency] {
         &[]
     }
@@ -109,7 +113,8 @@ pub trait Command: Send + Sync {
 pub struct CommandContext {
     /// 触发命令的群号
     pub group_id: i64,
-    /// 发送者 QQ 号
+    /// 发送者 QQ 号（供命令级权限检查等未来功能使用）
+    #[allow(dead_code)]
     pub user_id: i64,
     /// 解析后的参数 map
     pub params: HashMap<String, ParamValue>,
@@ -117,7 +122,8 @@ pub struct CommandContext {
     pub api: Arc<ApiClient>,
     /// WebSocket 连接管理器（Arc 共享）
     pub ws: Arc<WsManager>,
-    /// 全局配置
+    /// 全局配置（供命令访问全局级配置，如白名单等）
+    #[allow(dead_code)]
     pub config: &'static Config,
     /// 命令注册表（供 /help 等命令枚举全部命令）
     pub registry: Arc<CommandRegistry>,

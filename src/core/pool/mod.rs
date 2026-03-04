@@ -29,7 +29,10 @@ pub struct PoolMessage {
     pub text: Option<String>,
     /// 解析好的消息段，不含 raw
     pub segments: Vec<Segment>,
+    /// AI 流水线预留字段（当前未使用）
+    #[allow(dead_code)]
     pub status: MsgStatus,
+    #[allow(dead_code)]
     pub processing: Option<ProcessInfo>,
 }
 
@@ -54,7 +57,8 @@ pub struct Segment {
     pub data: Value,
 }
 
-/// 消息处理状态（为 AI 流水线预留）
+/// 消息处理状态（为 AI 流水线预留，当前仅使用 Pending）
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MsgStatus {
     Pending,
@@ -63,7 +67,8 @@ pub enum MsgStatus {
     Error,
 }
 
-/// 处理信息（供 AI 模块记录）
+/// 处理信息（供 AI 模块记录，当前尚未使用）
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ProcessInfo {
     pub module: String,

@@ -10,10 +10,13 @@ pub struct Statistics {
     pub participant_count: usize,
     pub total_characters: usize,
     pub emoji_count: u32,
+    /// 当前渲染层未使用，保留供未来扩展
+    #[allow(dead_code)]
     pub image_count: usize,
     pub most_active_hour: String,
     pub hourly_distribution: [u32; 24],
-    /// 发言数 top 榜: (昵称, 条数)
+    /// 发言数 top 榜: (昵称, 条数)，当前渲染层未使用
+    #[allow(dead_code)]
     pub top_speakers: Vec<(String, usize)>,
 }
 

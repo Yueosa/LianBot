@@ -1,3 +1,6 @@
+// 这个文件为 OneBot v11 协议类型层，部分字段/方法暂未使用但保留供未来扩展。
+#![allow(dead_code)]
+
 use serde::Deserialize;
 use super::message::MessageSegment;
 

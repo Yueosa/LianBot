@@ -98,7 +98,8 @@ impl ApiClient {
         Ok(())
     }
 
-    /// 发送完全自定义的消息段列表
+    /// 发送完全自定义的消息段列表（当前未被命令用到，保留供未来）
+    #[allow(dead_code)]
     pub async fn send_segments(
         &self,
         group_id: i64,

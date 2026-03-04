@@ -32,6 +32,7 @@ impl ParamValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_flag(&self) -> bool {
         matches!(self, ParamValue::Flag)
     }
@@ -57,6 +58,7 @@ impl CommandParser {
     }
 
     /// 判断文本是否看起来像一条命令（快速前缀检查）
+    #[allow(dead_code)]
     pub fn is_command(input: &str) -> bool {
         let s = input.trim();
         s.starts_with('/') || (s.starts_with('<') && s.contains('>'))
