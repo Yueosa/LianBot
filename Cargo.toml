@@ -45,7 +45,7 @@ rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 # 默认启用全部命令
 default = [
     "cmd-ping", "cmd-help", "cmd-alive",
-    "cmd-smy", "cmd-img", "cmd-stalk",
+    "cmd-smy", "cmd-acg", "cmd-stalk",
     "cmd-world",
 ]
 
@@ -53,7 +53,7 @@ default = [
 cmd-ping  = []
 cmd-help  = []
 cmd-alive = []
-cmd-img   = []
+cmd-acg   = []
 cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
 cmd-smy   = ["dep:chrono", "dep:base64"]  # 截图(base64) + 时间处理(chrono)
 cmd-world = []                            # /world 60秒看世界
