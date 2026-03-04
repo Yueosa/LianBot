@@ -1,14 +1,15 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::commands::Command;
+use crate::commands::{Command, CommandKind};
 use crate::commands;
 
 // ── 命令注册表 ─────────────────────────────────────────────────────────────────
 //
 // 维护两张表：
-//   simple_cmds  → 简单命令，key 含 '/'  例如 "/ping"
-//   advanced_cmds → 复杂命令，key 不含 '/' 例如 "img"
+//   simple_cmds  → 简单命令（kind = Simple），例如 "/ping"
+//   advanced_cmds → 复杂命令（kind = Advanced），例如 "img"
 //
+// 命令的分类由 `cmd.kind()` 元数据决定，而非名称前缀。
 // 调用 `CommandRegistry::default()` 会自动注册所有内置命令。
 
 pub struct CommandRegistry {
@@ -24,26 +25,20 @@ impl CommandRegistry {
         }
     }
 
-    /// 注册一条命令（自动按前缀分类）。
+    /// 注册一条命令（根据 `cmd.kind()` 元数据分类）。
     /// 同时注册别名。
     pub fn register(&mut self, cmd: Arc<dyn Command>) {
         let name = cmd.name().to_string();
         let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
 
-        let table = if name.starts_with('/') {
-            &mut self.simple_cmds
-        } else {
-            &mut self.advanced_cmds
+        let table = match cmd.kind() {
+            CommandKind::Simple   => &mut self.simple_cmds,
+            CommandKind::Advanced => &mut self.advanced_cmds,
         };
 
         table.insert(name, cmd.clone());
         for alias in aliases {
-            let t = if alias.starts_with('/') {
-                &mut self.simple_cmds
-            } else {
-                &mut self.advanced_cmds
-            };
-            t.insert(alias, cmd.clone());
+            table.insert(alias, cmd.clone());
         }
     }
 
