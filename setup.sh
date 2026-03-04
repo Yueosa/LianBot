@@ -36,8 +36,8 @@ BOT_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
 
 # 从 .build_features 加载，否则使用默认值
 declare -A FEAT_SELECTED
-ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world core-pool-sqlite core-log-file)
-DEFAULT_ON=(cmd-ping cmd-help cmd-alive cmd-img cmd-stalk cmd-smy cmd-world)
+ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-acg cmd-stalk cmd-smy cmd-world core-pool-sqlite core-log-file)
+DEFAULT_ON=(cmd-ping cmd-help cmd-alive cmd-acg cmd-stalk cmd-smy cmd-world)
 
 load_features() {
     # 默认全部设为 off
@@ -77,7 +77,7 @@ FEAT_LABELS=(
     "cmd-ping           /ping 命令（极轻量）"
     "cmd-help           /help 自动生成命令列表"
     "cmd-alive          /alive 存活检查"
-    "cmd-img            <img> 发图命令"
+    "cmd-acg            /acg 随机二次元图片"
     "cmd-stalk          <stalk> 截图（需 stalk_hypr 客户端）"
     "cmd-smy            <smy> 群聊日报（含 chrono、base64）"
     "cmd-world          /world 60秒看世界新闻速览"
