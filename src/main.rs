@@ -1,7 +1,7 @@
 mod kernel;
 mod runtime;
 mod commands;
-mod plugins;
+mod logic;
 
 use std::sync::Arc;
 

@@ -4,8 +4,8 @@ use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
 use crate::runtime::plugin_config::PluginConfig;
-use crate::plugins::smy;
-use crate::plugins::smy::SmyPluginConfig;
+use crate::logic::smy;
+use crate::logic::smy::SmyPluginConfig;
 
 pub struct SmyCommand;
 
