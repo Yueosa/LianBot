@@ -17,6 +17,3 @@ pub enum AppError {
     #[error("TOML 解析失败: {0}")]
     Toml(#[from] toml::de::Error),
 }
-
-/// 应用级 Result 别名
-pub type Result<T> = std::result::Result<T, AppError>;
