@@ -12,7 +12,7 @@ pub struct SmyCommand;
 #[async_trait]
 impl Command for SmyCommand {
     fn name(&self) -> &str { "smy" }
-    fn help(&self) -> &str { "群聊日报：统计分析 + 可选 AI 总结" }
+    fn help(&self) -> &str { "群聊总结：统计分析 + 可选 AI 总结" }
     fn aliases(&self) -> &[&str] { &["日报"] }
     fn kind(&self) -> CommandKind { CommandKind::Advanced }
     fn declared_params(&self) -> &[ParamSpec] {
@@ -60,7 +60,7 @@ impl Command for SmyCommand {
         info!("[S0] 模式: group={group_id} {}, ai={with_ai}", mode_desc);
 
         ctx.api
-            .send_text(group_id, "📊 正在生成群聊日报，请稍候...")
+            .send_text(group_id, "📊 正在总结，请稍候...")
             .await?;
 
         info!("[S1] 拉取消息: group={group_id} {mode_desc}");
