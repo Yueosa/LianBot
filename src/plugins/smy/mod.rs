@@ -43,7 +43,7 @@ mod preview_tests {
 
 	use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 
-	use crate::core::pool::MsgKind;
+	use crate::runtime::pool::MsgKind;
 
 	use super::fetcher::ChatMessage;
 	use super::llm::{LlmResult, Quote, Relationship, Topic, UserTitle};

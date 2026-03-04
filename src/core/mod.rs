@@ -1,8 +1,5 @@
 pub mod dispatcher;
-pub mod pool;
 pub mod registry;
-pub mod typ;
-pub mod ws;
 
 #[allow(unused_imports)]
 pub use crate::kernel::config;
@@ -16,3 +13,9 @@ pub use crate::runtime::logger;
 pub use crate::runtime::parser;
 #[allow(unused_imports)]
 pub use crate::runtime::plugin_config;
+#[allow(unused_imports)]
+pub use crate::runtime::pool;
+#[allow(unused_imports)]
+pub use crate::runtime::typ;
+#[allow(unused_imports)]
+pub use crate::runtime::ws;
