@@ -243,7 +243,7 @@ pub type Pool = store::HybridPool;
 /// 统一的消息池创建入口，在 `main.rs` 中调用。
 /// - 默认：MemoryPool
 /// - `--features core-pool-sqlite`：HybridPool（内存 + SQLite）
-pub async fn create_pool(cfg: &crate::core::config::PoolConfig) -> anyhow::Result<std::sync::Arc<Pool>> {
+pub async fn create_pool(cfg: &crate::kernel::config::PoolConfig) -> anyhow::Result<std::sync::Arc<Pool>> {
     #[cfg(not(feature = "core-pool-sqlite"))]
     { Ok(cache::MemoryPool::new(cfg)) }
 

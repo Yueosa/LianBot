@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::sync::RwLock;
 
 use super::{MessagePool, PoolMessage};
-use crate::core::config::PoolConfig;
+use crate::kernel::config::PoolConfig;
 
 // ── MemoryPool ────────────────────────────────────────────────────────────────
 
@@ -94,7 +94,10 @@ impl MessagePool for MemoryPool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{config::PoolConfig, pool::{MsgKind, MsgStatus, PoolMessage, Segment}};
+    use crate::{
+        kernel::config::PoolConfig,
+        runtime::pool::{MsgKind, MsgStatus, PoolMessage, Segment},
+    };
 
     fn make_msg(gid: i64, uid: i64, ts: i64, text: &str) -> PoolMessage {
         PoolMessage {

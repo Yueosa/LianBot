@@ -6,7 +6,7 @@ pub mod screenshot;
 
 use serde::Deserialize;
 
-use crate::core::config::LlmConfig;
+use crate::kernel::config::LlmConfig;
 
 /// smy 插件配置，从 `plugins.toml` 的 `[smy]` 段加载。
 /// 所有字段均有默认值，`plugins.toml` 不存在时也可正常运行。

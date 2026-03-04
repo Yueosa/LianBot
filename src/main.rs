@@ -1,4 +1,3 @@
-mod core;
 mod kernel;
 mod runtime;
 mod commands;
@@ -21,7 +20,7 @@ use axum::routing::get;
 use tracing::info;
 
 use crate::{
-    core::{
+    runtime::{
         api::ApiClient,
         dispatcher::Dispatcher,
         registry::CommandRegistry,
@@ -44,9 +43,9 @@ struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // 优先加载配置，再初始化日志（日志级别/目录由配置决定）
-    core::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+    kernel::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
     runtime::plugin_config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
-    let cfg = core::config::Config::global();
+    let cfg = kernel::config::Config::global();
 
     // 初始化日志（stdout 始终开启；log_dir 有值时额外写文件）
     let _log_guard = runtime::logger::init(&cfg.log);

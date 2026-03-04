@@ -13,7 +13,7 @@ use super::{
     MessagePool, MsgKind, MsgStatus, PoolMessage, Segment,
     cache::MemoryPool,
 };
-use crate::core::config::PoolConfig;
+use crate::kernel::config::PoolConfig;
 
 // ── 常量 ──────────────────────────────────────────────────────────────────────
 
@@ -402,9 +402,9 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::core::{
-        config::PoolConfig,
-        pool::{MsgKind, MsgStatus, PoolMessage, Segment},
+    use crate::{
+        kernel::config::PoolConfig,
+        runtime::pool::{MsgKind, MsgStatus, PoolMessage, Segment},
     };
 
     fn test_cfg(path: &str) -> PoolConfig {

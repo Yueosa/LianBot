@@ -4,9 +4,8 @@ use tracing::{debug, info, warn};
 
 use crate::{
     commands::{Command, CommandContext, ParamKind, ParamSpec, ValueConstraint},
-    core::{
+    runtime::{
         api::ApiClient,
-        config::Config,
         parser::{CommandParser, ParsedCommand, ParamValue},
         pool::{MessagePool, Pool, PoolMessage},
         registry::CommandRegistry,
@@ -14,6 +13,7 @@ use crate::{
         ws::WsManager,
     },
 };
+use crate::kernel::config::Config;
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 //

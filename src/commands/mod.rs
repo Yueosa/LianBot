@@ -10,14 +10,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
-use crate::core::{
+use crate::runtime::{
     api::ApiClient,
-    config::Config,
     parser::ParamValue,
     pool::Pool,
     registry::CommandRegistry,
     ws::WsManager,
 };
+use crate::kernel::config::Config;
 
 // ── Command 元数据类型 ────────────────────────────────────────────────────────
 
