@@ -31,6 +31,8 @@ pub fn render(
     let topics_html = render_topics(&llm.topics);
     let titles_html = render_user_titles(&llm.user_titles, &name_to_uid);
     let quotes_html = render_quotes(&llm.golden_quotes);
+    let relationships_html = render_relationships(&llm.relationships, &name_to_uid);
+    let highlights_html = render_highlights(stats);
 
     format!(
 r#"<!DOCTYPE html>
@@ -55,9 +57,14 @@ body {{
     border-radius: 24px;
     box-shadow: 0 8px 40px rgba(245,169,184,0.12);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }}
-
-/* ── Header ── */
+.content {{
+    flex: 1;
+    padding: 40px 45px;
+    border-radius: 0 0 24px 24px;
+}}
 .header {{
     background: #5BCEFA;
     color: #fff;
@@ -77,7 +84,6 @@ body {{
 }}
 
 /* ── Content ── */
-.content {{ padding: 40px 45px; }}
 .section {{ margin-bottom: 40px; }}
 .section-title {{
     font-size: 1.5em;
@@ -124,26 +130,141 @@ body {{
     letter-spacing: 1px;
 }}
 
-/* ── Active Period ── */
+/* ── Highlights Grid ── */
+.highlights-grid {{
+    display: grid;
+    grid-template-columns: 1fr 1.6fr;
+    gap: 20px;
+    margin: 30px 0;
+    align-items: stretch;
+}}
+.highlights-left {{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}}
 .active-period {{
     background: #F5A9B8;
     color: #fff;
-    padding: 35px;
-    text-align: center;
-    margin: 30px 0;
+    padding: 28px 24px;
     border-radius: 18px;
     box-shadow: 0 6px 20px rgba(245,169,184,0.2);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
 }}
 .active-period .time {{
-    font-size: 2.8em;
-    font-weight: 200;
+    font-size: 2.2em;
+    font-weight: 600;
     margin-bottom: 6px;
+    letter-spacing: -0.5px;
 }}
 .active-period .label {{
     font-size: 0.95em;
     opacity: 0.85;
     letter-spacing: 1px;
     text-transform: uppercase;
+    margin-bottom: 10px;
+}}
+.active-period-sub {{
+    font-size: 0.82em;
+    opacity: 0.75;
+}}
+.top-emoji-card {{
+    background: #FFF5F8;
+    border: 1px solid #F5E0E8;
+    border-radius: 16px;
+    padding: 20px 24px;
+    text-align: center;
+    flex-shrink: 0;
+}}
+.top-emoji-card .te-label {{
+    font-size: 0.88em;
+    color: #6B7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}}
+.top-emoji-card .te-value {{
+    font-size: 2.4em;
+    line-height: 1.2;
+}}
+/* ── Leaderboard ── */
+.leaderboard {{
+    background: #FFFAFB;
+    border: 1px solid #F5E0E8;
+    border-radius: 18px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+}}
+.leaderboard-title {{
+    font-size: 1.0em;
+    font-weight: 600;
+    color: #4A5568;
+    margin-bottom: 18px;
+    text-align: center;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}}
+.speaker-row {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #F5E0E8;
+}}
+.speaker-rank {{
+    font-size: 1.4em;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+}}
+.speaker-avatar {{
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #F5A9B8;
+    flex-shrink: 0;
+    object-fit: cover;
+}}
+.speaker-info {{
+    flex: 1;
+    min-width: 0;
+}}
+.speaker-name {{
+    font-weight: 600;
+    font-size: 0.92em;
+    color: #2D3748;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 5px;
+}}
+.speaker-bar-wrap {{
+    background: #F5E0E8;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+}}
+.speaker-bar {{
+    background: #5BCEFA;
+    height: 100%;
+    border-radius: 3px;
+}}
+.speaker-count {{
+    font-size: 0.85em;
+    font-weight: 600;
+    color: #5BCEFA;
+    flex-shrink: 0;
 }}
 
 /* ── Hourly Chart ── */
@@ -370,6 +491,80 @@ body {{
     border-left: 3px solid #5BCEFA;
 }}
 
+/* ── Relationship Cards ── */
+.rel-grid {{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+}}
+.rel-card {{
+    background: #fff;
+    border: 1px solid #F5E0E8;
+    border-radius: 16px;
+    padding: 20px 22px;
+    transition: all 0.3s;
+}}
+.rel-card:hover {{
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245,169,184,0.12);
+}}
+.rel-card-header {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}}
+.rel-avatars {{
+    display: flex;
+    align-items: center;
+}}
+.rel-avatar {{
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    object-fit: cover;
+    margin-left: -8px;
+    background: #F5A9B8;
+}}
+.rel-avatars .rel-avatar:first-child {{
+    margin-left: 0;
+}}
+.rel-badge {{
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.78em;
+    font-weight: 600;
+}}
+.rel-badge-duo {{
+    background: #F5A9B8;
+    color: #fff;
+}}
+.rel-badge-group {{
+    background: #5BCEFA;
+    color: #fff;
+}}
+.rel-label {{
+    font-weight: 700;
+    font-size: 1.05em;
+    color: #2D3748;
+}}
+.rel-vibe {{
+    font-size: 0.9em;
+    color: #5BCEFA;
+    font-style: italic;
+    margin-bottom: 10px;
+}}
+.rel-evidence {{
+    font-size: 0.82em;
+    color: #6B7280;
+    background: rgba(245,169,184,0.08);
+    padding: 8px 12px;
+    border-radius: 10px;
+    border-left: 3px solid #F5A9B8;
+    line-height: 1.5;
+}}
 /* ── Footer ── */
 .footer {{
     background: #5BCEFA;
@@ -378,6 +573,7 @@ body {{
     padding: 30px;
     font-size: 0.9em;
     font-weight: 300;
+    letter-spacing: 0.5px;
 }}
 </style>
 </head>
@@ -409,10 +605,12 @@ body {{
                     <div class="stat-label">表情数量</div>
                 </div>
             </div>
-            <div class="active-period">
-                <div class="time">{active_hour}</div>
-                <div class="label">最活跃时段</div>
-            </div>
+        </div>
+
+        <!-- 亮点一览：活跃时段 + 最热表情 | 发言排行榜 -->
+        <div class="section">
+            <h2 class="section-title">✨ 亮点一览</h2>
+            {highlights_html}
         </div>
 
         <!-- 24h 活跃度分布 -->
@@ -431,6 +629,9 @@ body {{
 
         <!-- 群圣经 -->
         {quotes_section}
+
+        <!-- 群友关系速写 -->
+        {relationships_section}
     </div>
     <div class="footer">
         由 LianBot 生成 · {datetime_str} · Powered by DeepSeek
@@ -445,7 +646,7 @@ body {{
         participant_count = stats.participant_count,
         total_chars = stats.total_characters,
         emoji_count = stats.emoji_count,
-        active_hour = html_escape(&stats.most_active_hour),
+        highlights_html = highlights_html,
         hourly_chart = hourly_chart,
         topics_section = if llm.topics.is_empty() { String::new() } else {
             format!(r#"<div class="section"><h2 class="section-title">💬 热门话题</h2><div class="topics-grid">{}</div></div>"#, topics_html)
@@ -456,10 +657,99 @@ body {{
         quotes_section = if llm.golden_quotes.is_empty() { String::new() } else {
             format!(r#"<div class="section"><h2 class="section-title">💬 群圣经</h2>{}</div>"#, quotes_html)
         },
+        relationships_section = if llm.relationships.is_empty() { String::new() } else {
+            format!(r#"<div class="section"><h2 class="section-title">🔍 群友关系速写</h2><div class="rel-grid">{}</div></div>"#, relationships_html)
+        },
     )
 }
 
 // ── 子模块渲染 ────────────────────────────────────────────────────────────────
+
+fn render_relationships(
+    relationships: &[super::llm::Relationship],
+    name_to_uid: &HashMap<String, i64>,
+) -> String {
+    relationships
+        .iter()
+        .map(|r| {
+            let badge_class = if r.rel_type == "duo" { "rel-badge-duo" } else { "rel-badge-group" };
+
+            let avatars: String = r.members.iter().map(|name| {
+                let src = name_to_uid
+                    .get(name)
+                    .map(|uid| format!("https://q1.qlogo.cn/g?b=qq&nk={uid}&s=100"))
+                    .unwrap_or_default();
+                format!(r#"<img class="rel-avatar" src="{src}" alt="">"#)
+            }).collect();
+
+            let members_str = r.members.iter().map(|m| html_escape(m)).collect::<Vec<_>>().join(" · ");
+
+            format!(
+                r#"<div class="rel-card"><div class="rel-card-header"><div class="rel-avatars">{avatars}</div><span class="rel-badge {badge_class}">{members}</span><span class="rel-label">{label}</span></div><div class="rel-vibe">{vibe}</div><div class="rel-evidence">"{evidence}"</div></div>"#,
+                avatars  = avatars,
+                badge_class = badge_class,
+                members  = members_str,
+                label    = html_escape(&r.label),
+                vibe     = html_escape(&r.vibe),
+                evidence = html_escape(&r.evidence),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 渲染"亮点一览"双栏布局：左栏（活跃时段 + 最热表情），右栏（发言排行榜 Top 3）
+fn render_highlights(stats: &Statistics) -> String {
+    // 左栏：最活跃时段
+    let active_block = format!(
+        r#"<div class="active-period"><div class="time">{time}</div><div class="label">最活跃时段</div><div class="active-period-sub">回复 {reply} 条 · @提及 {at} 次</div></div>"#,
+        time  = html_escape(&stats.most_active_hour),
+        reply = stats.reply_count,
+        at    = stats.at_count,
+    );
+
+    // 左栏：最热表情（可选）
+    let emoji_block = match &stats.top_emoji {
+        Some(id) => format!(
+            r#"<div class="top-emoji-card"><div class="te-label">最热表情</div><div class="te-value">🎭</div><div style="font-size:0.78em;color:#6B7280;margin-top:4px">QQ Face #{id}</div></div>"#,
+            id = html_escape(id),
+        ),
+        None => String::new(),
+    };
+
+    // 右栏：发言排行榜 Top 3
+    let top_count = stats.top_speakers.first().map(|(_, _, c)| *c).unwrap_or(1).max(1);
+    let medals = ["🥇", "🥈", "🥉"];
+    let rows: String = stats.top_speakers.iter().take(3).enumerate().map(|(i, (uid, name, cnt))| {
+        let avatar = format!("https://q1.qlogo.cn/g?b=qq&nk={uid}&s=100");
+        let pct = (*cnt as f64 / top_count as f64) * 100.0;
+        let medal = medals.get(i).copied().unwrap_or("·");
+        format!(
+            r#"<div class="speaker-row"><span class="speaker-rank">{medal}</span><img class="speaker-avatar" src="{avatar}" alt=""><div class="speaker-info"><div class="speaker-name">{name}</div><div class="speaker-bar-wrap"><div class="speaker-bar" style="width:{pct:.1}%"></div></div></div><span class="speaker-count">{cnt} 条</span></div>"#,
+            medal  = medal,
+            avatar = avatar,
+            name   = html_escape(name),
+            pct    = pct,
+            cnt    = cnt,
+        )
+    }).collect::<Vec<_>>().join("\n");
+
+    let right_col = if rows.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<div class="leaderboard"><div class="leaderboard-title">🏅 发言排行榜</div>{rows}</div>"#,
+            rows = rows,
+        )
+    };
+
+    format!(
+        r#"<div class="highlights-grid"><div class="highlights-left">{active}{emoji}</div>{right}</div>"#,
+        active = active_block,
+        emoji  = emoji_block,
+        right  = right_col,
+    )
+}
 
 fn render_hourly_chart(hourly: &[u32; 24]) -> String {
     let max = *hourly.iter().max().unwrap_or(&1).max(&1);

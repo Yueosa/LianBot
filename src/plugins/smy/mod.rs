@@ -43,8 +43,10 @@ mod preview_tests {
 
 	use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 
+	use crate::core::pool::MsgKind;
+
 	use super::fetcher::ChatMessage;
-	use super::llm::{LlmResult, Quote, Topic, UserTitle};
+	use super::llm::{LlmResult, Quote, Relationship, Topic, UserTitle};
 	use super::statistics::Statistics;
 
 	#[tokio::test]
@@ -55,32 +57,56 @@ mod preview_tests {
 				nickname: "Alice".to_string(),
 				time: 1_709_700_000,
 				text: "今天把部署脚本重构好了，CI 速度提升明显！".to_string(),
-				has_image: false,
+
 				emoji_count: 1,
+				msg_id: 1001,
+				kind: MsgKind::Text,
+				image_count: 0,
+				reply_to: None,
+				at_targets: vec![],
+				face_ids: vec!["4".to_string()],
 			},
 			ChatMessage {
 				user_id: 10002,
 				nickname: "Bob".to_string(),
 				time: 1_709_701_000,
 				text: "我测了一下，冷启动从 28s 降到 12s，确实很顶。".to_string(),
-				has_image: false,
+
 				emoji_count: 0,
+				msg_id: 1002,
+				kind: MsgKind::Text,
+				image_count: 0,
+				reply_to: Some(1001),
+				at_targets: vec![10001],
+				face_ids: vec![],
 			},
 			ChatMessage {
 				user_id: 10003,
 				nickname: "Carol".to_string(),
 				time: 1_709_702_000,
 				text: "那我们要不要把截图逻辑也加个回归测试？".to_string(),
-				has_image: false,
+
 				emoji_count: 0,
+				msg_id: 1003,
+				kind: MsgKind::Text,
+				image_count: 0,
+				reply_to: None,
+				at_targets: vec![],
+				face_ids: vec![],
 			},
 			ChatMessage {
 				user_id: 10001,
 				nickname: "Alice".to_string(),
 				time: 1_709_703_000,
 				text: "支持，我今晚顺手补上。".to_string(),
-				has_image: false,
+
 				emoji_count: 1,
+				msg_id: 1004,
+				kind: MsgKind::Text,
+				image_count: 0,
+				reply_to: None,
+				at_targets: vec![],
+				face_ids: vec!["4".to_string()],
 			},
 		];
 
@@ -99,10 +125,13 @@ mod preview_tests {
 			most_active_hour: "11:00 - 12:00".to_string(),
 			hourly_distribution: hourly,
 			top_speakers: vec![
-				("Alice".to_string(), 68),
-				("Bob".to_string(), 59),
-				("Carol".to_string(), 42),
+				(10001, "Alice".to_string(), 68),
+				(10002, "Bob".to_string(), 59),
+				(10003, "Carol".to_string(), 42),
 			],
+			reply_count: 37,
+			at_count: 24,
+			top_emoji: Some("4".to_string()),
 		};
 
 		let llm = LlmResult {
@@ -139,6 +168,22 @@ mod preview_tests {
 					content: "冷启动从 28s 降到 12s，确实很顶。".to_string(),
 					sender: "Bob".to_string(),
 					reason: "一句话总结优化价值，信息密度高。".to_string(),
+				},
+			],
+			relationships: vec![
+				Relationship {
+					rel_type: "duo".to_string(),
+					members: vec!["Alice".to_string(), "Bob".to_string()],
+					label: "跑路搞码组合".to_string(),
+					vibe: "一个冲提方案、一个追数据，接龙可谓天衣无缝。".to_string(),
+					evidence: "Alice 提重构方案，Bob 立刻补出冷启动耗时对比。".to_string(),
+				},
+				Relationship {
+					rel_type: "group".to_string(),
+					members: vec!["Carol".to_string(), "Alice".to_string()],
+					label: "质量先锋队".to_string(),
+					vibe: "遇到质量问题必集体出动，论完就拿出行动方案。".to_string(),
+					evidence: "Carol 提议加回归测试，Alice 当场承诺今晚完成。".to_string(),
 				},
 			],
 		};

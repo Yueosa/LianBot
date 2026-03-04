@@ -17,8 +17,28 @@ pub struct ChatMessage {
     pub nickname: String,
     pub time: i64,
     pub text: String,
-    pub has_image: bool,
     pub emoji_count: u32,
+    // 扩展字段——从 PoolMessage/原始 JSON 中直接提取
+    /// 消息 ID（供互动图谱、回复链分析等未来功能使用）
+    #[allow(dead_code)]
+    pub msg_id: i64,
+    /// 消息类型（供消息类型分布图使用）
+    #[allow(dead_code)]
+    pub kind: MsgKind,
+    pub image_count: u32,
+    pub reply_to: Option<i64>,
+    pub at_targets: Vec<i64>,
+    pub face_ids: Vec<String>,
+}
+
+/// 从 message 段数组提取的结构化结果
+struct ExtractedSegments {
+    text: String,
+    emoji_count: u32,
+    image_count: u32,
+    reply_to: Option<i64>,
+    at_targets: Vec<i64>,
+    face_ids: Vec<String>,
 }
 
 // ── 时间过滤解析 ──────────────────────────────────────────────────────────────
@@ -126,17 +146,55 @@ async fn back_seed_pool(pool: &Arc<Pool>, raw: &[Value], group_id: i64) {
 
 /// 将 PoolMessage 转为 ChatMessage（smy 统计模块使用）
 fn pool_msg_to_chat(msg: &PoolMessage) -> ChatMessage {
-    let emoji_count = msg.segments.iter()
-        .filter(|s| matches!(s.kind.as_str(), "face" | "mface" | "bface" | "sface"))
-        .count() as u32;
-    let has_image = matches!(msg.kind, MsgKind::Image | MsgKind::Mixed);
+    let mut emoji_count: u32 = 0;
+    let mut image_count: u32 = 0;
+    let mut reply_to: Option<i64> = None;
+    let mut at_targets: Vec<i64> = Vec::new();
+    let mut face_ids: Vec<String> = Vec::new();
+
+    for seg in &msg.segments {
+        match seg.kind.as_str() {
+            "face" | "mface" | "bface" | "sface" => {
+                emoji_count += 1;
+                if let Some(id) = seg.data.get("id").and_then(Value::as_str) {
+                    face_ids.push(id.to_string());
+                } else if let Some(id) = seg.data.get("id").and_then(Value::as_i64) {
+                    face_ids.push(id.to_string());
+                }
+            }
+            "image" => {
+                image_count += 1;
+            }
+            "reply" => {
+                if reply_to.is_none() {
+                    reply_to = seg.data.get("id").and_then(Value::as_i64);
+                }
+            }
+            "at" => {
+                if let Some(qq) = seg.data.get("qq").and_then(Value::as_i64) {
+                    at_targets.push(qq);
+                } else if let Some(qq_str) = seg.data.get("qq").and_then(Value::as_str) {
+                    if let Ok(qq) = qq_str.parse::<i64>() {
+                        at_targets.push(qq);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     ChatMessage {
         user_id:     msg.user_id,
         nickname:    msg.nickname.clone(),
         time:        msg.timestamp,
         text:        msg.text.clone().unwrap_or_default(),
-        has_image,
         emoji_count,
+        msg_id:      msg.msg_id,
+        kind:        msg.kind.clone(),
+        image_count,
+        reply_to,
+        at_targets,
+        face_ids,
     }
 }
 
@@ -172,35 +230,64 @@ fn parse_raw_messages(raw: &[serde_json::Value], cutoff: Option<i64>) -> Vec<Cha
 
         // 解析 message 段
         let segments = msg.get("message").and_then(Value::as_array);
-        let (text, has_image, emoji_count) = extract_segments(segments);
+        let extracted = extract_segments(segments);
+        let (text, emoji_count) = (&extracted.text, extracted.emoji_count);
 
         // 跳过空消息
-        if text.is_empty() && !has_image {
+        if text.is_empty() && extracted.image_count == 0 {
             continue;
         }
+
+        // 推导 MsgKind
+        let kind = if extracted.image_count > 0 && !text.is_empty() {
+            MsgKind::Mixed
+        } else if extracted.image_count > 0 {
+            MsgKind::Image
+        } else if extracted.reply_to.is_some() {
+            MsgKind::Reply
+        } else {
+            MsgKind::Text
+        };
+
+        let msg_id = msg.get("message_id").and_then(Value::as_i64).unwrap_or(0);
 
         messages.push(ChatMessage {
             user_id,
             nickname: display_name,
             time,
-            text,
-            has_image,
+            text: extracted.text,
             emoji_count,
+            msg_id,
+            kind,
+            image_count: extracted.image_count,
+            reply_to: extracted.reply_to,
+            at_targets: extracted.at_targets,
+            face_ids: extracted.face_ids,
         });
     }
 
     messages
 }
 
-/// 从消息段数组提取文本、是否含图片、表情计数
-fn extract_segments(segments: Option<&Vec<Value>>) -> (String, bool, u32) {
+/// 从消息段数组提取文本、是否含图片、表情计数及其他结构化字段
+fn extract_segments(segments: Option<&Vec<Value>>) -> ExtractedSegments {
     let Some(segs) = segments else {
-        return (String::new(), false, 0);
+        return ExtractedSegments {
+            text: String::new(),
+            emoji_count: 0,
+            image_count: 0,
+            reply_to: None,
+            at_targets: Vec::new(),
+            face_ids: Vec::new(),
+        };
     };
 
     let mut texts = Vec::new();
-    let mut has_image = false;
     let mut emoji_count: u32 = 0;
+    let mut image_count: u32 = 0;
+    let mut reply_to: Option<i64> = None;
+    let mut at_targets: Vec<i64> = Vec::new();
+    let mut face_ids: Vec<String> = Vec::new();
 
     for seg in segs {
         let seg_type = seg.get("type").and_then(Value::as_str).unwrap_or("");
@@ -215,16 +302,45 @@ fn extract_segments(segments: Option<&Vec<Value>>) -> (String, bool, u32) {
                 }
             }
             "image" => {
-                has_image = true;
+                image_count += 1;
             }
             "face" | "mface" | "bface" | "sface" => {
                 emoji_count += 1;
+                let data = seg.get("data");
+                if let Some(id) = data.and_then(|d| d.get("id")).and_then(Value::as_str) {
+                    face_ids.push(id.to_string());
+                } else if let Some(id) = data.and_then(|d| d.get("id")).and_then(Value::as_i64) {
+                    face_ids.push(id.to_string());
+                }
+            }
+            "reply" => {
+                if reply_to.is_none() {
+                    reply_to = seg.get("data").and_then(|d| d.get("id")).and_then(Value::as_i64);
+                }
+            }
+            "at" => {
+                if let Some(data) = seg.get("data") {
+                    if let Some(qq) = data.get("qq").and_then(Value::as_i64) {
+                        at_targets.push(qq);
+                    } else if let Some(qq_str) = data.get("qq").and_then(Value::as_str) {
+                        if let Ok(qq) = qq_str.parse::<i64>() {
+                            at_targets.push(qq);
+                        }
+                    }
+                }
             }
             _ => {}
         }
     }
 
-    (texts.join(""), has_image, emoji_count)
+    ExtractedSegments {
+        text: texts.join(""),
+        emoji_count,
+        image_count,
+        reply_to,
+        at_targets,
+        face_ids,
+    }
 }
 
 // ── 格式化消息供 LLM 使用 ────────────────────────────────────────────────────
