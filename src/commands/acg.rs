@@ -23,7 +23,7 @@ async fn resolve_final_url(url: &str) -> Option<String> {
 
 #[async_trait]
 impl Command for AcgCommand {
-    fn name(&self) -> &str { "acg" }
+    fn name(&self) -> &str { "/acg" }
     fn help(&self) -> &str { "随机返回一张二次元图片" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
