@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::{
     Json, Router,
     extract::State,
@@ -16,6 +17,7 @@ use tracing::info;
 use crate::runtime::{
     api::ApiClient,
     dispatcher::Dispatcher,
+    pool::{MessagePool, Pool, PoolMessage},
     registry::CommandRegistry,
     typ::OneBotEvent,
     ws::WsManager,
@@ -45,6 +47,16 @@ pub async fn run() -> anyhow::Result<()> {
     let pool = crate::runtime::pool::create_pool(&cfg.pool)
         .await
         .map_err(|e| anyhow::anyhow!("消息池初始化失败: {e}"))?;
+
+    {
+        let api = api.clone();
+        let pool = pool.clone();
+        let whitelist = cfg.bot.whitelist.clone();
+        tokio::spawn(async move {
+            seed_pool_for_whitelist(api, pool, whitelist).await;
+        });
+    }
+
     let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool));
 
     let state = AppState {
@@ -64,6 +76,47 @@ pub async fn run() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn seed_pool_for_whitelist(api: Arc<ApiClient>, pool: Arc<Pool>, whitelist: Vec<i64>) {
+    if whitelist.is_empty() {
+        info!("[pool-seed] 白名单为空，跳过启动预热");
+        return;
+    }
+
+    info!("[pool-seed] 启动预热开始：{} 个群", whitelist.len());
+    let mut total_seeded = 0usize;
+
+    for group_id in whitelist {
+        match seed_one_group(&api, &pool, group_id).await {
+            Ok(n) => {
+                total_seeded += n;
+                info!("[pool-seed] 群 {} 预热完成：{} 条", group_id, n);
+            }
+            Err(e) => {
+                tracing::warn!("[pool-seed] 群 {} 预热失败: {e:#}", group_id);
+            }
+        }
+    }
+
+    info!("[pool-seed] 启动预热结束：累计 {} 条", total_seeded);
+}
+
+async fn seed_one_group(api: &ApiClient, pool: &Arc<Pool>, group_id: i64) -> anyhow::Result<usize> {
+    let raw = api
+        .get_group_msg_history_paged(group_id, 3000, None)
+        .await
+        .with_context(|| format!("拉取群 {} 历史消息失败", group_id))?;
+
+    let mut seeded = 0usize;
+    for value in raw {
+        if let Some(msg) = PoolMessage::from_api_value(&value, group_id) {
+            pool.push(msg).await;
+            seeded += 1;
+        }
+    }
+
+    Ok(seeded)
 }
 
 async fn onebot_handler(
