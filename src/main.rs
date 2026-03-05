@@ -2,6 +2,8 @@ mod kernel;
 mod runtime;
 mod commands;
 mod logic;
+#[cfg(feature = "core-db")]
+mod db;
 
 // ── 入口 ──────────────────────────────────────────────────────────────────────
 
