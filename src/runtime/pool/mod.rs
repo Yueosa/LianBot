@@ -218,8 +218,10 @@ pub trait MessagePool: Send + Sync {
     /// 写入一条消息（容量/时间淘汰由实现层自动处理）
     async fn push(&self, msg: PoolMessage);
 
-    /// 读取群 gid 最近 n 条消息（时序: 旧 → 新）
-    async fn recent(&self, gid: i64, n: usize) -> Vec<PoolMessage>;
+    /// internal-only：读取群 gid 最近 n 条消息（时序: 旧 → 新）。
+    /// 不保证时间连续性，不作为命令层对外语义使用。
+    #[doc(hidden)]
+    async fn recent_internal(&self, gid: i64, n: usize) -> Vec<PoolMessage>;
 
     /// 读取群 gid 在 [since, until] 时间范围内的消息（秒级时间戳）
     async fn range(&self, gid: i64, since: i64, until: i64) -> Vec<PoolMessage>;

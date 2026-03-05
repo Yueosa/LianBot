@@ -64,7 +64,7 @@ pub struct LlmConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct PoolConfig {
-    /// 每个群的内存缓冲最大消息条数，默认 2000
+    /// 每个群的内存缓冲最大消息条数，默认 3000
     #[serde(default = "default_pool_capacity")]
     pub per_group_capacity: usize,
     /// 内存淘汰阈值（秒），超过此时间的消息被清理，默认 1d
@@ -128,7 +128,7 @@ fn default_host() -> String { "0.0.0.0".to_string() }
 fn default_port() -> u16 { 8080 }
 fn default_llm_url() -> String { "https://api.deepseek.com/v1".to_string() }
 fn default_llm_model() -> String { "deepseek-chat".to_string() }
-fn default_pool_capacity() -> usize { 2000 }
+fn default_pool_capacity() -> usize { 3000 }
 fn default_pool_evict() -> i64 { 86400 }
 fn default_sqlite_path() -> String { "lianbot.db".to_string() }
 fn default_sqlite_retain_days() -> u32 { 30 }

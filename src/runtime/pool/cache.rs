@@ -15,7 +15,7 @@ use crate::kernel::config::PoolConfig;
 ///   1. 容量淘汰：每次 push 后若 len > capacity，从队头 pop_front（最旧的先淘汰）
 ///   2. 时间淘汰：每次 push 后扫描队头，删除早于 (now - evict_after_secs) 的消息
 ///
-/// `recent(n)` 的结果是 "capacity 内最近 n 条"，不保证跨越超长时间窗口。
+/// `recent_internal(n)` 的结果是 "capacity 内最近 n 条"，不保证跨越超长时间窗口。
 pub struct MemoryPool {
     groups: RwLock<HashMap<i64, VecDeque<PoolMessage>>>,
     capacity: usize,
@@ -58,7 +58,7 @@ impl MessagePool for MemoryPool {
         }
     }
 
-    async fn recent(&self, gid: i64, n: usize) -> Vec<PoolMessage> {
+    async fn recent_internal(&self, gid: i64, n: usize) -> Vec<PoolMessage> {
         let guard = self.groups.read().await;
         let Some(deque) = guard.get(&gid) else { return vec![] };
 
@@ -128,7 +128,7 @@ mod tests {
         for i in 1..=3 {
             p.push(make_msg(1, 100, i, &format!("msg{i}"))).await;
         }
-        let r = p.recent(1, 10).await;
+        let r = p.recent_internal(1, 10).await;
         assert_eq!(r.len(), 3);
         assert_eq!(r[0].timestamp, 1); // 旧 → 新
         assert_eq!(r[2].timestamp, 3);
@@ -140,7 +140,7 @@ mod tests {
         for i in 1..=5 {
             p.push(make_msg(1, 100, i, "x")).await;
         }
-        let r = p.recent(1, 10).await;
+        let r = p.recent_internal(1, 10).await;
         assert_eq!(r.len(), 3);
         assert_eq!(r[0].timestamp, 3); // 最旧的 1,2 被淘汰
     }
@@ -164,7 +164,7 @@ mod tests {
             .as_secs() as i64;
         p.push(make_msg(1, 100, now - 20, "old")).await; // 过期
         p.push(make_msg(1, 100, now, "new")).await;      // 新消息触发淘汰
-        let r = p.recent(1, 10).await;
+        let r = p.recent_internal(1, 10).await;
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].text.as_deref(), Some("new"));
     }

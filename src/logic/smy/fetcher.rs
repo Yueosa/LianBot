@@ -119,7 +119,7 @@ pub async fn fetch(
     }
 
     // ── 条数模式：优先查 pool ────────────────────────────────────────────────
-    let pool_msgs = pool.recent(group_id, count as usize).await;
+    let pool_msgs = pool.recent_internal(group_id, count as usize).await;
     if pool_msgs.len() >= count as usize {
         info!("[fetcher] 条数模式: pool命中 {} 条 (满足请求数 {})", pool_msgs.len(), count);
         return Ok(pool_msgs.iter().map(pool_msg_to_chat).collect());
