@@ -1,6 +1,4 @@
 pub mod cache;
-#[cfg(feature = "core-pool-sqlite")]
-pub mod store;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -214,7 +212,7 @@ fn now_secs() -> i64 {
 
 // ── MessagePool Trait ─────────────────────────────────────────────────────────
 
-/// 消息池统一接口。实现对调用方透明：InMemory / SQLite HybridPool / 远期 Actor。
+/// 消息池统一接口。当前实现为 InMemory（后续可扩展为 Actor/其他存储后端）。
 #[async_trait]
 pub trait MessagePool: Send + Sync {
     /// 写入一条消息（容量/时间淘汰由实现层自动处理）
@@ -234,19 +232,11 @@ pub trait MessagePool: Send + Sync {
 
 // ── 类型别名 & 工厂函数 ────────────────────────────────────────────────────────
 
-/// 消息池的具体实现类型（feature 决定）。
-#[cfg(not(feature = "core-pool-sqlite"))]
+/// 消息池的具体实现类型（当前固定为 MemoryPool）。
 pub type Pool = cache::MemoryPool;
-#[cfg(feature = "core-pool-sqlite")]
-pub type Pool = store::HybridPool;
 
 /// 统一的消息池创建入口，在 `main.rs` 中调用。
-/// - 默认：MemoryPool
-/// - `--features core-pool-sqlite`：HybridPool（内存 + SQLite）
+/// 当前：MemoryPool
 pub async fn create_pool(cfg: &crate::kernel::config::PoolConfig) -> anyhow::Result<std::sync::Arc<Pool>> {
-    #[cfg(not(feature = "core-pool-sqlite"))]
-    { Ok(cache::MemoryPool::new(cfg)) }
-
-    #[cfg(feature = "core-pool-sqlite")]
-    { store::HybridPool::new(cfg).await }
+    Ok(cache::MemoryPool::new(cfg))
 }
