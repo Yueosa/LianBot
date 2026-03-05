@@ -60,7 +60,7 @@ cmd-world = []                            # /world 60秒看世界
 
 # ── 基础设施 feature ────────────────────────────────────────────────────────
 core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由
-core-pool-sqlite = ["dep:rusqlite"]       # 已弃用（P1A 起不再参与消息池读写，保留仅为兼容）
+core-db          = ["dep:rusqlite"]        # 通用 SQLite 句柄（DB 层基础设施）
 core-log-file    = ["dep:tracing-appender"] # 每日滚动日志文件（需配置 log_dir）
 
 [dev-dependencies]
