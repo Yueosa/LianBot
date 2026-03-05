@@ -47,6 +47,7 @@ default = [
     "cmd-ping", "cmd-help", "cmd-alive",
     "cmd-smy", "cmd-acg", "cmd-stalk",
     "cmd-world",
+    "core-db",
 ]
 
 # ── 各命令独立 feature ──────────────────────────────────────────────────────
