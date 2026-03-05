@@ -36,7 +36,6 @@ pub enum ValueConstraint {
     /// 任意字符串，不校验
     Any,
     /// 整数范围，`min`/`max` 为 `None` 表示无限制
-    #[allow(dead_code)]
     Integer { min: Option<i64>, max: Option<i64> },
     /// 枚举值，输入必须是其中之一（当前暂无命令使用，保留供未来扩展）
     #[allow(dead_code)]
@@ -55,7 +54,7 @@ pub enum ParamKind {
 /// 单条参数规格说明，供 dispatcher 校验和 `--help` 自动生成使用。
 #[derive(Debug, Clone, Copy)]
 pub struct ParamSpec {
-    /// 所有键别名，如 `&["-n", "--count"]`
+    /// 所有键别名，如 `&["-t", "--time"]`
     pub keys: &'static [&'static str],
     pub kind: ParamKind,
     pub required: bool,

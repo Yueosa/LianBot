@@ -70,18 +70,6 @@ pub struct PoolConfig {
     /// 内存淘汰阈值（秒），超过此时间的消息被清理，默认 1d
     #[serde(default = "default_pool_evict")]
     pub evict_after_secs: i64,
-    /// SQLite 数据库文件路径，默认 "lianbot.db"
-    #[allow(dead_code)]
-    #[serde(default = "default_sqlite_path")]
-    pub sqlite_path: String,
-    /// SQLite 保留天数，超过此天数的记录在定期清理时删除，默认 30d
-    #[allow(dead_code)]
-    #[serde(default = "default_sqlite_retain_days")]
-    pub sqlite_retain_days: u32,
-    /// SQLite 每群最大保留条数，超出时删除最旧的记录，默认 50000
-    #[allow(dead_code)]
-    #[serde(default = "default_sqlite_max_rows")]
-    pub sqlite_max_rows_per_group: usize,
 }
 
 impl Default for PoolConfig {
@@ -89,9 +77,6 @@ impl Default for PoolConfig {
         Self {
             per_group_capacity:      default_pool_capacity(),
             evict_after_secs:        default_pool_evict(),
-            sqlite_path:             default_sqlite_path(),
-            sqlite_retain_days:      default_sqlite_retain_days(),
-            sqlite_max_rows_per_group: default_sqlite_max_rows(),
         }
     }
 }
@@ -130,9 +115,6 @@ fn default_llm_url() -> String { "https://api.deepseek.com/v1".to_string() }
 fn default_llm_model() -> String { "deepseek-chat".to_string() }
 fn default_pool_capacity() -> usize { 3000 }
 fn default_pool_evict() -> i64 { 86400 }
-fn default_sqlite_path() -> String { "lianbot.db".to_string() }
-fn default_sqlite_retain_days() -> u32 { 30 }
-fn default_sqlite_max_rows() -> usize { 50_000 }
 fn default_log_max_days() -> u32 { 30 }
 fn default_log_level() -> String { "info".to_string() }
 

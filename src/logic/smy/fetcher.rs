@@ -60,9 +60,7 @@ pub enum GapLevel {
 pub struct GapWarning {
     pub level: GapLevel,
     pub gap_hours: f64,
-    #[allow(dead_code)]
     pub gap_start: i64,
-    #[allow(dead_code)]
     pub gap_end: i64,
 }
 

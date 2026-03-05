@@ -221,7 +221,6 @@ pub trait MessagePool: Send + Sync {
     /// internal-only：读取群 gid 最近 n 条消息（时序: 旧 → 新）。
     /// 不保证时间连续性，不作为命令层对外语义使用。
     #[doc(hidden)]
-    #[allow(dead_code)]
     async fn recent_internal(&self, gid: i64, n: usize) -> Vec<PoolMessage>;
 
     /// 读取群 gid 在 [since, until] 时间范围内的消息（秒级时间戳）

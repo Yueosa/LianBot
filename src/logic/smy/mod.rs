@@ -12,10 +12,6 @@ use crate::kernel::config::LlmConfig;
 /// 所有字段均有默认值，`plugins.toml` 不存在时也可正常运行。
 #[derive(Debug, Deserialize)]
 pub struct SmyPluginConfig {
-    /// 默认拉取消息条数（10-2000）
-	#[allow(dead_code)]
-    #[serde(default = "SmyPluginConfig::default_count")]
-    pub default_count: u32,
     /// 截图宽度（像素）
     #[serde(default = "SmyPluginConfig::default_screenshot_width")]
     pub screenshot_width: u32,
@@ -24,14 +20,12 @@ pub struct SmyPluginConfig {
 }
 
 impl SmyPluginConfig {
-    fn default_count() -> u32 { 200 }
     fn default_screenshot_width() -> u32 { 1200 }
 }
 
 impl Default for SmyPluginConfig {
     fn default() -> Self {
         Self {
-            default_count: SmyPluginConfig::default_count(),
             screenshot_width: SmyPluginConfig::default_screenshot_width(),
             llm: None,
         }
