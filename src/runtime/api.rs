@@ -3,6 +3,33 @@ use reqwest::Client;
 use serde::Serialize;
 use tracing::{debug, warn};
 
+// ── 消息发送目标 ───────────────────────────────────────────────────────────────
+
+/// 消息发送目标，供 `send_msg` / `send_image_to` 等通用接口使用。
+/// 命令层的旧版 `send_text(group_id, ...)` / `send_image(group_id, ...)` 保持不变。
+#[derive(Debug, Clone, Copy)]
+pub enum MsgTarget {
+    /// 群聊，携带 group_id
+    Group(i64),
+    /// 私聊，携带对方 QQ 号
+    Private(i64),
+}
+
+impl MsgTarget {
+    fn into_payload_fields(self) -> (String, serde_json::Value) {
+        match self {
+            MsgTarget::Group(id) => (
+                "group".to_string(),
+                serde_json::json!({"message_type": "group", "group_id": id}),
+            ),
+            MsgTarget::Private(id) => (
+                "private".to_string(),
+                serde_json::json!({"message_type": "private", "user_id": id}),
+            ),
+        }
+    }
+}
+
 // ── API 客户端 ─────────────────────────────────────────────────────────────────
 //
 // 封装所有对 NapCat/go-cqhttp HTTP API 的调用。
@@ -110,6 +137,28 @@ impl ApiClient {
             "message": segments
         });
         self.post("/send_group_msg", &payload).await?;
+        Ok(())
+    }
+
+    // ── 通用发送（群 / 私聊均支持，供 Service 层使用）──────────────────────────
+
+    /// 发送纯文字到任意目标（群聊或私聊）
+    pub async fn send_msg(&self, target: MsgTarget, text: &str) -> Result<()> {
+        let (_, mut payload) = target.into_payload_fields();
+        payload["message"] = serde_json::json!([
+            {"type": "text", "data": {"text": text}}
+        ]);
+        self.post("/send_msg", &payload).await?;
+        Ok(())
+    }
+
+    /// 发送图片到任意目标（file 可为 URL 或 `base64://...`）
+    pub async fn send_image_to(&self, target: MsgTarget, file: &str) -> Result<()> {
+        let (_, mut payload) = target.into_payload_fields();
+        payload["message"] = serde_json::json!([
+            {"type": "image", "data": {"file": file}}
+        ]);
+        self.post("/send_msg", &payload).await?;
         Ok(())
     }
 

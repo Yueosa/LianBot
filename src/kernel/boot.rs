@@ -24,6 +24,7 @@ use crate::{
         typ::OneBotEvent,
         ws::WsManager,
     },
+    services::{ServiceContext, BotService, scheduler::SchedulerService},
 };
 
 #[derive(Clone)]
@@ -67,7 +68,11 @@ pub async fn run() -> anyhow::Result<()> {
         });
     }
 
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool, perm));
+    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool, perm.clone()));
+
+    // ── 后台 Service ──────────────────────────────────────────────────────────
+    let svc_ctx = ServiceContext { api: api.clone(), perm, config: cfg };
+    tokio::spawn(SchedulerService::new(svc_ctx).run());
 
     let state = AppState {
         dispatcher,

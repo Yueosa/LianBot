@@ -5,6 +5,7 @@ mod logic;
 #[cfg(feature = "core-db")]
 mod db;
 mod permission;
+mod services;
 
 // ── 入口 ──────────────────────────────────────────────────────────────────────
 
