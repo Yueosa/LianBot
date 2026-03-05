@@ -39,15 +39,14 @@ pub struct NapcatConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct BotConfig {
-    /// 允许响应的群号白名单
-    pub whitelist: Vec<i64>,
-    /// 用户白名单：非空时仅响应列表内的 QQ 号
-    /// 优先级高于 user_blacklist，两者同时设置时黑名单无效
+    /// Bot 主人的 QQ 号（唯一，最高权限，不受黑名单影响）
+    pub owner: i64,
+    /// 权限数据库文件路径，默认 "permissions.db"
+    #[serde(default = "default_db_path")]
+    pub db_path: String,
+    /// 启动时导入 DB 的初始群列表（已有记录则跳过，不会覆盖）
     #[serde(default)]
-    pub user_whitelist: Vec<i64>,
-    /// 用户黑名单：永远忽略这些 QQ 号（user_whitelist 非空时此项无效）
-    #[serde(default)]
-    pub user_blacklist: Vec<i64>,
+    pub initial_groups: Vec<i64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -110,6 +109,7 @@ impl Default for LogConfig {
 
 // ── 默认值 ─────────────────────────────────────────────────────────────────────
 fn default_host() -> String { "0.0.0.0".to_string() }
+fn default_db_path() -> String { "permissions.db".to_string() }
 fn default_port() -> u16 { 8080 }
 fn default_llm_url() -> String { "https://api.deepseek.com/v1".to_string() }
 fn default_llm_model() -> String { "deepseek-chat".to_string() }

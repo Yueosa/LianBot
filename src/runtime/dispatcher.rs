@@ -4,6 +4,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     commands::{Command, CommandContext, ParamKind, ParamSpec, ValueConstraint},
+    permission::{BotUser, PermissionStore, Scope, Status},
     runtime::{
         api::ApiClient,
         parser::{CommandParser, ParsedCommand, ParamValue},
@@ -29,6 +30,7 @@ pub struct Dispatcher {
     ws: Arc<WsManager>,
     registry: Arc<CommandRegistry>,
     pool: Arc<Pool>,
+    perm: Arc<PermissionStore>,
 }
 
 impl Dispatcher {
@@ -38,8 +40,9 @@ impl Dispatcher {
         ws: Arc<WsManager>,
         registry: Arc<CommandRegistry>,
         pool: Arc<Pool>,
+        perm: Arc<PermissionStore>,
     ) -> Self {
-        Self { config, api, ws, registry, pool }
+        Self { config, api, ws, registry, pool, perm }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
@@ -78,22 +81,24 @@ impl Dispatcher {
             _ => return Ok(()), // 私聊暂不处理
         };
 
-        // 2. 群白名单过滤
-        if !self.config.bot.whitelist.contains(&group_id) {
+        // 2. 群网关校验（该群是否对 Bot 开放）
+        if !self.perm.is_group_enabled(group_id) {
             return Ok(());
         }
 
-        // 3. 用户过滤（白名单优先于黑名单）
-        let user_id = event.user_id;
-        if !self.config.bot.user_whitelist.is_empty() {
-            if !self.config.bot.user_whitelist.contains(&user_id) {
-                return Ok(()); // 不在用户白名单，忽略
-            }
-        } else if self.config.bot.user_blacklist.contains(&user_id) {
-            return Ok(()); // 在用户黑名单，忽略
+        // 3. 构造 BotUser（合并 role + 全局及 scope 两层 status）
+        let bot_user = self.perm.resolve_user(
+            self.config.bot.owner,
+            event.user_id,
+            Scope::Group(group_id),
+        );
+
+        // 4. 用户门控（Blocked 静默丢弃）
+        if bot_user.status == Status::Blocked {
+            return Ok(());
         }
 
-        // 4. 提取文本
+        // 5. 提取文本
         let text = event.full_text();
         info!("[群 {group_id}] {}: {text}", event.user_id);
 
@@ -101,18 +106,18 @@ impl Dispatcher {
             return Ok(()); // 纯图片/语音等，跳过
         }
 
-        // 4. 写入消息池（在路由前）
+        // 6. 写入消息池（在路由前）
         if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
             self.pool.push(pool_msg).await;
         }
 
-        // 5. 尝试解析命令
+        // 7. 尝试解析命令
         match CommandParser::parse(&text) {
             Some(ParsedCommand::Simple { name, trailing }) => {
-                self.dispatch_simple(group_id, event.user_id, name, trailing).await
+                self.dispatch_simple(group_id, bot_user, name, trailing).await
             }
             Some(ParsedCommand::Advanced { name, params }) => {
-                self.dispatch_advanced(group_id, event.user_id, name, params).await
+                self.dispatch_advanced(group_id, bot_user, name, params).await
             }
             None => {
                 // 非命令消息 → 关键词匹配 / AI 对话入口（可扩展）
@@ -126,7 +131,7 @@ impl Dispatcher {
     async fn dispatch_simple(
         &self,
         group_id: i64,
-        user_id: i64,
+        bot_user: BotUser,
         name: String,
         trailing: Vec<String>,
     ) -> anyhow::Result<()> {
@@ -151,7 +156,7 @@ impl Dispatcher {
                     };
                     return self.api.send_text(group_id, &detail).await;
                 }
-                let ctx = self.build_ctx(group_id, user_id, Default::default());
+                let ctx = self.build_ctx(group_id, bot_user, Default::default());
                 cmd.execute(ctx).await
             }
             None => {
@@ -166,7 +171,7 @@ impl Dispatcher {
     async fn dispatch_advanced(
         &self,
         group_id: i64,
-        user_id: i64,
+        bot_user: BotUser,
         name: String,
         params: std::collections::HashMap<String, ParamValue>,
     ) -> anyhow::Result<()> {
@@ -186,7 +191,7 @@ impl Dispatcher {
                     let text = format!("❌ {detail}\n输入 <{}> --help 查看用法", cmd.name());
                     return self.api.send_text(group_id, &text).await;
                 }
-                let ctx = self.build_ctx(group_id, user_id, params);
+                let ctx = self.build_ctx(group_id, bot_user, params);
                 cmd.execute(ctx).await
             }
             None => {
@@ -216,12 +221,12 @@ impl Dispatcher {
     fn build_ctx(
         &self,
         group_id: i64,
-        user_id: i64,
+        bot_user: BotUser,
         params: std::collections::HashMap<String, ParamValue>,
     ) -> CommandContext {
         CommandContext {
             group_id,
-            user_id,
+            bot_user,
             params,
             api: self.api.clone(),
             ws: self.ws.clone(),

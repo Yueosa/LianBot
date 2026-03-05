@@ -10,6 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
+use crate::permission::BotUser;
 use crate::runtime::{
     api::ApiClient,
     parser::ParamValue,
@@ -113,9 +114,8 @@ pub trait Command: Send + Sync {
 pub struct CommandContext {
     /// 触发命令的群号
     pub group_id: i64,
-    /// 发送者 QQ 号（供命令级权限检查等未来功能使用）
-    #[allow(dead_code)]
-    pub user_id: i64,
+    /// 发送者的虚拟用户对象（包含 user_id、role、status）
+    pub bot_user: BotUser,
     /// 解析后的参数 map
     pub params: HashMap<String, ParamValue>,
     /// OneBot API 客户端（Arc 共享）

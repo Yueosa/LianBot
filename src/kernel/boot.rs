@@ -14,13 +14,16 @@ use axum::extract::WebSocketUpgrade;
 use axum::routing::get;
 use tracing::info;
 
-use crate::runtime::{
-    api::ApiClient,
-    dispatcher::Dispatcher,
-    pool::{MessagePool, Pool, PoolMessage},
-    registry::CommandRegistry,
-    typ::OneBotEvent,
-    ws::WsManager,
+use crate::{
+    permission::PermissionStore,
+    runtime::{
+        api::ApiClient,
+        dispatcher::Dispatcher,
+        pool::{MessagePool, Pool, PoolMessage},
+        registry::CommandRegistry,
+        typ::OneBotEvent,
+        ws::WsManager,
+    },
 };
 
 #[derive(Clone)]
@@ -39,7 +42,7 @@ pub async fn run() -> anyhow::Result<()> {
     info!("配置加载成功");
     info!("  NapCat URL : {}", cfg.napcat.url);
     info!("  服务监听   : {}:{}", cfg.server.host, cfg.server.port);
-    info!("  群白名单   : {:?}", cfg.bot.whitelist);
+    info!("  Bot 主人   : {}", cfg.bot.owner);
 
     let api = Arc::new(ApiClient::new(cfg.napcat.url.clone(), cfg.napcat.token.clone()));
     let ws = WsManager::new();
@@ -48,16 +51,23 @@ pub async fn run() -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("消息池初始化失败: {e}"))?;
 
+    let perm = PermissionStore::open(
+        std::path::Path::new(&cfg.bot.db_path),
+        &cfg.bot.initial_groups,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("权限 DB 初始化失败: {e}"))?;
+
     {
         let api = api.clone();
         let pool = pool.clone();
-        let whitelist = cfg.bot.whitelist.clone();
+        let groups = perm.enabled_groups();
         tokio::spawn(async move {
-            seed_pool_for_whitelist(api, pool, whitelist).await;
+            seed_pool_for_whitelist(api, pool, groups).await;
         });
     }
 
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool));
+    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool, perm));
 
     let state = AppState {
         dispatcher,
@@ -80,7 +90,7 @@ pub async fn run() -> anyhow::Result<()> {
 
 async fn seed_pool_for_whitelist(api: Arc<ApiClient>, pool: Arc<Pool>, whitelist: Vec<i64>) {
     if whitelist.is_empty() {
-        info!("[pool-seed] 白名单为空，跳过启动预热");
+        info!("[pool-seed] 无已开启的群，跳过启动预热");
         return;
     }
 
