@@ -116,14 +116,26 @@ impl ApiClient {
     // ── 获取消息历史 ──────────────────────────────────────────────────────────
 
     /// 获取群历史消息，返回原始 JSON 数组（每条消息均保留完整结构）
+    #[allow(dead_code)]
     pub async fn get_group_msg_history(
         &self,
         group_id: i64,
         count: u32,
     ) -> Result<Vec<serde_json::Value>> {
+        self.get_group_msg_history_paged(group_id, count, None).await
+    }
+
+    /// 获取群历史消息（分页版本，可指定 message_seq 作为向前翻页起点）
+    pub async fn get_group_msg_history_paged(
+        &self,
+        group_id: i64,
+        count: u32,
+        message_seq: Option<i64>,
+    ) -> Result<Vec<serde_json::Value>> {
         let payload = serde_json::json!({
             "group_id": group_id,
             "count": count,
+            "message_seq": message_seq,
             "reverseOrder": false
         });
         let resp = self.post("/get_group_msg_history", &payload).await?;

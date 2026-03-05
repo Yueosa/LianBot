@@ -1,11 +1,13 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use tracing::{info, warn};
+use std::time::Duration;
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
 use crate::runtime::plugin_config::PluginConfig;
 use crate::logic::smy;
 use crate::logic::smy::SmyPluginConfig;
+use crate::logic::smy::fetcher::{FetchSource, GapLevel};
 
 pub struct SmyCommand;
 
@@ -18,8 +20,7 @@ impl Command for SmyCommand {
     fn declared_params(&self) -> &[ParamSpec] {
         static PARAMS: &[ParamSpec] = &[
             ParamSpec { keys: &["-a", "--ai"],    kind: ParamKind::Flag,                                                         required: false, help: "开启 AI 文字总结" },
-            ParamSpec { keys: &["-n", "--count"], kind: ParamKind::Value(ValueConstraint::Integer { min: Some(10), max: Some(2000) }), required: false, help: "拉取消息条数（10-2000，默认 200）" },
-            ParamSpec { keys: &["-t", "--time"],  kind: ParamKind::Value(ValueConstraint::Any),                                  required: false, help: "时间范围，如 30m / 2h / 1d" },
+            ParamSpec { keys: &["-t", "--time"],  kind: ParamKind::Value(ValueConstraint::Any),                                  required: false, help: "时间范围，如 30m / 2h / 1d（默认 1d）" },
         ];
         PARAMS
     }
@@ -44,18 +45,16 @@ impl Command for SmyCommand {
             None
         };
 
-        // 解析参数：-n 和 -t 独立判断，只有用户显式指定 -t 时才按时间拉取
-        let count: u32 = ctx
-            .get(&["-n", "--count"])
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(cfg.default_count);
-
         let time_opt = ctx.get(&["-t", "--time"]);
 
-        let mode_desc = match &time_opt {
-            Some(t) => format!("time={t} (时间模式)"),
-            None => format!("count={count} (条数模式)"),
+        let time_window_secs = match time_opt {
+            Some(v) => match smy::fetcher::parse_duration(v) {
+                Some(secs) => secs,
+                None => return ctx.api.send_text(group_id, "❌ 时间格式错误，请使用 30m / 2h / 1d").await,
+            },
+            None => 86400,
         };
+        let mode_desc = format!("time={} (时间模式)", time_opt.unwrap_or("1d"));
 
         info!("[S0] 模式: group={group_id} {}, ai={with_ai}", mode_desc);
 
@@ -66,7 +65,36 @@ impl Command for SmyCommand {
         info!("[S1] 拉取消息: group={group_id} {mode_desc}");
 
         // ── S1: 拉取消息 ──────────────────────────────────────────────────────
-        let messages = smy::fetcher::fetch(&ctx.api, &ctx.pool, group_id, count, time_opt).await?;
+        let fetch_result = smy::fetcher::fetch(
+            &ctx.api,
+            &ctx.pool,
+            group_id,
+            Duration::from_secs(time_window_secs as u64),
+        ).await?;
+        let messages = fetch_result.messages;
+
+        if matches!(fetch_result.source, FetchSource::ApiExhausted) {
+            ctx.api
+                .send_text(group_id, "⚠️ 服务端历史消息不足，当前时间窗口未被完整覆盖")
+                .await?;
+        }
+
+        if let Some(gap) = fetch_result.gap {
+            let level = match gap.level {
+                GapLevel::Day => "跨天",
+                GapLevel::Week => "跨周",
+                GapLevel::Month => "跨月",
+            };
+            ctx.api
+                .send_text(
+                    group_id,
+                    &format!(
+                        "⚠️ 检测到消息时间断层（{}，约 {:.1} 小时），统计结果可能不连续",
+                        level, gap.gap_hours
+                    ),
+                )
+                .await?;
+        }
 
         if messages.is_empty() {
             return ctx.api.send_text(group_id, "📭 该时间范围内没有聊天记录").await;

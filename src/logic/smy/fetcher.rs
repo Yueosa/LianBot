@@ -1,8 +1,9 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde_json::Value;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::runtime::{
     api::ApiClient,
@@ -41,6 +42,37 @@ struct ExtractedSegments {
     face_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FetchSource {
+    Pool,
+    Api,
+    ApiExhausted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GapLevel {
+    Day,
+    Week,
+    Month,
+}
+
+#[derive(Debug, Clone)]
+pub struct GapWarning {
+    pub level: GapLevel,
+    pub gap_hours: f64,
+    #[allow(dead_code)]
+    pub gap_start: i64,
+    #[allow(dead_code)]
+    pub gap_end: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct FetchResult {
+    pub messages: Vec<ChatMessage>,
+    pub gap: Option<GapWarning>,
+    pub source: FetchSource,
+}
+
 // ── 时间过滤解析 ──────────────────────────────────────────────────────────────
 
 /// 解析时间字符串如 "30m" / "2h" / "1d"，返回对应的秒数
@@ -61,87 +93,180 @@ pub fn parse_duration(s: &str) -> Option<i64> {
 
 // ── 消息拉取 ──────────────────────────────────────────────────────────────────
 
-/// 时间模式下一次性拉取的最大条数
-const TIME_MODE_COUNT: u32 = 2000;
-
 /// 从消息池或 NapCat 拉取历史消息并结构化。
 ///
-/// 读取策略（pool-first）：
+/// 读取策略（time-first）：
 ///   1. 优先从内存池读取（微秒级，无网络消耗）
-///   2. pool 未命中（冷启动/首次运行）→ 调用 NapCat API
+///   2. pool 未完整覆盖 → 分页调用 NapCat API（count=5000, message_seq 回溯）
 ///   3. API 结果自动 back-seed 到 pool（下次直接命中）
-///
-/// - `time_filter`：如 "1d" / "6h" → 时间范围模式
-/// - 无 `time_filter`：最近 `count` 条模式
 pub async fn fetch(
     api: &ApiClient,
     pool: &Arc<Pool>,
     group_id: i64,
-    count: u32,
-    time_filter: Option<&str>,
-) -> Result<Vec<ChatMessage>> {
+    time_window: Duration,
+) -> Result<FetchResult> {
     let now = chrono::Utc::now().timestamp();
-    let cutoff = time_filter
-        .and_then(parse_duration)
-        .map(|secs| now - secs);
+    let cutoff = now - time_window.as_secs() as i64;
 
-    if let Some(cut) = cutoff {
-        // ── 时间模式：检查 pool 是否完整覆盖时间窗口 ──────────────────────────
-        let pool_msgs = pool.range(group_id, cut, now).await;
-        let oldest    = pool.oldest_timestamp(group_id).await;
-        // pool 覆盖完整：有窗口内消息 且 最早记录 <= cutoff（说明 pool 已有 cutoff 之前的数据）
-        if !pool_msgs.is_empty() && oldest.map_or(false, |t| t <= cut) {
-            info!("[fetcher] 时间模式: pool完整覆盖 {} 条 (oldest={}, cutoff={})",
-                pool_msgs.len(), oldest.unwrap(), cut);
-            let mut messages: Vec<ChatMessage> = pool_msgs.iter().map(pool_msg_to_chat).collect();
-            messages.sort_by_key(|m| m.time);
-            return Ok(messages);
-        }
-        // pool 未完整覆盖（冷启动 / pool 起点比 cutoff 新）→ API fallback
-        info!("[fetcher] 时间模式: pool起点={:?} > cutoff={}, 回退 API", oldest, cut);
-        let raw = api
-            .get_group_msg_history(group_id, TIME_MODE_COUNT)
-            .await
-            .context("拉取群消息历史失败")?;
-        info!("[fetcher] 时间模式: API返回 {} 条, cutoff={}", raw.len(), cut);
-        back_seed_pool(pool, &raw, group_id).await;
-        let mut messages = parse_raw_messages(&raw, Some(cut));
+    let pool_msgs = pool.range(group_id, cutoff, now).await;
+    let oldest = pool.oldest_timestamp(group_id).await;
+    if !pool_msgs.is_empty() && oldest.is_some_and(|t| t <= cutoff) {
+        info!(
+            "[fetcher] 时间模式: pool完整覆盖 {} 条 (oldest={}, cutoff={})",
+            pool_msgs.len(),
+            oldest.unwrap(),
+            cutoff
+        );
+        let mut messages: Vec<ChatMessage> = pool_msgs.iter().map(pool_msg_to_chat).collect();
         messages.sort_by_key(|m| m.time);
-        // 若 API 返回的最早时间戳仍 > cutoff，说明服务端历史已穷尽
-        if let Some(earliest) = messages.first().map(|m| m.time) {
-            if earliest > cut {
-                info!("[fetcher] 时间模式: 服务端历史已穷尽（最早={}, cutoff={}），返回现有 {} 条",
-                    earliest, cut, messages.len());
-            }
-        }
-        info!("[fetcher] 时间过滤后: {} 条", messages.len());
-        return Ok(messages);
+        return Ok(FetchResult {
+            gap: detect_gap(&messages),
+            messages,
+            source: FetchSource::Pool,
+        });
     }
 
-    // ── 条数模式：优先查 pool ────────────────────────────────────────────────
-    let pool_msgs = pool.recent_internal(group_id, count as usize).await;
-    if pool_msgs.len() >= count as usize {
-        info!("[fetcher] 条数模式: pool命中 {} 条 (满足请求数 {})", pool_msgs.len(), count);
-        return Ok(pool_msgs.iter().map(pool_msg_to_chat).collect());
-    }
-    // pool 条数不足（冷启动或积累未够）→ API fallback + back-seeding
-    info!("[fetcher] 条数模式: pool仅有 {} 条 < 请求 {} 条, 回退 API", pool_msgs.len(), count);
-    let raw = api
-        .get_group_msg_history(group_id, count)
-        .await
-        .context("拉取群消息历史失败")?;
-    info!("[fetcher] 条数模式: API返回 {} 条", raw.len());
-    back_seed_pool(pool, &raw, group_id).await;
-    Ok(parse_raw_messages(&raw, None))
+    info!(
+        "[fetcher] 时间模式: pool起点={:?} > cutoff={}, 回退 API 分页",
+        oldest, cutoff
+    );
+    let (raw, reached_cutoff, earliest_ts) = fetch_api_until_cutoff(api, group_id, cutoff).await?;
+    back_seed_pool(pool, &raw, group_id, cutoff).await;
+    let mut messages = parse_raw_messages(&raw, Some(cutoff));
+    messages.sort_by_key(|m| m.time);
+
+    let source = if reached_cutoff {
+        FetchSource::Api
+    } else {
+        warn!(
+            "[fetcher] 服务端历史已穷尽但未覆盖请求窗口: earliest={:?}, cutoff={}, group={}",
+            earliest_ts, cutoff, group_id
+        );
+        FetchSource::ApiExhausted
+    };
+
+    info!(
+        "[fetcher] 时间模式: API过滤后 {} 条, source={:?}",
+        messages.len(), source
+    );
+
+    Ok(FetchResult {
+        gap: detect_gap(&messages),
+        messages,
+        source,
+    })
 }
 
 /// 将 pool 中的 API 原始 JSON 批量写入 pool（back-seeding）
-async fn back_seed_pool(pool: &Arc<Pool>, raw: &[Value], group_id: i64) {
+async fn back_seed_pool(pool: &Arc<Pool>, raw: &[Value], group_id: i64, cutoff: i64) {
     for value in raw {
+        let ts = value.get("time").and_then(Value::as_i64).unwrap_or(0);
+        if ts < cutoff {
+            continue;
+        }
         if let Some(msg) = PoolMessage::from_api_value(value, group_id) {
             pool.push(msg).await;
         }
     }
+}
+
+async fn fetch_api_until_cutoff(
+    api: &ApiClient,
+    group_id: i64,
+    cutoff: i64,
+) -> Result<(Vec<Value>, bool, Option<i64>)> {
+    let mut all = Vec::<Value>::new();
+    let mut seen_ids = std::collections::HashSet::<i64>::new();
+    let mut page_seq: Option<i64> = None;
+    let mut reached_cutoff = false;
+    let mut earliest_ts: Option<i64> = None;
+
+    for _ in 0..50 {
+        let page = api
+            .get_group_msg_history_paged(group_id, 5000, page_seq)
+            .await
+            .context("分页拉取群消息历史失败")?;
+
+        if page.is_empty() {
+            break;
+        }
+
+        let page_earliest = page.first().and_then(|m| m.get("time")).and_then(Value::as_i64);
+        if let Some(ts) = page_earliest {
+            earliest_ts = Some(earliest_ts.map_or(ts, |old| old.min(ts)));
+            if ts <= cutoff {
+                reached_cutoff = true;
+            }
+        }
+
+        for msg in &page {
+            let msg_id = msg.get("message_id").and_then(Value::as_i64).unwrap_or(0);
+            if msg_id != 0 {
+                if seen_ids.insert(msg_id) {
+                    all.push(msg.clone());
+                }
+            } else {
+                all.push(msg.clone());
+            }
+        }
+
+        if reached_cutoff || page.len() < 5000 {
+            break;
+        }
+
+        let next_seq = page
+            .first()
+            .and_then(|m| m.get("message_seq").and_then(Value::as_i64))
+            .or_else(|| page.first().and_then(|m| m.get("message_id").and_then(Value::as_i64)));
+
+        if next_seq.is_none() || next_seq == page_seq {
+            break;
+        }
+        page_seq = next_seq;
+    }
+
+    Ok((all, reached_cutoff, earliest_ts))
+}
+
+fn detect_gap(messages: &[ChatMessage]) -> Option<GapWarning> {
+    if messages.len() < 2 {
+        return None;
+    }
+
+    let mut max_gap_secs = 0i64;
+    let mut gap_start = 0i64;
+    let mut gap_end = 0i64;
+
+    for pair in messages.windows(2) {
+        let left = pair[0].time;
+        let right = pair[1].time;
+        if right <= left {
+            continue;
+        }
+        let gap = right - left;
+        if gap > max_gap_secs {
+            max_gap_secs = gap;
+            gap_start = left;
+            gap_end = right;
+        }
+    }
+
+    let level = if max_gap_secs >= 30 * 24 * 3600 {
+        Some(GapLevel::Month)
+    } else if max_gap_secs >= 7 * 24 * 3600 {
+        Some(GapLevel::Week)
+    } else if max_gap_secs >= 24 * 3600 {
+        Some(GapLevel::Day)
+    } else {
+        None
+    }?;
+
+    Some(GapWarning {
+        level,
+        gap_hours: max_gap_secs as f64 / 3600.0,
+        gap_start,
+        gap_end,
+    })
 }
 
 /// 将 PoolMessage 转为 ChatMessage（smy 统计模块使用）

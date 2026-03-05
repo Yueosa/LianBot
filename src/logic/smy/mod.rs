@@ -13,6 +13,7 @@ use crate::kernel::config::LlmConfig;
 #[derive(Debug, Deserialize)]
 pub struct SmyPluginConfig {
     /// 默认拉取消息条数（10-2000）
+	#[allow(dead_code)]
     #[serde(default = "SmyPluginConfig::default_count")]
     pub default_count: u32,
     /// 截图宽度（像素）
