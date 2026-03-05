@@ -1,14 +1,20 @@
+pub mod github;
 pub mod scheduler;
 
 use std::sync::Arc;
 
-use crate::{kernel::config::Config, permission::PermissionStore, runtime::api::ApiClient};
+use crate::{
+    kernel::config::Config,
+    permission::PermissionStore,
+    runtime::{api::ApiClient, pool::Pool},
+};
 
 /// 注入到所有 Service 的公共上下文（bot 自发行为，无 BotUser）
 #[derive(Clone)]
 pub struct ServiceContext {
     pub api: Arc<ApiClient>,
     pub perm: Arc<PermissionStore>,
+    pub pool: Arc<Pool>,
     pub config: &'static Config,
 }
 

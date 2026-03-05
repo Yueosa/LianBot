@@ -14,6 +14,10 @@ use axum::extract::WebSocketUpgrade;
 use axum::routing::get;
 use tracing::info;
 
+use axum::body::Bytes;
+use axum::http::HeaderMap;
+use tokio::sync::mpsc;
+
 use crate::{
     permission::PermissionStore,
     runtime::{
@@ -24,7 +28,11 @@ use crate::{
         typ::OneBotEvent,
         ws::WsManager,
     },
-    services::{ServiceContext, BotService, scheduler::SchedulerService},
+    services::{
+        BotService, ServiceContext,
+        github::{GitHubEvent, GitHubService, verify_signature},
+        scheduler::SchedulerService,
+    },
 };
 
 #[derive(Clone)]
@@ -32,6 +40,8 @@ struct AppState {
     dispatcher: Arc<Dispatcher>,
     ws: Arc<WsManager>,
     api: Arc<ApiClient>,
+    github_tx: Option<mpsc::Sender<GitHubEvent>>,
+    github_secret: String,
 }
 
 pub async fn run() -> anyhow::Result<()> {
@@ -68,19 +78,36 @@ pub async fn run() -> anyhow::Result<()> {
         });
     }
 
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool, perm.clone()));
+    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool.clone(), perm.clone()));
 
     // ── 后台 Service ──────────────────────────────────────────────────────────
-    let svc_ctx = ServiceContext { api: api.clone(), perm, config: cfg };
-    tokio::spawn(SchedulerService::new(svc_ctx).run());
+    let svc_ctx = ServiceContext { api: api.clone(), perm, pool: pool.clone(), config: cfg };
+    tokio::spawn(SchedulerService::new(svc_ctx.clone()).run());
+
+    // GitHub Webhook Service
+    let gh_cfg = crate::runtime::plugin_config::PluginConfig::global()
+        .get_section::<crate::services::github::GitHubConfig>("github");
+    let github_secret = gh_cfg.secret.clone();
+    let github_tx = if github_secret.is_empty() {
+        info!("[github] secret 未配置，/webhook/github 路由已禁用");
+        None
+    } else {
+        let (tx, rx) = mpsc::channel::<GitHubEvent>(64);
+        tokio::spawn(GitHubService::new(rx, svc_ctx.clone(), gh_cfg).run());
+        Some(tx)
+    };
 
     let state = AppState {
         dispatcher,
         ws: ws.clone(),
         api,
+        github_tx,
+        github_secret,
     };
 
-    let app = Router::new().route("/", post(onebot_handler));
+    let app = Router::new()
+        .route("/", post(onebot_handler))
+        .route("/webhook/github", post(github_webhook_handler));
     #[cfg(feature = "core-ws")]
     let app = app.route("/wstalk", get(ws_handler));
     let app = app.with_state(state);
@@ -146,6 +173,59 @@ async fn onebot_handler(
             tracing::warn!("事件反序列化失败: {e}\n原始数据: {body}");
         }
     }
+    StatusCode::OK
+}
+
+async fn github_webhook_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> impl IntoResponse {
+    // 路由禁用（secret 未配置）
+    let Some(tx) = &state.github_tx else {
+        return StatusCode::NOT_FOUND;
+    };
+
+    // 1. 验证 HMAC-SHA256 签名
+    let sig = headers
+        .get("X-Hub-Signature-256")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !verify_signature(&state.github_secret, &body, sig) {
+        tracing::warn!("[github] 签名验证失败，已拒绝请求");
+        return StatusCode::UNAUTHORIZED;
+    }
+
+    // 2. 解析事件类型
+    let event_type = headers
+        .get("X-GitHub-Event")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+
+    // 3. 解析 payload
+    let payload: serde_json::Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!("[github] payload JSON 解析失败: {e}");
+            return StatusCode::BAD_REQUEST;
+        }
+    };
+
+    let repo = payload["repository"]["full_name"]
+        .as_str()
+        .unwrap_or("unknown/unknown")
+        .to_string();
+    let sender = payload["sender"]["login"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
+
+    let evt = GitHubEvent { event_type, repo, sender, payload };
+    if tx.send(evt).await.is_err() {
+        tracing::warn!("[github] GitHubService channel 已关闭");
+    }
+
     StatusCode::OK
 }
 
