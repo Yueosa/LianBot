@@ -221,8 +221,8 @@ impl PermissionStore {
             .call(move |conn| {
                 conn.execute(
                     "INSERT OR REPLACE INTO user_status \
-                     (scope_type, scope_id, user_id, status, updated_at) \
-                     VALUES (?1, ?2, ?3, 'blocked', ?4)",
+                        (scope_type, scope_id, user_id, status, updated_at) \
+                        VALUES (?1, ?2, ?3, 'blocked', ?4)",
                     rusqlite::params![scope_type_str, scope_id, user_id, now],
                 )?;
                 Ok(())
