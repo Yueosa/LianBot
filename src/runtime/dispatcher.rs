@@ -86,29 +86,29 @@ impl Dispatcher {
             return Ok(());
         }
 
-        // 3. 构造 BotUser（合并 role + 全局及 scope 两层 status）
+        // 3. 写入消息池（群开着就忠实记录，与用户状态无关）
+        if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
+            self.pool.push(pool_msg).await;
+        }
+
+        // 4. 构造 BotUser（合并 role + 全局及 scope 两层 status）
         let bot_user = self.perm.resolve_user(
             self.config.bot.owner,
             event.user_id,
             Scope::Group(group_id),
         );
 
-        // 4. 用户门控（Blocked 静默丢弃）
+        // 5. 用户门控（Blocked 静默丢弃，不触发任何动作，但消息已入池）
         if bot_user.status == Status::Blocked {
             return Ok(());
         }
 
-        // 5. 提取文本
+        // 6. 提取文本
         let text = event.full_text();
         info!("[群 {group_id}] {}: {text}", event.user_id);
 
         if text.is_empty() {
             return Ok(()); // 纯图片/语音等，跳过
-        }
-
-        // 6. 写入消息池（在路由前）
-        if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
-            self.pool.push(pool_msg).await;
         }
 
         // 7. 尝试解析命令
