@@ -19,6 +19,7 @@ use axum::http::HeaderMap;
 use tokio::sync::mpsc;
 
 use crate::{
+    logic::github::{GitHubConfig, GitHubEvent, verify_signature},
     runtime::{
         permission::PermissionStore,
         api::ApiClient,
@@ -30,7 +31,7 @@ use crate::{
     },
     services::{
         BotService, ServiceContext,
-        github::{GitHubEvent, GitHubService, verify_signature},
+        github::GitHubService,
         scheduler::SchedulerService,
     },
 };
@@ -86,7 +87,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     // GitHub Webhook Service
     let gh_cfg = crate::runtime::plugin_config::PluginConfig::global()
-        .get_section::<crate::services::github::GitHubConfig>("github");
+        .get_section::<GitHubConfig>("github");
     let github_secret = gh_cfg.secret.clone();
     let github_tx = if github_secret.is_empty() {
         info!("[github] secret 未配置，/webhook/github 路由已禁用");
