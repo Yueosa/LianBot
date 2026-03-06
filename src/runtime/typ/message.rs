@@ -63,9 +63,49 @@ impl MessageSegment {
     pub fn is_at(&self) -> bool { self.seg_type == "at" }
 
     /// 提取 @ 目标 QQ 号字符串（"all" 表示 @全体成员）
+    /// NapCat 中 qq 字段可能是 string 或 number，此处统一返回 &str
     pub fn at_qq(&self) -> Option<&str> {
         if self.is_at() {
             self.data.get("qq").and_then(|v| v.as_str())
+        } else {
+            None
+        }
+    }
+
+    /// 提取 @ 目标 QQ 号为 i64（处理 NapCat 返回 string 或 number 两种情况）
+    /// "all" 返回 None
+    pub fn at_qq_id(&self) -> Option<i64> {
+        if !self.is_at() { return None; }
+        let v = self.data.get("qq")?;
+        v.as_i64().or_else(|| v.as_str()?.parse().ok())
+    }
+
+    // ── 回复 ─────────────────────────────────────────────────────────────────
+
+    pub fn is_reply(&self) -> bool { self.seg_type == "reply" }
+
+    /// 提取 reply 引用的原始消息 ID
+    pub fn reply_id(&self) -> Option<i64> {
+        if !self.is_reply() { return None; }
+        let v = self.data.get("id")?;
+        v.as_i64().or_else(|| v.as_str()?.parse().ok())
+    }
+
+    // ── 表情 ─────────────────────────────────────────────────────────────────
+
+    /// face / mface / bface / sface 均视为表情
+    pub fn is_face(&self) -> bool {
+        matches!(self.seg_type.as_str(), "face" | "mface" | "bface" | "sface")
+    }
+
+    /// 提取表情 ID（string 或 number 统一返回 String）
+    pub fn face_id(&self) -> Option<String> {
+        if !self.is_face() { return None; }
+        let v = self.data.get("id")?;
+        if let Some(s) = v.as_str() {
+            Some(s.to_string())
+        } else if let Some(n) = v.as_i64() {
+            Some(n.to_string())
         } else {
             None
         }
