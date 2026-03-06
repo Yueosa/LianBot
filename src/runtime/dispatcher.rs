@@ -114,12 +114,15 @@ impl Dispatcher {
         }
 
         // 7. 尝试解析命令
+        let message_id = event.message_id;
+        let segments = event.message.clone();
+
         match CommandParser::parse(&text, &self.config.cmd_prefix) {
             Some(ParsedCommand::Simple { name, trailing }) => {
-                self.dispatch_simple(group_id, bot_user, name, trailing).await
+                self.dispatch_simple(group_id, message_id, bot_user, segments, name, trailing).await
             }
             Some(ParsedCommand::Advanced { name, params }) => {
-                self.dispatch_advanced(group_id, bot_user, name, params).await
+                self.dispatch_advanced(group_id, message_id, bot_user, segments, name, params).await
             }
             None => {
                 // 非命令消息 → 关键词匹配 / AI 对话入口（可扩展）
@@ -133,7 +136,9 @@ impl Dispatcher {
     async fn dispatch_simple(
         &self,
         group_id: i64,
+        message_id: Option<i64>,
         bot_user: BotUser,
+        segments: Vec<crate::runtime::typ::MessageSegment>,
         name: String,
         trailing: Vec<String>,
     ) -> anyhow::Result<()> {
@@ -159,7 +164,7 @@ impl Dispatcher {
                     };
                     return self.api.send_text(group_id, &detail).await;
                 }
-                let ctx = self.build_ctx(group_id, bot_user, Default::default());
+                let ctx = self.build_ctx(group_id, message_id, bot_user, segments, Default::default());
                 cmd.execute(ctx).await
             }
             None => {
@@ -175,7 +180,9 @@ impl Dispatcher {
     async fn dispatch_advanced(
         &self,
         group_id: i64,
+        message_id: Option<i64>,
         bot_user: BotUser,
+        segments: Vec<crate::runtime::typ::MessageSegment>,
         name: String,
         params: std::collections::HashMap<String, ParamValue>,
     ) -> anyhow::Result<()> {
@@ -195,7 +202,7 @@ impl Dispatcher {
                     let text = format!("❌ {detail}\n输入 <{}> --help 查看用法", cmd.name());
                     return self.api.send_text(group_id, &text).await;
                 }
-                let ctx = self.build_ctx(group_id, bot_user, params);
+                let ctx = self.build_ctx(group_id, message_id, bot_user, segments, params);
                 cmd.execute(ctx).await
             }
             None => {
@@ -226,12 +233,16 @@ impl Dispatcher {
     fn build_ctx(
         &self,
         group_id: i64,
+        message_id: Option<i64>,
         bot_user: BotUser,
+        segments: Vec<crate::runtime::typ::MessageSegment>,
         params: std::collections::HashMap<String, ParamValue>,
     ) -> CommandContext {
         CommandContext {
             group_id,
+            message_id,
             bot_user,
+            segments,
             params,
             api: self.api.clone(),
             ws: self.ws.clone(),
@@ -329,7 +340,8 @@ fn format_full_help(cmd: &dyn Command) -> String {
             }
         };
         let req_tag = if spec.required { "[必填]" } else { "[可选]" };
-        lines.push(format!("  {}{:<18}  {}  {}", keys, type_tag, req_tag, spec.help));
+        let col = format!("{keys}{type_tag}");
+        lines.push(format!("  {:<24}  {}  {}", col, req_tag, spec.help));
     }
     lines.join("\n")
 }

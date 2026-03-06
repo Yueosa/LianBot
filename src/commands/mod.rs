@@ -114,8 +114,12 @@ pub trait Command: Send + Sync {
 pub struct CommandContext {
     /// 触发命令的群号
     pub group_id: i64,
+    /// 触发消息的 message_id（用于回复等操作，部分事件可能无此字段）
+    pub message_id: Option<i64>,
     /// 发送者的虚拟用户对象（包含 user_id、role、status）
     pub bot_user: BotUser,
+    /// 原始消息段列表（含图片/at/回复等非文本 segment）
+    pub segments: Vec<crate::runtime::typ::MessageSegment>,
     /// 解析后的参数 map
     pub params: HashMap<String, ParamValue>,
     /// OneBot API 客户端（Arc 共享）
