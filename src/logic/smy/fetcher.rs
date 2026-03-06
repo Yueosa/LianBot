@@ -283,33 +283,21 @@ fn pool_msg_to_chat(msg: &PoolMessage) -> ChatMessage {
     let mut face_ids: Vec<String> = Vec::new();
 
     for seg in &msg.segments {
-        match seg.kind.as_str() {
-            "face" | "mface" | "bface" | "sface" => {
-                emoji_count += 1;
-                if let Some(id) = seg.data.get("id").and_then(Value::as_str) {
-                    face_ids.push(id.to_string());
-                } else if let Some(id) = seg.data.get("id").and_then(Value::as_i64) {
-                    face_ids.push(id.to_string());
-                }
+        if seg.is_face() {
+            emoji_count += 1;
+            if let Some(id) = seg.face_id() {
+                face_ids.push(id);
             }
-            "image" => {
-                image_count += 1;
+        } else if seg.is_image() {
+            image_count += 1;
+        } else if seg.is_reply() {
+            if reply_to.is_none() {
+                reply_to = seg.reply_id();
             }
-            "reply" => {
-                if reply_to.is_none() {
-                    reply_to = seg.data.get("id").and_then(Value::as_i64);
-                }
+        } else if seg.is_at() {
+            if let Some(qq) = seg.at_qq_id() {
+                at_targets.push(qq);
             }
-            "at" => {
-                if let Some(qq) = seg.data.get("qq").and_then(Value::as_i64) {
-                    at_targets.push(qq);
-                } else if let Some(qq_str) = seg.data.get("qq").and_then(Value::as_str) {
-                    if let Ok(qq) = qq_str.parse::<i64>() {
-                        at_targets.push(qq);
-                    }
-                }
-            }
-            _ => {}
         }
     }
 

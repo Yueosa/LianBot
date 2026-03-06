@@ -3,10 +3,10 @@ pub mod cache;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::runtime::typ::event::{MessageEvent, Sender};
+use crate::runtime::typ::message::MessageSegment;
 
 // ── PoolMessage 及相关类型 ────────────────────────────────────────────────────
 
@@ -23,15 +23,14 @@ pub struct PoolMessage {
     /// 秒级 Unix 时间戳
     pub timestamp: i64,
     pub kind: MsgKind,
-    /// 所有 text segment 拼接（含混合消息文字部分），无文字则 None
+    /// 所有 text segment 拼接，无文字则 None
     pub text: Option<String>,
-    /// 解析好的消息段，不含 raw
-    pub segments: Vec<Segment>,
-    /// AI 流水线预留字段（当前未使用）
-    #[allow(dead_code)]
+    /// 消息段——直接复用 typ::MessageSegment，不重新定义
+    pub segments: Vec<MessageSegment>,
+    /// 处理状态（新消息默认 Pending，dispatcher 在命令执行后更新）
     pub status: MsgStatus,
-    #[allow(dead_code)]
-    pub processing: Option<ProcessInfo>,
+    /// 命令处理记录（仅当 status != Pending 时有值）
+    pub process: Option<ProcessRecord>,
 }
 
 /// 消息类型分类
@@ -48,37 +47,33 @@ pub enum MsgKind {
     Other,  // 未分类
 }
 
-/// 单个消息段
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Segment {
-    pub kind: String,
-    pub data: Value,
-}
-
-/// 消息处理状态（为 AI 流水线预留，当前仅使用 Pending）
-#[allow(dead_code)]
+/// 消息处理状态
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MsgStatus {
+    /// 已入池，未被任何命令处理
     Pending,
-    Processing,
+    /// 命令执行成功
     Done,
+    /// 命令执行失败
     Error,
 }
 
-/// 处理信息（供 AI 模块记录，当前尚未使用）
-#[allow(dead_code)]
+/// 命令处理记录（dispatcher 在 cmd.execute() 之后填充）
 #[derive(Debug, Clone)]
-pub struct ProcessInfo {
-    pub module: String,
-    pub detail: String,
-    pub context: Option<Value>,
+pub struct ProcessRecord {
+    /// 哪个命令处理的（纯名字，如 "acg"）
+    pub command: String,
+    /// 执行耗时（毫秒）
+    pub duration_ms: u64,
+    /// 失败原因（Done 时为 None）
+    pub error: Option<String>,
 }
 
 // ── PoolMessage 构造 ──────────────────────────────────────────────────────────
 
 impl PoolMessage {
     /// 从实时推送的 MessageEvent 构造。
-    /// 非群消息返回 None（private / notice 等不入池）。
+    /// 非群消息返回 None。
     pub fn from_event(event: &MessageEvent, group_id: i64) -> Option<Self> {
         if !event.is_group() {
             return None;
@@ -89,10 +84,8 @@ impl PoolMessage {
         let timestamp = event.time.unwrap_or_else(now_secs);
         let nickname = extract_nickname(event.sender.as_ref());
 
-        let segments: Vec<Segment> = event.message.iter().map(|seg| Segment {
-            kind: seg.seg_type.clone(),
-            data: seg.data.clone(),
-        }).collect();
+        // 直接复用 typ::MessageSegment，不做任何转换
+        let segments = event.message.clone();
 
         let text = concat_text_segs(&segments);
         let kind = classify_kind(&segments);
@@ -101,11 +94,11 @@ impl PoolMessage {
             msg_id, group_id, user_id, nickname, timestamp,
             kind, text, segments,
             status: MsgStatus::Pending,
-            processing: None,
+            process: None,
         })
     }
 
-    /// 从 `get_group_msg_history` 返回的原始 JSON 构造（与推送格式一致）。
+    /// 从 `get_group_msg_history` 返回的原始 JSON 构造。
     /// 用于冷启动 back-seeding。
     pub fn from_api_value(value: &Value, group_id: i64) -> Option<Self> {
         // 跳过 Bot 自身发送的消息
@@ -122,17 +115,10 @@ impl PoolMessage {
         let nick = sender.and_then(|s| s.get("nickname")).and_then(Value::as_str).unwrap_or("未知");
         let nickname = if card.is_empty() { nick.to_string() } else { card.to_string() };
 
-        let segments: Vec<Segment> = value
+        // 用 serde 反序列化 message 数组为 Vec<MessageSegment>，解析职责交给 typ
+        let segments: Vec<MessageSegment> = value
             .get("message")
-            .and_then(Value::as_array)
-            .map(|arr| {
-                arr.iter().filter_map(|seg| {
-                    let kind = seg.get("type").and_then(Value::as_str)?.to_string();
-                    let data = seg.get("data").cloned().unwrap_or(Value::Null);
-                    Some(Segment { kind, data })
-                })
-                .collect()
-            })
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or_default();
 
         let text = concat_text_segs(&segments);
@@ -142,7 +128,7 @@ impl PoolMessage {
             msg_id, group_id, user_id, nickname, timestamp,
             kind, text, segments,
             status: MsgStatus::Pending,
-            processing: None,
+            process: None,
         })
     }
 }
@@ -159,33 +145,29 @@ fn extract_nickname(sender: Option<&Sender>) -> String {
     }
 }
 
-fn concat_text_segs(segments: &[Segment]) -> Option<String> {
+fn concat_text_segs(segments: &[MessageSegment]) -> Option<String> {
     let s: String = segments
         .iter()
-        .filter(|seg| seg.kind == "text")
-        .filter_map(|seg| seg.data.get("text").and_then(Value::as_str))
+        .filter_map(|seg| seg.as_text())
         .collect::<Vec<_>>()
         .join("");
     if s.is_empty() { None } else { Some(s) }
 }
 
-fn classify_kind(segments: &[Segment]) -> MsgKind {
+fn classify_kind(segments: &[MessageSegment]) -> MsgKind {
     let mut has_text  = false;
     let mut has_image = false;
     let mut has_face  = false;
     let mut has_at    = false;
 
     for seg in segments {
-        match seg.kind.as_str() {
-            "reply"                             => return MsgKind::Reply,
-            "file"                              => return MsgKind::File,
-            "json"                              => return MsgKind::Card,
-            "text"                              => has_text  = true,
-            "image"                             => has_image = true,
-            "face"|"mface"|"bface"|"sface"      => has_face  = true,
-            "at"                                => has_at    = true,
-            _ => {}
-        }
+        if seg.is_reply()                          { return MsgKind::Reply; }
+        if seg.seg_type == "file"                   { return MsgKind::File; }
+        if seg.seg_type == "json"                   { return MsgKind::Card; }
+        if seg.is_text()                            { has_text  = true; }
+        if seg.is_image()                           { has_image = true; }
+        if seg.is_face()                            { has_face  = true; }
+        if seg.is_at()                              { has_at    = true; }
     }
 
     // 多类型混合
@@ -217,6 +199,10 @@ fn now_secs() -> i64 {
 pub trait MessagePool: Send + Sync {
     /// 写入一条消息（容量/时间淘汰由实现层自动处理）
     async fn push(&self, msg: PoolMessage);
+
+    /// 标记消息处理完成（dispatcher 在 cmd.execute() 之后调用）。
+    /// 在当前群的队列中反向查找 msg_id 并更新状态。
+    async fn mark(&self, msg_id: i64, group_id: i64, status: MsgStatus, record: ProcessRecord);
 
     /// internal-only：读取群 gid 最近 n 条消息（时序: 旧 → 新）。
     /// 不保证时间连续性，不作为命令层对外语义使用。

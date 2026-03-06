@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use super::{MessagePool, PoolMessage};
+use super::{MessagePool, MsgStatus, PoolMessage, ProcessRecord};
 use crate::kernel::config::PoolConfig;
 
 // ── MemoryPool ────────────────────────────────────────────────────────────────
@@ -87,6 +87,20 @@ impl MessagePool for MemoryPool {
         let guard = self.groups.read().await;
         guard.get(&gid)?.front().map(|m| m.timestamp)
     }
+
+    async fn mark(&self, msg_id: i64, group_id: i64, status: MsgStatus, record: ProcessRecord) {
+        let mut guard = self.groups.write().await;
+        let Some(deque) = guard.get_mut(&group_id) else { return };
+
+        // 从队尾反向查找（最近的消息在队尾，绝大多数场景 O(1)~O(几)）
+        for msg in deque.iter_mut().rev() {
+            if msg.msg_id == msg_id {
+                msg.status = status;
+                msg.process = Some(record);
+                return;
+            }
+        }
+    }
 }
 
 // ── 测试 ──────────────────────────────────────────────────────────────────────
@@ -96,7 +110,8 @@ mod tests {
     use super::*;
     use crate::{
         kernel::config::PoolConfig,
-        runtime::pool::{MsgKind, MsgStatus, PoolMessage, Segment},
+        runtime::pool::{MsgKind, MsgStatus, PoolMessage},
+        runtime::typ::message::MessageSegment,
     };
 
     fn make_msg(gid: i64, uid: i64, ts: i64, text: &str) -> PoolMessage {
@@ -108,9 +123,9 @@ mod tests {
             timestamp: ts,
             kind: MsgKind::Text,
             text: if text.is_empty() { None } else { Some(text.into()) },
-            segments: vec![Segment { kind: "text".into(), data: serde_json::json!({"text": text}) }],
+            segments: vec![MessageSegment::text(text)],
             status: MsgStatus::Pending,
-            processing: None,
+            process: None,
         }
     }
 
