@@ -29,7 +29,7 @@ pub enum Status {
 
 /// 一次消息交互中代表一个真实 QQ 用户的虚拟用户对象。
 ///
-/// 由 `PermissionStore::resolve_user()` 在 dispatcher 入口一次性构造，
+/// 由 `Dispatcher::resolve_user()` 在入口一次性构造，
 /// 之后传给所有 handler（Command / Session / Service），不再重复查权限。
 #[derive(Debug, Clone)]
 pub struct BotUser {

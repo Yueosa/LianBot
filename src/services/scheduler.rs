@@ -62,7 +62,7 @@ impl BotService for SchedulerService {
                     }
                     Some(llm_cfg) => {
                         let llm_cfg = llm_cfg.clone();
-                        let groups = self.ctx.perm.enabled_groups();
+                        let groups = self.ctx.access.enabled_groups();
                         info!("[scheduler] 共 {} 个群需要生成日报", groups.len());
 
                         for group_id in groups {

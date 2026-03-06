@@ -1,5 +1,5 @@
 mod model;
-mod store;
+mod access;
 
 pub use model::{BotUser, Role, Scope, Status};
-pub use store::PermissionStore;
+pub use access::AccessControl;

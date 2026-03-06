@@ -5,10 +5,10 @@ use tracing::{debug, info, warn};
 use crate::{
     commands::{Command, CommandContext, ParamKind, ParamSpec, ValueConstraint},
     runtime::{
-        permission::{BotUser, PermissionStore, Scope, Status},
+        permission::{AccessControl, BotUser, Role, Scope, Status},
         api::ApiClient,
         parser::{CommandParser, ParsedCommand, ParamValue},
-        pool::{MessagePool, Pool, PoolMessage},
+        pool::{MessagePool, MsgStatus, Pool, PoolMessage, ProcessRecord},
         registry::CommandRegistry,
         typ::{MessageEvent, OneBotEvent},
         ws::WsManager,
@@ -30,7 +30,7 @@ pub struct Dispatcher {
     ws: Arc<WsManager>,
     registry: Arc<CommandRegistry>,
     pool: Option<Arc<Pool>>,
-    perm: Arc<PermissionStore>,
+    access: Arc<AccessControl>,
 }
 
 impl Dispatcher {
@@ -40,9 +40,9 @@ impl Dispatcher {
         ws: Arc<WsManager>,
         registry: Arc<CommandRegistry>,
         pool: Option<Arc<Pool>>,
-        perm: Arc<PermissionStore>,
+        access: Arc<AccessControl>,
     ) -> Self {
-        Self { config, api, ws, registry, pool, perm }
+        Self { config, api, ws, registry, pool, access }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ impl Dispatcher {
         };
 
         // 2. 群网关校验（该群是否对 Bot 开放）
-        if !self.perm.is_group_enabled(group_id) {
+        if !self.access.is_group_enabled(group_id) {
             return Ok(());
         }
 
@@ -93,12 +93,8 @@ impl Dispatcher {
             }
         }
 
-        // 4. 构造 BotUser（合并 role + 全局及 scope 两层 status）
-        let bot_user = self.perm.resolve_user(
-            self.config.bot.owner,
-            event.user_id,
-            Scope::Group(group_id),
-        );
+        // 4. 构造 BotUser（内联身份解析）
+        let bot_user = self.resolve_user(event.user_id, Scope::Group(group_id));
 
         // 5. 用户门控（Blocked 静默丢弃，不触发任何动作，但消息已入池）
         if bot_user.status == Status::Blocked {
@@ -165,7 +161,7 @@ impl Dispatcher {
                     return self.api.send_text(group_id, &detail).await;
                 }
                 let ctx = self.build_ctx(group_id, message_id, bot_user, segments, Default::default());
-                cmd.execute(ctx).await
+                self.execute_and_mark(cmd, ctx, group_id, message_id).await
             }
             None => {
                 debug!("未知简单命令: {name}");
@@ -203,7 +199,7 @@ impl Dispatcher {
                     return self.api.send_text(group_id, &text).await;
                 }
                 let ctx = self.build_ctx(group_id, message_id, bot_user, segments, params);
-                cmd.execute(ctx).await
+                self.execute_and_mark(cmd, ctx, group_id, message_id).await
             }
             None => {
                 debug!("未知复杂命令: {name}");
@@ -229,6 +225,58 @@ impl Dispatcher {
     }
 
     // ── 辅助 ──────────────────────────────────────────────────────────────────
+    /// 执行命令并向消息池报告处理结果。
+    /// 计时 → 执行 → 根据 Ok/Err 生成 ProcessRecord → pool.mark()
+    async fn execute_and_mark(
+        &self,
+        cmd: &Arc<dyn Command>,
+        ctx: CommandContext,
+        group_id: i64,
+        message_id: Option<i64>,
+    ) -> anyhow::Result<()> {
+        let cmd_name = cmd.name().to_string();
+        let start = std::time::Instant::now();
+
+        let result = cmd.execute(ctx).await;
+
+        let duration_ms = start.elapsed().as_millis() as u64;
+
+        // 向消息池报告处理状态（无 pool 或无 msg_id 时跳过）
+        if let (Some(pool), Some(mid)) = (&self.pool, message_id) {
+            let (status, error) = match &result {
+                Ok(()) => (MsgStatus::Done, None),
+                Err(e) => (MsgStatus::Error, Some(format!("{e:#}"))),
+            };
+            pool.mark(mid, group_id, status, ProcessRecord {
+                command: cmd_name,
+                duration_ms,
+                error,
+            }).await;
+        }
+
+        result
+    }
+
+    /// 内联身份解析：综合 owner 判断 + 准入控制黑名单 → 产出 BotUser。
+    /// 未来 LLM 接入后可扩展为独立的 UserResolver。
+    fn resolve_user(&self, user_id: i64, scope: Scope) -> BotUser {
+        let role = if user_id == self.config.bot.owner {
+            Role::Owner
+        } else {
+            Role::Member
+        };
+
+        let status = if role == Role::Owner {
+            // Owner 永远 Normal，不受黑名单影响
+            Status::Normal
+        } else if self.access.is_user_blocked(user_id, &scope) {
+            Status::Blocked
+        } else {
+            Status::Normal
+        };
+
+        BotUser { user_id, scope, role, status }
+    }
 
     fn build_ctx(
         &self,

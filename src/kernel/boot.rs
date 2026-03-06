@@ -21,7 +21,7 @@ use tokio::sync::mpsc;
 use crate::{
     logic::github::{GitHubConfig, GitHubEvent, verify_signature},
     runtime::{
-        permission::PermissionStore,
+        permission::AccessControl,
         api::ApiClient,
         dispatcher::Dispatcher,
         pool::{MessagePool, Pool, PoolMessage},
@@ -63,26 +63,30 @@ pub async fn run() -> anyhow::Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("消息池初始化失败: {e}"))?;
 
-    let perm = PermissionStore::open(
+    #[cfg(feature = "core-db")]
+    let access = AccessControl::open(
         std::path::Path::new(&cfg.bot.db_path),
         &cfg.bot.initial_groups,
     )
     .await
     .map_err(|e| anyhow::anyhow!("权限 DB 初始化失败: {e}"))?;
 
+    #[cfg(not(feature = "core-db"))]
+    let access = AccessControl::from_config(&cfg.bot.initial_groups, &cfg.bot.blacklist);
+
     {
         let api = api.clone();
         let pool = pool.clone();
-        let groups = perm.enabled_groups();
+        let groups = access.enabled_groups();
         tokio::spawn(async move {
             seed_pool_for_whitelist(api, pool, groups).await;
         });
     }
 
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, Some(pool.clone()), perm.clone()));
+    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, Some(pool.clone()), access.clone()));
 
     // ── 后台 Service ──────────────────────────────────────────────────────────
-    let svc_ctx = ServiceContext { api: api.clone(), perm, pool: Some(pool.clone()), config: cfg };
+    let svc_ctx = ServiceContext { api: api.clone(), access, pool: Some(pool.clone()), config: cfg };
     tokio::spawn(SchedulerService::new(svc_ctx.clone()).run());
 
     // GitHub Webhook Service

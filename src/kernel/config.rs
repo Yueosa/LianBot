@@ -50,6 +50,9 @@ pub struct BotConfig {
     /// 启动时导入 DB 的初始群列表（已有记录则跳过，不会覆盖）
     #[serde(default)]
     pub initial_groups: Vec<i64>,
+    /// 静态黑名单（QQ 号列表），无 core-db 时作为 fallback
+    #[serde(default)]
+    pub blacklist: Vec<i64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
