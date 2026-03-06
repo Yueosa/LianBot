@@ -2,8 +2,12 @@ pub mod api;
 pub mod dispatcher;
 pub mod logger;
 pub mod parser;
+pub mod permission;
 pub mod plugin_config;
 pub mod pool;
 pub mod registry;
 pub mod typ;
 pub mod ws;
+
+#[cfg(feature = "core-db")]
+pub mod db;

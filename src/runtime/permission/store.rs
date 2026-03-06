@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context as _;
 use tracing::info;
 
-use crate::db::SqliteDb;
+use crate::runtime::db::SqliteDb;
 
 use super::model::{BotUser, Role, Scope, Status};
 

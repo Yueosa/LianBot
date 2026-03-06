@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
-use crate::permission::BotUser;
+use crate::runtime::permission::BotUser;
 use crate::runtime::{
     api::ApiClient,
     parser::ParamValue,

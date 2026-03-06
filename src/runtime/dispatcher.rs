@@ -4,8 +4,8 @@ use tracing::{debug, info, warn};
 
 use crate::{
     commands::{Command, CommandContext, ParamKind, ParamSpec, ValueConstraint},
-    permission::{BotUser, PermissionStore, Scope, Status},
     runtime::{
+        permission::{BotUser, PermissionStore, Scope, Status},
         api::ApiClient,
         parser::{CommandParser, ParsedCommand, ParamValue},
         pool::{MessagePool, Pool, PoolMessage},

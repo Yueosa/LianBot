@@ -2,9 +2,6 @@ mod kernel;
 mod runtime;
 mod commands;
 mod logic;
-#[cfg(feature = "core-db")]
-mod db;
-mod permission;
 mod services;
 
 // ── 入口 ──────────────────────────────────────────────────────────────────────

@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 use crate::{
     kernel::config::Config,
-    permission::PermissionStore,
-    runtime::{api::ApiClient, pool::Pool},
+    runtime::{api::ApiClient, permission::PermissionStore, pool::Pool},
 };
 
 /// 注入到所有 Service 的公共上下文（bot 自发行为，无 BotUser）

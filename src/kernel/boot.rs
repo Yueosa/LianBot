@@ -19,8 +19,8 @@ use axum::http::HeaderMap;
 use tokio::sync::mpsc;
 
 use crate::{
-    permission::PermissionStore,
     runtime::{
+        permission::PermissionStore,
         api::ApiClient,
         dispatcher::Dispatcher,
         pool::{MessagePool, Pool, PoolMessage},
