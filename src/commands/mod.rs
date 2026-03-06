@@ -127,8 +127,8 @@ pub struct CommandContext {
     pub config: &'static Config,
     /// 命令注册表（供 /help 等命令枚举全部命令）
     pub registry: Arc<CommandRegistry>,
-    /// 消息池（per-group 内存缓冲）
-    pub pool: Arc<Pool>,
+    /// 消息池（per-group 内存缓冲，可选）
+    pub pool: Option<Arc<Pool>>,
 }
 
 impl CommandContext {

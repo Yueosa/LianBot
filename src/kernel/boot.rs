@@ -79,10 +79,10 @@ pub async fn run() -> anyhow::Result<()> {
         });
     }
 
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, pool.clone(), perm.clone()));
+    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, Some(pool.clone()), perm.clone()));
 
     // ── 后台 Service ──────────────────────────────────────────────────────────
-    let svc_ctx = ServiceContext { api: api.clone(), perm, pool: pool.clone(), config: cfg };
+    let svc_ctx = ServiceContext { api: api.clone(), perm, pool: Some(pool.clone()), config: cfg };
     tokio::spawn(SchedulerService::new(svc_ctx.clone()).run());
 
     // GitHub Webhook Service

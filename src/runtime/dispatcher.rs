@@ -29,7 +29,7 @@ pub struct Dispatcher {
     api: Arc<ApiClient>,
     ws: Arc<WsManager>,
     registry: Arc<CommandRegistry>,
-    pool: Arc<Pool>,
+    pool: Option<Arc<Pool>>,
     perm: Arc<PermissionStore>,
 }
 
@@ -39,7 +39,7 @@ impl Dispatcher {
         api: Arc<ApiClient>,
         ws: Arc<WsManager>,
         registry: Arc<CommandRegistry>,
-        pool: Arc<Pool>,
+        pool: Option<Arc<Pool>>,
         perm: Arc<PermissionStore>,
     ) -> Self {
         Self { config, api, ws, registry, pool, perm }
@@ -87,8 +87,10 @@ impl Dispatcher {
         }
 
         // 3. 写入消息池（群开着就忠实记录，与用户状态无关）
-        if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
-            self.pool.push(pool_msg).await;
+        if let Some(pool) = &self.pool {
+            if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
+                pool.push(pool_msg).await;
+            }
         }
 
         // 4. 构造 BotUser（合并 role + 全局及 scope 两层 status）

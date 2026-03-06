@@ -13,7 +13,7 @@ use crate::{
 pub struct ServiceContext {
     pub api: Arc<ApiClient>,
     pub perm: Arc<PermissionStore>,
-    pub pool: Arc<Pool>,
+    pub pool: Option<Arc<Pool>>,
     pub config: &'static Config,
 }
 
