@@ -13,6 +13,7 @@ impl Command for HelpCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
-        ctx.api.send_text(ctx.group_id, &ctx.registry.help_text()).await
+        let prefix = &ctx.config.cmd_prefix;
+        ctx.api.send_text(ctx.group_id, &ctx.registry.help_text(prefix)).await
     }
 }

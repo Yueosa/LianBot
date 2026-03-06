@@ -25,9 +25,9 @@ use crate::kernel::config::Config;
 /// 命令类型：决定 dispatcher 如何路由。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandKind {
-    /// `/ping`、`/alive` — 由 `/` 开头触发，不接受参数
+    /// `!!ping`、`!!alive` — 由可配置前缀（`cmd_prefix`）开头触发
     Simple,
-    /// `<smy>`、`<img>` — 由 `<>` 包裹触发，接受参数
+    /// `<smy>` — 由 `<>` 包裹触发，接受参数
     Advanced,
 }
 
@@ -80,7 +80,7 @@ pub enum Dependency {
 /// 所有命令实现此 trait。
 #[async_trait]
 pub trait Command: Send + Sync {
-    /// 命令主名，如 `"img"`、`"/ping"`
+    /// 命令主名（纯名字，不含前缀），如 `"ping"`、`"smy"`
     fn name(&self) -> &str;
 
     /// 别名列表（默认为空），返回静态切片

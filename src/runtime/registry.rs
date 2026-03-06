@@ -53,7 +53,8 @@ impl CommandRegistry {
 
     /// 生成 /help 输出的完整命令列表文本。
     /// 按名称排序，别名重复条目自动去除，别名在名称旁展示。
-    pub fn help_text(&self) -> String {
+    /// `prefix` 为简单命令的触发前缀（如 `"!!"`），会展示在帮助文本中。
+    pub fn help_text(&self, prefix: &str) -> String {
         // 用 HashSet 按主名去重，避免别名条目重复出现
         let mut seen = std::collections::HashSet::new();
         let mut simple: Vec<&Arc<dyn Command>> = self.simple_cmds.values()
@@ -72,7 +73,7 @@ impl CommandRegistry {
             "── 简单命令 ──".to_string(),
         ];
         for cmd in &simple {
-            lines.push(format!("  {:<10}  {}", cmd.name(), cmd.help()));
+            lines.push(format!("  {}{:<10}  {}", prefix, cmd.name(), cmd.help()));
         }
         lines.push("── 复杂命令（<名称> [参数]）──".to_string());
         for cmd in &advanced {
