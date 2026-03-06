@@ -1,7 +1,7 @@
 // 这个文件为协议类型层，提供内置 accessor，部分方法当前未在命令中用到但保留供未来使用。
 #![allow(dead_code)]
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ── 消息段 ────────────────────────────────────────────────────────────────────
 //
@@ -12,7 +12,7 @@ use serde::Deserialize;
 // 的平坦结构，而非强类型枚举（避免反序列化失败）。
 // 常用 segment 提供便捷 accessor。
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MessageSegment {
     /// 消息类型：text / image / at / face / record / video / ...
     #[serde(rename = "type")]
@@ -87,13 +87,5 @@ impl MessageSegment {
             seg_type: "image".into(),
             data: serde_json::json!({"file": file.into()}),
         }
-    }
-
-    /// 将自身序列化为发送载荷所需的 JSON Value
-    pub fn to_send_value(&self) -> serde_json::Value {
-        serde_json::json!({
-            "type": self.seg_type,
-            "data": self.data
-        })
     }
 }
