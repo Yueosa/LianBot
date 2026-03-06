@@ -8,7 +8,7 @@ pub struct PingCommand;
 
 #[async_trait]
 impl Command for PingCommand {
-    fn name(&self) -> &str { "/ping" }
+    fn name(&self) -> &str { "ping" }
     fn help(&self) -> &str { "测试 bot 是否在线" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 

@@ -16,7 +16,7 @@ pub struct WorldCommand;
 
 #[async_trait]
 impl Command for WorldCommand {
-    fn name(&self) -> &str { "/world" }
+    fn name(&self) -> &str { "world" }
     fn help(&self) -> &str { "60秒看世界：今日新闻速览" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 

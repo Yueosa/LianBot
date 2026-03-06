@@ -55,7 +55,7 @@ pub struct AliveCommand;
 
 #[async_trait]
 impl Command for AliveCommand {
-    fn name(&self) -> &str { "/alive" }
+    fn name(&self) -> &str { "alive" }
     fn help(&self) -> &str { "查看主人当前的设备在线状态" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
