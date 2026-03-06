@@ -6,11 +6,10 @@ use crate::commands;
 // ── 命令注册表 ─────────────────────────────────────────────────────────────────
 //
 // 维护两张表：
-//   simple_cmds  → 简单命令（kind = Simple），例如 "/ping"
-//   advanced_cmds → 复杂命令（kind = Advanced），例如 "img"
+//   simple_cmds   → 简单命令（kind = Simple），例如 "ping"
+//   advanced_cmds → 复杂命令（kind = Advanced），例如 "smy"
 //
-// 命令的分类由 `cmd.kind()` 元数据决定，而非名称前缀。
-// 调用 `CommandRegistry::default()` 会自动注册所有内置命令。
+// 所有命令名及别名均为纯名字（不含前缀），前缀由 parser 层统一处理。
 
 pub struct CommandRegistry {
     simple_cmds: HashMap<String, Arc<dyn Command>>,
@@ -42,12 +41,12 @@ impl CommandRegistry {
         }
     }
 
-    /// 查找简单命令（key 含 '/'）
+    /// 查找简单命令（纯名字，不含前缀）
     pub fn get_simple(&self, name: &str) -> Option<&Arc<dyn Command>> {
         self.simple_cmds.get(name)
     }
 
-    /// 查找复杂命令（key 不含 '/'）
+    /// 查找复杂命令（纯名字）
     pub fn get_advanced(&self, name: &str) -> Option<&Arc<dyn Command>> {
         self.advanced_cmds.get(name)
     }
@@ -70,7 +69,7 @@ impl CommandRegistry {
 
         let mut lines = vec![
             "LianBot 命令列表".to_string(),
-            "── 简单命令（/ 开头）──".to_string(),
+            "── 简单命令 ──".to_string(),
         ];
         for cmd in &simple {
             lines.push(format!("  {:<10}  {}", cmd.name(), cmd.help()));

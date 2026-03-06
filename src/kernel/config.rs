@@ -17,6 +17,9 @@ pub struct Config {
     pub pool: PoolConfig,
     #[serde(default)]
     pub log: LogConfig,
+    /// 简单命令前缀，默认 "!!"
+    #[serde(default = "default_cmd_prefix")]
+    pub cmd_prefix: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,6 +114,7 @@ impl Default for LogConfig {
 fn default_host() -> String { "0.0.0.0".to_string() }
 fn default_db_path() -> String { "permissions.db".to_string() }
 fn default_port() -> u16 { 8080 }
+fn default_cmd_prefix() -> String { "!!".to_string() }
 fn default_llm_url() -> String { "https://api.deepseek.com/v1".to_string() }
 fn default_llm_model() -> String { "deepseek-chat".to_string() }
 fn default_pool_capacity() -> usize { 3000 }

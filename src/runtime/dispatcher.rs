@@ -114,7 +114,7 @@ impl Dispatcher {
         }
 
         // 7. 尝试解析命令
-        match CommandParser::parse(&text) {
+        match CommandParser::parse(&text, &self.config.cmd_prefix) {
             Some(ParsedCommand::Simple { name, trailing }) => {
                 self.dispatch_simple(group_id, bot_user, name, trailing).await
             }
@@ -150,11 +150,12 @@ impl Dispatcher {
                 }
                 // Simple 命令不接受其他参数
                 if !trailing.is_empty() {
+                    let prefix = &self.config.cmd_prefix;
                     let unknown: Vec<_> = trailing.iter().filter(|t| t.starts_with('-')).collect();
                     let detail = if !unknown.is_empty() {
-                        format!("❌ 未知参数: {}（输入 {name} -h 查看用法）", unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "))
+                        format!("❌ 未知参数: {}（输入 {prefix}{name} -h 查看用法）", unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "))
                     } else {
-                        format!("❌ {name} 是简单命令，不接受额外参数（输入 {name} -h 查看用法）")
+                        format!("❌ {prefix}{name} 是简单命令，不接受额外参数（输入 {prefix}{name} -h 查看用法）")
                     };
                     return self.api.send_text(group_id, &detail).await;
                 }
@@ -163,7 +164,8 @@ impl Dispatcher {
             }
             None => {
                 debug!("未知简单命令: {name}");
-                self.api.send_text(group_id, &format!("❓ 未知命令: {name}，输入 /help 查看命令列表")).await
+                let prefix = &self.config.cmd_prefix;
+                self.api.send_text(group_id, &format!("❓ 未知命令: {prefix}{name}，输入 {prefix}help 查看命令列表")).await
             }
         }
     }
@@ -198,7 +200,8 @@ impl Dispatcher {
             }
             None => {
                 debug!("未知复杂命令: {name}");
-                self.api.send_text(group_id, &format!("❓ 未知命令: <{name}>，输入 /help 查看命令列表")).await
+                let prefix = &self.config.cmd_prefix;
+                self.api.send_text(group_id, &format!("❓ 未知命令: <{name}>，输入 {prefix}help 查看命令列表")).await
             }
         }
     }

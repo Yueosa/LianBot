@@ -44,12 +44,12 @@ pub struct CommandParser;
 
 impl CommandParser {
     /// 尝试将输入字符串解析为命令。
-    /// 不是命令格式（不以 `/` 或 `<` 开头）时返回 `None`，
-    /// 解析失败时也返回 `None`（不 panic）。
-    pub fn parse(input: &str) -> Option<ParsedCommand> {
+    /// `prefix` 为简单命令前缀（如 `"!!"`），`<>` 为复杂命令前缀（固定）。
+    /// 返回的 name 为纯命令名（不含前缀）。
+    pub fn parse(input: &str, prefix: &str) -> Option<ParsedCommand> {
         let s = input.trim();
-        if s.starts_with('/') {
-            Self::parse_simple(s)
+        if s.starts_with(prefix) {
+            Self::parse_simple(s, prefix)
         } else if s.starts_with('<') && s.contains('>') {
             Self::parse_advanced(s)
         } else {
@@ -59,16 +59,21 @@ impl CommandParser {
 
     /// 判断文本是否看起来像一条命令（快速前缀检查）
     #[allow(dead_code)]
-    pub fn is_command(input: &str) -> bool {
+    pub fn is_command(input: &str, prefix: &str) -> bool {
         let s = input.trim();
-        s.starts_with('/') || (s.starts_with('<') && s.contains('>'))
+        s.starts_with(prefix) || (s.starts_with('<') && s.contains('>'))
     }
 
     // ── 内部：简单命令 ────────────────────────────────────────────────────────
-    // 格式：`/name [trailing...]`
-    fn parse_simple(s: &str) -> Option<ParsedCommand> {
-        let mut tokens = s.split_whitespace();
+    // 格式：`{prefix}name [trailing...]`
+    // 返回的 name 不含前缀：`!!ping` → name = "ping"
+    fn parse_simple(s: &str, prefix: &str) -> Option<ParsedCommand> {
+        let rest = s.strip_prefix(prefix)?;
+        let mut tokens = rest.split_whitespace();
         let name = tokens.next()?.to_string();
+        if name.is_empty() {
+            return None;
+        }
         let trailing: Vec<String> = tokens.map(|t| t.to_string()).collect();
         Some(ParsedCommand::Simple { name, trailing })
     }
@@ -199,13 +204,25 @@ mod tests {
 
     #[test]
     fn test_simple_command() {
-        let r = CommandParser::parse("/ping").unwrap();
-        assert_eq!(r, ParsedCommand::Simple { name: "/ping".into(), trailing: vec![] });
+        let r = CommandParser::parse("!!ping", "!!").unwrap();
+        assert_eq!(r, ParsedCommand::Simple { name: "ping".into(), trailing: vec![] });
+    }
+
+    #[test]
+    fn test_simple_with_trailing() {
+        let r = CommandParser::parse("!!help --help", "!!").unwrap();
+        assert_eq!(r, ParsedCommand::Simple { name: "help".into(), trailing: vec!["--help".into()] });
+    }
+
+    #[test]
+    fn test_custom_prefix() {
+        let r = CommandParser::parse("/ping", "/").unwrap();
+        assert_eq!(r, ParsedCommand::Simple { name: "ping".into(), trailing: vec![] });
     }
 
     #[test]
     fn test_advanced_basic() {
-        let r = CommandParser::parse("<img> -u https://example.com/a.png").unwrap();
+        let r = CommandParser::parse("<img> -u https://example.com/a.png", "!!").unwrap();
         match r {
             ParsedCommand::Advanced { name, params } => {
                 assert_eq!(name, "img");
@@ -217,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_advanced_long_eq() {
-        let r = CommandParser::parse("<smy> --count=50").unwrap();
+        let r = CommandParser::parse("<smy> --count=50", "!!").unwrap();
         match r {
             ParsedCommand::Advanced { name, params } => {
                 assert_eq!(name, "smy");
@@ -243,8 +260,9 @@ mod tests {
 
     #[test]
     fn test_not_command() {
-        assert!(CommandParser::parse("普通消息").is_none());
-        assert!(CommandParser::parse("").is_none());
+        assert!(CommandParser::parse("普通消息", "!!").is_none());
+        assert!(CommandParser::parse("", "!!").is_none());
+        assert!(CommandParser::parse("/ping", "!!").is_none()); // wrong prefix
     }
 
     #[test]
