@@ -1,10 +1,26 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use serde::Deserialize;
 use tracing::info;
 
 use crate::commands::{Command, CommandContext, CommandKind, http_client};
+use crate::runtime::logic_config;
 
-const ACG_URL: &str = "https://www.loliapi.com/bg/";
+// ── 插件配置 ──────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct AcgPluginConfig {
+    #[serde(default = "AcgPluginConfig::default_url")]
+    api_url: String,
+}
+
+impl AcgPluginConfig {
+    fn default_url() -> String { "https://www.loliapi.com/bg/".into() }
+}
+
+impl Default for AcgPluginConfig {
+    fn default() -> Self { Self { api_url: Self::default_url() } }
+}
 
 pub struct AcgCommand;
 
@@ -22,13 +38,15 @@ impl Command for AcgCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
+        let cfg = logic_config::section::<AcgPluginConfig>("acg");
+        let url = &cfg.api_url;
         info!("[acg] 随机图, 群={}", ctx.group_id);
-        match resolve_final_url(ACG_URL).await {
+        match resolve_final_url(url).await {
             Some(final_url) => {
                 info!("[acg] 落地 URL: {final_url}");
                 ctx.api.send_text_image(ctx.group_id, &final_url, &final_url).await
             }
-            None => ctx.api.send_image(ctx.group_id, ACG_URL).await,
+            None => ctx.api.send_image(ctx.group_id, url).await,
         }
     }
 }

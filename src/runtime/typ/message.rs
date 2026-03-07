@@ -128,4 +128,12 @@ impl MessageSegment {
             data: serde_json::json!({"file": file.into()}),
         }
     }
+
+    /// 构造 @某人 段
+    pub fn at(qq: i64) -> Self {
+        Self {
+            seg_type: "at".into(),
+            data: serde_json::json!({"qq": qq.to_string()}),
+        }
+    }
 }

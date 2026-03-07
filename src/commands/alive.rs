@@ -10,17 +10,21 @@ use crate::runtime::logic_config;
 
 #[derive(Debug, Deserialize)]
 struct AlivePluginConfig {
-    #[serde(default = "AlivePluginConfig::default_url")]
+    /// Alive API 地址（必填，空则跳过）
+    #[serde(default)]
     api_url: String,
+    /// 请求超时（秒），默认 5
+    #[serde(default = "AlivePluginConfig::default_timeout")]
+    timeout_secs: u64,
 }
 
 impl AlivePluginConfig {
-    fn default_url() -> String { "https://alive.yeastar.xin/api/status".into() }
+    fn default_timeout() -> u64 { 5 }
 }
 
 impl Default for AlivePluginConfig {
     fn default() -> Self {
-        Self { api_url: AlivePluginConfig::default_url() }
+        Self { api_url: String::new(), timeout_secs: 5 }
     }
 }
 
@@ -58,9 +62,13 @@ impl Command for AliveCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<AlivePluginConfig>("alive");
+        if cfg.api_url.is_empty() {
+            return ctx.api.send_text(ctx.group_id, "❌ alive 未配置 api_url，请在 logic.toml [alive] 中设置").await;
+        }
         info!("[alive] 请求设备状态, url={}, 群={}", cfg.api_url, ctx.group_id);
         let resp = http_client()
             .get(&cfg.api_url)
+            .timeout(std::time::Duration::from_secs(cfg.timeout_secs))
             .send()
             .await
             .context("请求 alive API 失败")?

@@ -4,8 +4,23 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind, http_client};
+use crate::runtime::logic_config;
 
-const API_URL: &str = "https://api.ecylt.com/v1/world_60s";
+// ── 插件配置 ──────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct WorldPluginConfig {
+    #[serde(default = "WorldPluginConfig::default_url")]
+    api_url: String,
+}
+
+impl WorldPluginConfig {
+    fn default_url() -> String { "https://api.ecylt.com/v1/world_60s".into() }
+}
+
+impl Default for WorldPluginConfig {
+    fn default() -> Self { Self { api_url: Self::default_url() } }
+}
 
 #[derive(Debug, Deserialize)]
 struct WorldResponse {
@@ -21,9 +36,10 @@ impl Command for WorldCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
+        let cfg = logic_config::section::<WorldPluginConfig>("world");
         info!("[world] 请求新闻, 群={}", ctx.group_id);
         let resp = http_client()
-            .get(API_URL)
+            .get(&cfg.api_url)
             .send()
             .await
             .context("请求 60s 看世界 API 失败")?
@@ -38,7 +54,7 @@ impl Command for WorldCommand {
         }
 
         let text = format!(
-            "📰 60秒看世界\n\n{}\n\n数据来源：api.ecylt.com",
+            "📰 60秒看世界\n\n{}",
             resp.data.join("\n")
         );
 

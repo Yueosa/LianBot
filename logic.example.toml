@@ -28,5 +28,13 @@ secret = ""
 
 # ── 设备在线状态 (alive) ───────────────────────────────────────────────────────
 # [alive]
-# api_url      = "https://alive.yeastar.xin/api/status"
+# api_url      = "https://your-alive-api.example.com/api/status"
 # timeout_secs = 5
+
+# ── 随机二次元图片 (acg) ──────────────────────────────────────────────────────
+# [acg]
+# api_url = "https://www.loliapi.com/bg/"
+
+# ── 60秒看世界 (world) ────────────────────────────────────────────────────────
+# [world]
+# api_url = "https://api.ecylt.com/v1/world_60s"

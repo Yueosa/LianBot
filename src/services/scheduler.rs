@@ -82,8 +82,10 @@ impl BotService for SchedulerService {
                     }
                 }
 
-                info!("[scheduler] 本轮结束，等待 24h");
-                tokio::time::sleep(Duration::from_secs(86400)).await;
+                info!("[scheduler] 本轮结束，等待下一个午夜");
+                let next = secs_until_midnight();
+                info!("[scheduler] 距下次执行 {next}s ({:.1}h)", next as f64 / 3600.0);
+                tokio::time::sleep(Duration::from_secs(next)).await;
             }
         }
     }

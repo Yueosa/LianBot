@@ -72,7 +72,8 @@ impl CommandRegistry {
             "── 简单命令 ──".to_string(),
         ];
         for cmd in &simple {
-            lines.push(format!("  {}{:<10}  {}", prefix, cmd.name(), cmd.help()));
+            let brief = cmd.help().lines().next().unwrap_or("");
+            lines.push(format!("  {}{:<10}  {}", prefix, cmd.name(), brief));
         }
         lines.push("── 复杂命令（<名称> [参数]）──".to_string());
         for cmd in &advanced {
@@ -82,7 +83,7 @@ impl CommandRegistry {
             } else {
                 format!("<{}> / <{}>", cmd.name(), aliases.join("> / <"))
             };
-            lines.push(format!("  {:<18}  {}", name_part, cmd.help()));
+            lines.push(format!("  {:<18}  {}", name_part, cmd.help().lines().next().unwrap_or("")));
         }
         lines.push(String::new());
         lines.push("💡 输入 <命令> --help 查看详细参数".to_string());

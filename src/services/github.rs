@@ -22,6 +22,7 @@ use tracing::{info, warn};
 
 use crate::logic::github::{GitHubConfig, GitHubEvent, format_event, verify_signature};
 use crate::runtime::api::{ApiClient, MsgTarget};
+use crate::runtime::typ::MessageSegment;
 
 use super::BotService;
 
@@ -149,16 +150,19 @@ impl BotService for GitHubService {
             }
 
             for (group_id, at_list) in targets {
-                // 构造 @ 前缀
-                let at_prefix: String = at_list
+                // 构造消息段：@ 段 + 换行 + 文本
+                let mut segments: Vec<MessageSegment> = at_list
                     .iter()
-                    .map(|qq| format!("@{qq} "))
+                    .map(|&qq| MessageSegment::at(qq))
                     .collect();
-                let msg = format!("{at_prefix}{text}");
+                if !segments.is_empty() {
+                    segments.push(MessageSegment::text("\n"));
+                }
+                segments.push(MessageSegment::text(text.as_str()));
 
                 if let Err(e) = self
                     .api
-                    .send_msg(MsgTarget::Group(group_id), &msg)
+                    .send_segments(MsgTarget::Group(group_id), segments)
                     .await
                 {
                     warn!("[github] 推送群 {group_id} 失败: {e:#}");
