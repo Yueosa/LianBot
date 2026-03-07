@@ -9,6 +9,7 @@ use axum::{
 };
 #[cfg(feature = "core-ws")]
 use axum::{extract::WebSocketUpgrade, routing::get};
+use anyhow::Context as _;
 use tracing::info;
 
 use crate::kernel::app::App;
@@ -25,9 +26,9 @@ use crate::runtime::{
 
 pub async fn run() -> anyhow::Result<()> {
     // ── 三层配置加载 ──────────────────────────────────────────────────────────
-    crate::kernel::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
-    crate::runtime::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
-    crate::runtime::logic_config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+    crate::kernel::config::init()?;
+    crate::runtime::config::init()?;
+    crate::runtime::logic_config::init()?;
 
     let kcfg = crate::kernel::config::KernelConfig::global();
     let napcat: NapcatConfig     = crate::runtime::config::section("napcat");
@@ -41,13 +42,15 @@ pub async fn run() -> anyhow::Result<()> {
     info!("  NapCat URL : {}", napcat.url);
     info!("  服务监听   : {}:{}", kcfg.host, kcfg.port);
     info!("  Bot 主人   : {}", bot_cfg.owner);
+    #[cfg(feature = "core-db")]
+    info!("  权限 DB   : {}", bot_cfg.db_path);
 
     // ── 基础设施 ──────────────────────────────────────────────────────────────
     let api = Arc::new(ApiClient::new(napcat.url.clone(), napcat.token.clone()));
     let ws = WsManager::new();
     let pool = crate::runtime::pool::create_pool(&pool_cfg)
         .await
-        .map_err(|e| anyhow::anyhow!("消息池初始化失败: {e}"))?;
+        .context("消息池初始化失败")?;
 
     #[cfg(feature = "core-db")]
     let access = AccessControl::open(
@@ -55,7 +58,7 @@ pub async fn run() -> anyhow::Result<()> {
         &bot_cfg.initial_groups,
     )
     .await
-    .map_err(|e| anyhow::anyhow!("权限 DB 初始化失败: {e}"))?;
+    .context("权限 DB 初始化失败")?;
 
     #[cfg(not(feature = "core-db"))]
     let access = AccessControl::from_config(&bot_cfg.initial_groups, &bot_cfg.blacklist);

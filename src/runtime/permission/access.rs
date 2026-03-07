@@ -58,7 +58,7 @@ mod inner {
             })
             .await
             .context("db open task panicked")?
-            .context("open permissions.db")?;
+            .with_context(|| format!("open {}", path.display()))?;
 
             // 导入初始群
             if !initial_groups.is_empty() {
