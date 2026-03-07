@@ -83,7 +83,9 @@ impl Dispatcher {
         };
 
         // 2. 群网关校验（该群是否对 Bot 开放）
-        if !self.access.is_group_enabled(group_id) {
+        //    Owner 绕过：允许在禁用群中使用管理命令和调试
+        let is_owner = event.user_id == self.owner;
+        if !is_owner && !self.access.is_group_enabled(group_id) {
             return Ok(());
         }
 
@@ -153,8 +155,16 @@ impl Dispatcher {
                 if bot_user.role < cmd.required_role() {
                     return self.api.send_text(group_id, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
                 }
-                // Simple 命令不接受其他参数
-                if !trailing.is_empty() {
+                // Simple 命令参数处理
+                if cmd.accepts_trailing() {
+                    // 支持尾部参数的 Simple 命令：将 trailing 合并为 _args
+                    let mut params: HashMap<String, ParamValue> = HashMap::new();
+                    if !trailing.is_empty() {
+                        params.insert("_args".into(), ParamValue::Value(trailing.join(" ")));
+                    }
+                    let ctx = self.build_ctx(group_id, message_id, bot_user, segments, params);
+                    self.execute_and_mark(cmd, ctx, group_id, message_id).await
+                } else if !trailing.is_empty() {
                     let prefix = &self.cmd_prefix;
                     let unknown: Vec<_> = trailing.iter().filter(|t| t.starts_with('-')).collect();
                     let detail = if !unknown.is_empty() {
@@ -163,9 +173,10 @@ impl Dispatcher {
                         format!("❌ {prefix}{name} 是简单命令，不接受额外参数（输入 {prefix}{name} -h 查看用法）")
                     };
                     return self.api.send_text(group_id, &detail).await;
+                } else {
+                    let ctx = self.build_ctx(group_id, message_id, bot_user, segments, Default::default());
+                    self.execute_and_mark(cmd, ctx, group_id, message_id).await
                 }
-                let ctx = self.build_ctx(group_id, message_id, bot_user, segments, Default::default());
-                self.execute_and_mark(cmd, ctx, group_id, message_id).await
             }
             None => {
                 debug!("未知简单命令: {name}");

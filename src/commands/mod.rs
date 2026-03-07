@@ -5,6 +5,7 @@
 #[cfg(feature = "cmd-smy")]   pub mod smy;
 #[cfg(feature = "cmd-alive")] pub mod alive;
 #[cfg(feature = "cmd-world")] pub mod world;
+pub mod admin;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -126,6 +127,12 @@ pub trait Command: Send + Sync {
         crate::runtime::permission::Role::Member
     }
 
+    /// Simple 命令是否接受尾部参数（默认 false）。
+    /// 为 true 时 dispatcher 将 trailing 合并为 `_args` 传入 `ctx.params`。
+    fn accepts_trailing(&self) -> bool {
+        false
+    }
+
     /// 执行命令
     async fn execute(&self, ctx: CommandContext) -> anyhow::Result<()>;
 }
@@ -178,6 +185,7 @@ impl CommandContext {
 
 /// 向 App 构建器注册所有已启用 feature 的命令。
 pub fn register(app: &mut crate::kernel::app::App) {
+    app.command(Arc::new(admin::AdminCommand));
     #[cfg(feature = "cmd-ping")]  app.command(Arc::new(ping::PingCommand));
     #[cfg(feature = "cmd-help")]  app.command(Arc::new(help::HelpCommand));
     #[cfg(feature = "cmd-acg")]   app.command(Arc::new(acg::AcgCommand));
