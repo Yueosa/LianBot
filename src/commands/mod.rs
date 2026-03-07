@@ -79,16 +79,15 @@ pub struct ParamSpec {
     pub help: &'static str,
 }
 
-/// 可选依赖声明，供 Phase 4 feature gate 检查使用。
-/// 当前 dispatcher 尚未消费此信息，预留供未来 runtime 依赖检查。
-#[allow(dead_code)]
+/// 运行时依赖声明，Dispatcher 在执行命令前自动检查可用性。
+/// 不可用时返回友好提示而非 runtime error。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dependency {
     /// 需要 `logic.toml` 中的配置段（如 LLM）
     Config,
     /// 需要 `WsManager`（WebSocket 客户端已连接）
     Ws,
-    /// 需要消息池（Phase 3）
+    /// 需要消息池
     Pool,
 }
 
@@ -116,10 +115,15 @@ pub trait Command: Send + Sync {
         &[]
     }
 
-    /// 可选依赖声明（默认为空，Dispatcher 尚未消费，预留 Phase 4）
-    #[allow(dead_code)]
+    /// 运行时依赖声明，Dispatcher 在执行前自动检查可用性。
     fn dependencies(&self) -> &[Dependency] {
         &[]
+    }
+
+    /// 执行此命令所需的最低角色，默认 `Member`（所有人可用）。
+    /// 管理命令覆盖为 `Role::Owner`。
+    fn required_role(&self) -> crate::runtime::permission::Role {
+        crate::runtime::permission::Role::Member
     }
 
     /// 执行命令

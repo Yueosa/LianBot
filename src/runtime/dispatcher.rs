@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use tracing::{debug, info, warn};
 
 use crate::{
-    commands::{Command, CommandContext, ParamKind, ParamSpec, ValueConstraint},
+    commands::{Command, CommandContext, Dependency, ParamKind, ParamSpec, ValueConstraint},
     runtime::{
         permission::{AccessControl, BotUser, Role, Scope, Status},
         api::ApiClient,
@@ -145,6 +145,14 @@ impl Dispatcher {
                 if let Some(help_text) = try_help(cmd.as_ref(), |f| trailing.iter().any(|t| t == f)) {
                     return self.api.send_text(group_id, &help_text).await;
                 }
+                // 依赖预检
+                if let Some(msg) = self.check_dependencies(cmd.as_ref()).await {
+                    return self.api.send_text(group_id, &msg).await;
+                }
+                // 权限检查
+                if bot_user.role < cmd.required_role() {
+                    return self.api.send_text(group_id, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
+                }
                 // Simple 命令不接受其他参数
                 if !trailing.is_empty() {
                     let prefix = &self.cmd_prefix;
@@ -184,6 +192,14 @@ impl Dispatcher {
                 if let Some(help_text) = try_help(cmd.as_ref(), |f| params.contains_key(f)) {
                     return self.api.send_text(group_id, &help_text).await;
                 }
+                // 依赖预检
+                if let Some(msg) = self.check_dependencies(cmd.as_ref()).await {
+                    return self.api.send_text(group_id, &msg).await;
+                }
+                // 权限检查
+                if bot_user.role < cmd.required_role() {
+                    return self.api.send_text(group_id, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
+                }
                 // 参数校验（未知/必填/值约束）
                 if let Err(detail) = validate_params(&params, cmd.declared_params()) {
                     let text = format!("❌ {detail}\n输入 <{}> --help 查看用法", cmd.name());
@@ -214,7 +230,28 @@ impl Dispatcher {
         // TODO: 关键词匹配、AI 自动对话
         Ok(())
     }
+    // ── 依赖预检 ────────────────────────────────────────────────────────────────
 
+    /// 检查命令的运行时依赖是否全部可用。
+    /// 返回第一个不可用依赖的友好提示，或 `None` 表示全部可用。
+    async fn check_dependencies(&self, cmd: &dyn Command) -> Option<String> {
+        for dep in cmd.dependencies() {
+            let available = match dep {
+                Dependency::Pool   => self.pool.is_some(),
+                Dependency::Ws     => self.ws.has_clients().await,
+                Dependency::Config => true, // 配置始终可用
+            };
+            if !available {
+                let desc = match dep {
+                    Dependency::Pool   => "消息池",
+                    Dependency::Ws     => "WebSocket 连接",
+                    Dependency::Config => "配置",
+                };
+                return Some(format!("⚠️ {} 需要{desc}，当前不可用", cmd.name()));
+            }
+        }
+        None
+    }
     // ── 辅助 ──────────────────────────────────────────────────────────────────
     /// 执行命令并向消息池报告处理结果。
     /// 计时 → 执行 → 根据 Ok/Err 生成 ProcessRecord → pool.mark()

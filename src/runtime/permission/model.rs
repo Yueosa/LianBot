@@ -8,12 +8,14 @@ pub enum Scope {
 }
 
 /// Bot 内虚拟角色（全局，不区分群）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// 排序：`Member < Owner`，用于命令权限检查。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Role {
-    /// Bot 主人，来自 config.toml，不落库，权限最高
-    Owner,
     /// 其他所有用户
     Member,
+    /// Bot 主人，来自 config.toml，不落库，权限最高
+    Owner,
 }
 
 /// 用户当前状态（per-scope 或全局）。
