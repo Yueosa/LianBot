@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 4c — Feature 组合编译验证脚本
+# check_features.sh — Feature 组合编译验证脚本
 # 用途：确保所有关键 feature 组合均可独立编译
 # 运行：bash check_features.sh
 
@@ -43,16 +43,14 @@ run  "仅 cmd-smy（拉入 chrono + base64）"     --no-default-features --featu
 run  "cmd-stalk（自动拉入 core-ws）"          --no-default-features --features cmd-stalk
 
 # ── 标准场景 ──────────────────────────────────────────────────────────────────
-run  "default（全命令集）"                    
-run  "default + SQLite"                        --features core-pool-sqlite
+run  "default（全命令 + core-db + svc-github）"
 run  "default + 文件日志"                      --features core-log-file
-run  "default + SQLite + 文件日志"              --features core-pool-sqlite,core-log-file
 run  "all-features"                            --all-features
 
 # ── 测试场景 ──────────────────────────────────────────────────────────────────
 echo ""
 run_test "cargo test（默认 feature）"
-run_test "cargo test --features core-pool-sqlite" --features core-pool-sqlite
+run_test "cargo test --all-features"           --all-features
 
 echo ""
 echo "=== 结果: ${PASS} 通过 / ${FAIL} 失败 ==="

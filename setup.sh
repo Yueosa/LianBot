@@ -5,13 +5,16 @@
 #   bash setup.sh
 #
 # 功能：
-#   1. 选择编译模块（生成 .build_features）
-#   2. 生成 config.toml（基础设施配置）
-#   3. 生成 plugins.toml（插件私有配置）
+#   1. 生成 config.toml（kernel 层：host / port）
+#   2. 生成 runtime.toml（运行时：napcat / bot / pool / log）
+#   3. 生成 logic.toml（业务逻辑：smy / github / alive）
 #   4. 编译验证（运行 check_features.sh）
 #   5. 部署到服务器（调用 sudo bash deploy.sh）
 #
-# .build_features 已加入 .gitignore，每次本地生成即可。
+# 三层配置架构（v0.2.0+）：
+#   config.toml   — kernel 层，仅 host / port
+#   runtime.toml  — 运行时基础设施，napcat / bot / pool / log / parser
+#   logic.toml    — 插件配置，smy / github / alive
 
 set -euo pipefail
 
@@ -26,144 +29,25 @@ title() { echo -e "${C_BOLD}${C_CYAN}$*${C_NC}"; }
 
 sep() { echo "  ──────────────────────────────────────────────────"; }
 
-# 读取 Cargo.toml 中的 version
 BOT_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-
-# 检查必须在项目根目录运行
 [[ -f "Cargo.toml" ]] || { echo "请在 LianBot 项目根目录运行此脚本"; exit 1; }
 
-# ── 当前选中的 feature 数组 ───────────────────────────────────────────────────
+# ── 通用读取函数 ──────────────────────────────────────────────────────────────
 
-# 从 .build_features 加载，否则使用默认值
-declare -A FEAT_SELECTED
-ALL_FEATURES=(cmd-ping cmd-help cmd-alive cmd-acg cmd-stalk cmd-smy cmd-world core-pool-sqlite core-log-file)
-DEFAULT_ON=(cmd-ping cmd-help cmd-alive cmd-acg cmd-stalk cmd-smy cmd-world)
-
-load_features() {
-    # 默认全部设为 off
-    for f in "${ALL_FEATURES[@]}"; do FEAT_SELECTED[$f]=0; done
-    # 加载默认值
-    for f in "${DEFAULT_ON[@]}"; do FEAT_SELECTED[$f]=1; done
-    # 若 .build_features 存在，覆盖
-    if [[ -f ".build_features" ]]; then
-        for f in "${ALL_FEATURES[@]}"; do FEAT_SELECTED[$f]=0; done
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            [[ -z "$line" ]] && continue
-            FEAT_SELECTED[$line]=1
-        done < ".build_features"
-    fi
-}
-
-save_features() {
-    : > ".build_features"
-    for f in "${ALL_FEATURES[@]}"; do
-        [[ ${FEAT_SELECTED[$f]} -eq 1 ]] && echo "$f" >> ".build_features"
-    done
-    info ".build_features 已保存"
-}
-
-features_to_flag() {
-    local parts=()
-    for f in "${ALL_FEATURES[@]}"; do
-        [[ ${FEAT_SELECTED[$f]} -eq 1 ]] && parts+=("$f")
-    done
-    local IFS=','
-    echo "${parts[*]}"
-}
-
-# ── 功能：选择编译模块 ────────────────────────────────────────────────────────
-
-FEAT_LABELS=(
-    "cmd-ping           /ping 命令（极轻量）"
-    "cmd-help           /help 自动生成命令列表"
-    "cmd-alive          /alive 存活检查"
-    "cmd-acg            /acg 随机二次元图片"
-    "cmd-stalk          <stalk> 截图（需 stalk_hypr 客户端）"
-    "cmd-smy            <smy> 群聊日报（含 chrono、base64）"
-    "cmd-world          /world 60秒看世界新闻速览"
-    "core-pool-sqlite   SQLite 消息持久化（编译较慢，非默认）"
-    "core-log-file      日志写入文件（每日滚动，需配置 log_dir）"
-)
-
-select_features() {
-    load_features
-    while true; do
-        clear
-        title "  LianBot v${BOT_VERSION}  —  编译模块选择"
-        sep
-        echo ""
-        for i in "${!ALL_FEATURES[@]}"; do
-            local f="${ALL_FEATURES[$i]}"
-            local num=$((i + 1))
-            if [[ ${FEAT_SELECTED[$f]} -eq 1 ]]; then
-                echo -e "  ${C_GREEN}[x]${C_NC}  ${num}  ${FEAT_LABELS[$i]}"
-            else
-                echo    "  [ ]  ${num}  ${FEAT_LABELS[$i]}"
-            fi
-        done
-        echo ""
-        sep
-        echo ""
-        echo "  输入编号切换选中/取消，s 保存并返回，q 取消不保存（共 9 项）："
-        echo ""
-        read -rp "  > " choice
-
-        case "$choice" in
-            [1-9])
-                local idx=$((choice - 1))
-                local f="${ALL_FEATURES[$idx]}"
-                if [[ ${FEAT_SELECTED[$f]} -eq 1 ]]; then
-                    FEAT_SELECTED[$f]=0
-                else
-                    FEAT_SELECTED[$f]=1
-                fi
-                # cmd-stalk 强制联动 core-ws（内部处理，无需暴露给用户）
-                ;;
-            s|S)
-                save_features
-                echo ""
-                info "已选模块：$(features_to_flag)"
-                echo ""
-                read -rp "  按 Enter 返回主菜单..." _
-                return
-                ;;
-            q|Q)
-                load_features  # 恢复
-                return
-                ;;
-            *)
-                warn "请输入 1-9、s 或 q"
-                sleep 0.5
-                ;;
-        esac
-    done
-}
-
-# ── 功能：生成 config.toml ────────────────────────────────────────────────────
-
-ask() {
-    # ask <变量名> <提示> <默认值>
-    local var="$1" prompt="$2" default="$3"
+# toml_val <file> <key> <fallback>  →  输出直属于文件顶层或当前 section 的标量值
+toml_val() {
+    local file="$1" key="$2" fallback="$3"
+    if [[ ! -f "$file" ]]; then echo "$fallback"; return; fi
     local val
-    read -rp "  ${prompt} [${default}]: " val
-    val="${val:-$default}"
-    printf -v "$var" '%s' "$val"
+    val=$(grep -E "^\s*${key}\s*=" "$file" | head -1 \
+          | sed 's/[^=]*=[ \t]*//' | sed 's/^"//' | sed 's/"$//' | sed 's/^[ \t]*//' || true)
+    echo "${val:-$fallback}"
 }
 
-ask_optional() {
-    # ask_optional <变量名> <提示> <留空说明>
-    local var="$1" prompt="$2" note="$3"
-    local val
-    read -rp "  ${prompt}  (${note}，留空跳过): " val
-    printf -v "$var" '%s' "$val"
-}
-
-# ── 读取已有 config.toml 中的值（pre-fill 用） ────────────────────────────────
-
-# cfg_val <section> <key> <fallback>  →  输出标量值（去引号）
-cfg_val() {
-    local section="$1" key="$2" fallback="$3"
-    if [[ ! -f "config.toml" ]]; then echo "$fallback"; return; fi
+# toml_section_val <file> <section> <key> <fallback>
+toml_section_val() {
+    local file="$1" section="$2" key="$3" fallback="$4"
+    if [[ ! -f "$file" ]]; then echo "$fallback"; return; fi
     local val
     val=$(awk -v sec="[${section}]" -v k="${key}" '
         $0 == sec       { in_sec=1; next }
@@ -174,14 +58,14 @@ cfg_val() {
             sub(/[ \t]+$/, "")
             print; exit
         }
-    ' config.toml)
+    ' "$file")
     echo "${val:-$fallback}"
 }
 
-# cfg_arr <section> <key>  →  输出逗号分隔的数组元素（用于 whitelist 等）
-cfg_arr() {
-    local section="$1" key="$2"
-    if [[ ! -f "config.toml" ]]; then echo ""; return; fi
+# toml_section_arr <file> <section> <key>  →  逗号分隔数组值
+toml_section_arr() {
+    local file="$1" section="$2" key="$3"
+    if [[ ! -f "$file" ]]; then echo ""; return; fi
     awk -v sec="[${section}]" -v k="${key}" '
         $0 == sec       { in_sec=1; next }
         /^\[/           { in_sec=0 }
@@ -192,46 +76,93 @@ cfg_arr() {
             }
             exit
         }
-    ' config.toml
+    ' "$file"
 }
 
-# plg_val <section> <key> <fallback>  →  从 plugins.toml 读标量值（去引号）
-plg_val() {
-    local section="$1" key="$2" fallback="$3"
-    if [[ ! -f "plugins.toml" ]]; then echo "$fallback"; return; fi
+ask() {
+    local var="$1" prompt="$2" default="$3"
     local val
-    val=$(awk -v sec="[${section}]" -v k="${key}" '
-        $0 == sec       { in_sec=1; next }
-        /^\[/           { in_sec=0 }
-        in_sec && $1==k {
-            sub(/[^=]+=[ \t]*/, "")
-            gsub(/["'"'"']/, "")
-            sub(/[ \t]+$/, "")
-            print; exit
-        }
-    ' plugins.toml)
-    echo "${val:-$fallback}"
+    read -rp "  ${prompt} [${default}]: " val
+    val="${val:-$default}"
+    printf -v "$var" '%s' "$val"
 }
+
+ask_optional() {
+    local var="$1" prompt="$2" note="$3"
+    local val
+    read -rp "  ${prompt}  (${note}，留空跳过): " val
+    printf -v "$var" '%s' "$val"
+}
+
+# ── 功能 1：生成 config.toml（kernel 层）──────────────────────────────────────
 
 gen_config() {
-    load_features
     clear
-    title "  LianBot v${BOT_VERSION}  —  生成 config.toml"
+    title "  LianBot v${BOT_VERSION}  —  生成 config.toml（kernel 层）"
     sep
     echo ""
+    [[ -f "config.toml" ]] && info "检测到已有 config.toml，回车保留原值。" && echo ""
 
-    # ── 从已有 config.toml 预填默认值 ─────────────────────────────────────────
-    local pre_exists=0
-    [[ -f "config.toml" ]] && pre_exists=1 && info "检测到已有 config.toml，将以当前值作为默认，直接回车即保留原值。" && echo ""
+    local HOST PORT
+    ask HOST "监听地址" "$(toml_val config.toml host '0.0.0.0')"
+    ask PORT "监听端口" "$(toml_val config.toml port '8080')"
 
-    local has_sqlite=0 has_log_file=0
-    [[ ${FEAT_SELECTED[core-pool-sqlite]} -eq 1 ]] && has_sqlite=1
-    [[ ${FEAT_SELECTED[core-log-file]}    -eq 1 ]] && has_log_file=1
+    local CONTENT
+    CONTENT=$(cat <<TOML
+# LianBot 内核配置 (kernel 层)
+host = "$HOST"
+port = $PORT
+TOML
+)
+    echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
+    [[ -f "config.toml" ]] && warn "config.toml 已存在，将被覆盖。"
+    read -rp "  确认写入 config.toml？(y/N): " confirm
+    if [[ "${confirm,,}" == "y" ]]; then
+        echo "$CONTENT" > config.toml
+        info "config.toml 已生成"
+    else
+        info "已取消"
+    fi
+    echo ""; read -rp "  按 Enter 返回主菜单..." _
+}
 
-    # ── NapCat ────────────────────────────────────────────────────────────────
-    echo "  [napcat]"
-    ask NAPCAT_URL   "NapCat HTTP URL"  "$(cfg_val napcat url 'http://127.0.0.1:3000')"
-    local _tok; _tok=$(cfg_val napcat token "")
+# ── 功能 2：生成 runtime.toml ─────────────────────────────────────────────────
+
+gen_runtime() {
+    clear
+    title "  LianBot v${BOT_VERSION}  —  生成 runtime.toml（运行时层）"
+    sep
+    echo ""
+    [[ -f "runtime.toml" ]] && info "检测到已有 runtime.toml，回车保留原值。" && echo ""
+
+    local RT="runtime.toml"
+
+    # ── [bot] ─────────────────────────────────────────────────────────────────
+    echo "  [bot]  Bot 身份与权限"
+    local OWNER GROUPS_RAW BLACKLIST_RAW
+    ask OWNER "Bot 主人 QQ 号" "$(toml_section_val "$RT" bot owner '0')"
+
+    local _gl; _gl=$(toml_section_arr "$RT" bot initial_groups)
+    echo "  初始群列表（启动时导入 DB，多个用逗号分隔）"
+    read -rp "  initial_groups [${_gl:-（空）}]: " GROUPS_RAW
+    GROUPS_RAW="${GROUPS_RAW:-$_gl}"
+    local GROUPS_TOML="[$(echo "$GROUPS_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
+
+    local _bl; _bl=$(toml_section_arr "$RT" bot blacklist)
+    if [[ -n "$_bl" ]]; then
+        ask BLACKLIST_RAW "静态黑名单（QQ 号逗号分隔）" "$_bl"
+    else
+        ask_optional BLACKLIST_RAW "静态黑名单（QQ 号逗号分隔）" "不限制"
+    fi
+    local BL_TOML="[]"
+    [[ -n "$BLACKLIST_RAW" ]] && BL_TOML="[$(echo "$BLACKLIST_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
+    echo ""
+
+    # ── [napcat] ──────────────────────────────────────────────────────────────
+    echo "  [napcat]  NapCat HTTP API"
+    local NAPCAT_URL NAPCAT_TOKEN
+    ask NAPCAT_URL   "NapCat HTTP URL"  "$(toml_section_val "$RT" napcat url 'http://127.0.0.1:3000')"
+    local _tok; _tok=$(toml_section_val "$RT" napcat token "")
     if [[ -n "$_tok" ]]; then
         ask NAPCAT_TOKEN "Bearer Token" "$_tok"
     else
@@ -239,246 +170,155 @@ gen_config() {
     fi
     echo ""
 
-    # ── Server ────────────────────────────────────────────────────────────────
-    echo "  [server]"
-    ask SERVER_HOST "监听地址" "$(cfg_val server host '0.0.0.0')"
-    ask SERVER_PORT "监听端口" "$(cfg_val server port '8080')"
+    # ── [pool] ────────────────────────────────────────────────────────────────
+    echo "  [pool]  消息池"
+    local POOL_CAP POOL_EVICT
+    ask POOL_CAP   "每群内存缓冲最大条数" "$(toml_section_val "$RT" pool per_group_capacity '3000')"
+    ask POOL_EVICT "内存淘汰阈值（秒）"   "$(toml_section_val "$RT" pool evict_after_secs '86400')"
     echo ""
 
-    # ── Bot ───────────────────────────────────────────────────────────────────
-    echo "  [bot]"
-    local _wl; _wl=$(cfg_arr bot whitelist)
-    echo "  群白名单（多个群号用英文逗号分隔，如 123456,789012）"
-    read -rp "  whitelist [${_wl:-（空）}]: " WHITELIST_RAW
-    WHITELIST_RAW="${WHITELIST_RAW:-$_wl}"
-    WHITELIST_TOML="[$(echo "$WHITELIST_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
-    [[ "$WHITELIST_TOML" == "[]" ]] && warn "群白名单为空，Bot 将不响应任何群消息！"
-    echo ""
-    echo "  用户级过滤（留空 = 不限制，user_whitelist 优先级高于 user_blacklist）"
-    local _uw; _uw=$(cfg_arr bot user_whitelist)
-    local _ub; _ub=$(cfg_arr bot user_blacklist)
-    if [[ -n "$_uw" ]]; then
-        ask USER_WHITELIST "user_whitelist（QQ 号逗号分隔）" "$_uw"
+    # ── [log] ─────────────────────────────────────────────────────────────────
+    echo "  [log]  日志"
+    local LOG_LEVEL LOG_DIR LOG_MAX
+    ask LOG_LEVEL "日志级别（trace/debug/info/warn/error）" "$(toml_section_val "$RT" log level 'info')"
+
+    local _ldir; _ldir=$(toml_section_val "$RT" log log_dir "")
+    if [[ -n "$_ldir" ]]; then
+        ask LOG_DIR "log_dir" "$_ldir"
     else
-        ask_optional USER_WHITELIST "user_whitelist（QQ 号逗号分隔）" "不限制"
+        ask_optional LOG_DIR "log_dir（如 /opt/lianbot/logs）" "仅 stdout"
     fi
-    if [[ -n "$_ub" ]]; then
-        ask USER_BLACKLIST "user_blacklist（QQ 号逗号分隔）" "$_ub"
-    else
-        ask_optional USER_BLACKLIST "user_blacklist（QQ 号逗号分隔）" "不限制"
+    local LOG_DIR_BLOCK="" LOG_MAX_BLOCK=""
+    if [[ -n "$LOG_DIR" ]]; then
+        ask LOG_MAX "日志保留天数" "$(toml_section_val "$RT" log max_days '30')"
+        LOG_DIR_BLOCK="log_dir  = \"$LOG_DIR\""
+        LOG_MAX_BLOCK="max_days = $LOG_MAX"
     fi
     echo ""
 
-    # ── Pool ──────────────────────────────────────────────────────────────────
-    echo "  [pool]"
-    ask POOL_CAPACITY   "每群内存缓冲最大条数" "$(cfg_val pool per_group_capacity '2000')"
-    ask POOL_EVICT_SECS "内存淘汰阈值（秒）"   "$(cfg_val pool evict_after_secs '86400')"
-
-    local SQLITE_BLOCK=""
-    if [[ $has_sqlite -eq 1 ]]; then
-        echo ""
-        echo "  已选 core-pool-sqlite，配置 SQLite 参数："
-        ask SQLITE_PATH     "SQLite 文件路径"       "$(cfg_val pool sqlite_path 'lianbot.db')"
-        ask SQLITE_RETAIN   "保留天数（超出则清理）" "$(cfg_val pool sqlite_retain_days '30')"
-        ask SQLITE_MAX_ROWS "每群最大保留条数"       "$(cfg_val pool sqlite_max_rows_per_group '50000')"
-        SQLITE_BLOCK=$(cat <<TOML
-
-sqlite_path               = "$SQLITE_PATH"
-sqlite_retain_days        = $SQLITE_RETAIN
-sqlite_max_rows_per_group = $SQLITE_MAX_ROWS
-TOML
-)
-    fi
-
-    # ── Log ───────────────────────────────────────────────────────────────────
-    echo ""
-    echo "  [log]"
-    local LOG_DIR="" LOG_LEVEL_BLOCK="" LOG_MAXDAYS_BLOCK=""
-    ask LOG_LEVEL "日志级别（trace/debug/info/warn/error）" "$(cfg_val log level 'info')"
-    if [[ $has_log_file -eq 1 ]]; then
-        echo "  已选 core-log-file，配置日志文件目录（留空则仅 stdout）"
-        local _ldir; _ldir=$(cfg_val log log_dir "")
-        if [[ -n "$_ldir" ]]; then
-            ask LOG_DIR "log_dir（如 /opt/lianbot/logs）" "$_ldir"
-        else
-            ask_optional LOG_DIR "log_dir（如 /opt/lianbot/logs）" "仅 stdout"
-        fi
-        if [[ -n "$LOG_DIR" ]]; then
-            ask LOG_MAXDAYS "日志保留天数" "$(cfg_val log max_days '30')"
-            LOG_MAXDAYS_BLOCK="
-max_days = $LOG_MAXDAYS"
-        fi
-    else
-        info "  未选 core-log-file，仅输出到 stdout，log_dir 不生效"
-    fi
-    LOG_LEVEL_BLOCK="
-level = \"$LOG_LEVEL\""
-
-    # 格式化 user 列表为 TOML 数组
-    local UW_TOML="[]" UB_TOML="[]"
-    if [[ -n "$USER_WHITELIST" ]]; then
-        UW_TOML="[$(echo "$USER_WHITELIST" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
-    fi
-    if [[ -n "$USER_BLACKLIST" ]]; then
-        UB_TOML="[$(echo "$USER_BLACKLIST" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
-    fi
-
-    local LOG_DIR_LINE=""
-    [[ -n "$LOG_DIR" ]] && LOG_DIR_LINE="
-log_dir  = \"$LOG_DIR\"$LOG_MAXDAYS_BLOCK"
-
-    local LOG_BLOCK
-    LOG_BLOCK=$(cat <<TOML
-
-[log]$LOG_DIR_LINE$LOG_LEVEL_BLOCK
-TOML
-)
-
-    # 预览
-    echo ""
-    sep
+    # ── 生成内容 ──────────────────────────────────────────────────────────────
     local CONTENT
-    CONTENT=$(cat <<TOML
-[server]
-host = "$SERVER_HOST"
-port = $SERVER_PORT
-
-[napcat]
-url   = "$NAPCAT_URL"
-token = "$NAPCAT_TOKEN"
+    CONTENT="# LianBot 运行时配置 (runtime 层)
 
 [bot]
-whitelist      = $WHITELIST_TOML
-user_whitelist = $UW_TOML
-user_blacklist = $UB_TOML
+owner          = $OWNER
+initial_groups = $GROUPS_TOML
+blacklist      = $BL_TOML
+
+[napcat]
+url   = \"$NAPCAT_URL\"
+token = \"$NAPCAT_TOKEN\"
 
 [pool]
-per_group_capacity = $POOL_CAPACITY
-evict_after_secs   = $POOL_EVICT_SECS$SQLITE_BLOCK$LOG_BLOCK
-TOML
-)
-    echo ""
-    echo "$CONTENT"
-    echo ""
-    sep
-    echo ""
+per_group_capacity = $POOL_CAP
+evict_after_secs   = $POOL_EVICT
 
-    if [[ -f "config.toml" ]]; then
-        warn "config.toml 已存在，以上内容将覆盖它。"
-    fi
-    read -rp "  确认写入 config.toml？(y/N): " confirm
+[log]"
+    [[ -n "$LOG_DIR_BLOCK" ]] && CONTENT+="
+$LOG_DIR_BLOCK"
+    [[ -n "$LOG_MAX_BLOCK" ]] && CONTENT+="
+$LOG_MAX_BLOCK"
+    CONTENT+="
+level = \"$LOG_LEVEL\""
+
+    echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
+    [[ -f "runtime.toml" ]] && warn "runtime.toml 已存在，将被覆盖。"
+    read -rp "  确认写入 runtime.toml？(y/N): " confirm
     if [[ "${confirm,,}" == "y" ]]; then
-        echo "$CONTENT" > config.toml
-        info "config.toml 已生成"
+        echo "$CONTENT" > runtime.toml
+        info "runtime.toml 已生成"
     else
-        info "已取消，config.toml 未修改"
+        info "已取消"
     fi
-    echo ""
-    read -rp "  按 Enter 返回主菜单..." _
+    echo ""; read -rp "  按 Enter 返回主菜单..." _
 }
 
-# ── 功能：生成 plugins.toml ───────────────────────────────────────────────────
+# ── 功能 3：生成 logic.toml ───────────────────────────────────────────────────
 
-gen_plugins() {
-    load_features
+gen_logic() {
     clear
-    title "  LianBot v${BOT_VERSION}  —  生成 plugins.toml"
+    title "  LianBot v${BOT_VERSION}  —  生成 logic.toml（业务逻辑层）"
     sep
     echo ""
+    [[ -f "logic.toml" ]] && info "检测到已有 logic.toml，回车保留原值。" && echo ""
 
-    [[ -f "plugins.toml" ]] && info "检测到已有 plugins.toml，将以当前值作为默认，直接回车即保留原值。" && echo ""
-
-    local has_smy=0  has_alive=0
-    [[ ${FEAT_SELECTED[cmd-smy]}   -eq 1 ]] && has_smy=1
-    [[ ${FEAT_SELECTED[cmd-alive]} -eq 1 ]] && has_alive=1
-
-    if [[ $has_smy -eq 0 && $has_alive -eq 0 ]]; then
-        warn "当前未选择 cmd-smy 或 cmd-alive，plugins.toml 无需配置。"
-        echo ""
-        read -rp "  按 Enter 返回主菜单..." _
-        return
-    fi
-
+    local LG="logic.toml"
     local CONTENT=""
 
-    if [[ $has_smy -eq 1 ]]; then
-        echo "  [smy]  群聊日报插件配置"
-        ask SMY_COUNT  "默认拉取消息条数（10-2000）" "$(plg_val smy default_count '200')"
-        ask SMY_WIDTH  "截图宽度（像素）"             "$(plg_val smy screenshot_width '1200')"
-        echo ""
-        # 检测 plugins.toml 里是否已有 [smy.llm]
-        local ENABLE_LLM=0 LLM_URL="" LLM_KEY="" LLM_MODEL=""
-        local _llm_key; _llm_key=$(plg_val 'smy.llm' api_key "")
-        local _llm_default="N"
-        [[ -n "$_llm_key" ]] && _llm_default="Y（已配置）"
-        read -rp "  是否启用 AI 总结（smy.llm）？(y/N) [${_llm_default}]: " _llm_confirm
-        # 若已有配置且用户直接回车，视为继续启用
-        if [[ "${_llm_confirm,,}" == "y" ]] || [[ -z "$_llm_confirm" && -n "$_llm_key" ]]; then
-            ENABLE_LLM=1
-            ask LLM_URL   "OpenAI 兼容 API 地址" "$(plg_val 'smy.llm' api_url 'https://api.deepseek.com/v1')"
-            ask LLM_KEY   "API Key"               "$(plg_val 'smy.llm' api_key '')"
-            ask LLM_MODEL "模型名称"               "$(plg_val 'smy.llm' model  'deepseek-chat')"
-        fi
-        echo ""
-        CONTENT+=$(cat <<TOML
-[smy]
-default_count    = $SMY_COUNT
-screenshot_width = $SMY_WIDTH
-TOML
-)
-        if [[ $ENABLE_LLM -eq 1 ]]; then
-            CONTENT+=$(cat <<TOML
+    # ── [smy] ─────────────────────────────────────────────────────────────────
+    echo "  [smy]  群聊日报插件"
+    local SMY_WIDTH
+    ask SMY_WIDTH "截图宽度（像素）" "$(toml_section_val "$LG" smy screenshot_width '1200')"
+    echo ""
+
+    local ENABLE_LLM=0 LLM_URL="" LLM_KEY="" LLM_MODEL=""
+    local _llm_key; _llm_key=$(toml_section_val "$LG" "smy.llm" api_key "")
+    local _llm_hint="N"
+    [[ -n "$_llm_key" ]] && _llm_hint="Y（已配置）"
+    read -rp "  是否启用 AI 总结（smy.llm）？(y/N) [${_llm_hint}]: " _llm_confirm
+    if [[ "${_llm_confirm,,}" == "y" ]] || [[ -z "$_llm_confirm" && -n "$_llm_key" ]]; then
+        ENABLE_LLM=1
+        ask LLM_URL   "OpenAI 兼容 API 地址" "$(toml_section_val "$LG" "smy.llm" api_url 'https://api.deepseek.com/v1')"
+        ask LLM_KEY   "API Key"               "$(toml_section_val "$LG" "smy.llm" api_key '')"
+        ask LLM_MODEL "模型名称"               "$(toml_section_val "$LG" "smy.llm" model  'deepseek-chat')"
+    fi
+    echo ""
+
+    CONTENT+="[smy]
+screenshot_width = $SMY_WIDTH"
+    if [[ $ENABLE_LLM -eq 1 ]]; then
+        CONTENT+="
 
 [smy.llm]
-api_url = "$LLM_URL"
-api_key = "$LLM_KEY"
-model   = "$LLM_MODEL"
-TOML
-)
-        else
-            CONTENT+=$'\n# [smy.llm]  取消注释并填入以启用 AI 总结\n# api_url = "https://api.deepseek.com/v1"\n# api_key  = "sk-xxx"\n# model    = "deepseek-chat"'
-        fi
-        CONTENT+=$'\n'
+api_url = \"$LLM_URL\"
+api_key = \"$LLM_KEY\"
+model   = \"$LLM_MODEL\""
+    else
+        CONTENT+=$'\n# [smy.llm]  取消注释并填入以启用 AI 总结\n# api_url = "https://api.deepseek.com/v1"\n# api_key = "sk-xxx"\n# model   = "deepseek-chat"'
     fi
 
-    if [[ $has_alive -eq 1 ]]; then
-        echo "  [alive]  存活探测插件配置"
-        ask ALIVE_URL     "探测 API 地址" "$(plg_val alive api_url 'https://alive.example.com/api/status')"
-        ask ALIVE_TIMEOUT "超时秒数"     "$(plg_val alive timeout_secs '5')"
-        echo ""
-        CONTENT+=$(cat <<TOML
+    # ── [alive] ───────────────────────────────────────────────────────────────
+    echo "  [alive]  设备在线状态探测"
+    local ALIVE_URL ALIVE_TIMEOUT
+    ask ALIVE_URL     "探测 API 地址" "$(toml_section_val "$LG" alive api_url 'https://alive.example.com/api/status')"
+    ask ALIVE_TIMEOUT "超时秒数"     "$(toml_section_val "$LG" alive timeout_secs '5')"
+    echo ""
+
+    CONTENT+="
 
 [alive]
-api_url      = "$ALIVE_URL"
-timeout_secs = $ALIVE_TIMEOUT
-TOML
-)
-        CONTENT+=$'\n'
-    fi
+api_url      = \"$ALIVE_URL\"
+timeout_secs = $ALIVE_TIMEOUT"
 
-    # 预览
-    sep
-    echo ""
-    echo "$CONTENT"
-    echo ""
-    sep
-    echo ""
-
-    if [[ -f "plugins.toml" ]]; then
-        warn "plugins.toml 已存在，以上内容将覆盖它。"
-    fi
-    read -rp "  确认写入 plugins.toml？(y/N): " confirm
-    if [[ "${confirm,,}" == "y" ]]; then
-        echo "$CONTENT" > plugins.toml
-        info "plugins.toml 已生成"
+    # ── [github] ──────────────────────────────────────────────────────────────
+    echo "  [github]  GitHub Webhook（留空则禁用）"
+    local GH_SECRET
+    local _gs; _gs=$(toml_section_val "$LG" github secret "")
+    if [[ -n "$_gs" ]]; then
+        ask GH_SECRET "Webhook Secret" "$_gs"
     else
-        info "已取消，plugins.toml 未修改"
+        ask_optional GH_SECRET "Webhook Secret" "留空禁用"
     fi
     echo ""
-    read -rp "  按 Enter 返回主菜单..." _
+
+    CONTENT+="
+
+[github]
+secret = \"${GH_SECRET:-}\""
+
+    echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
+    [[ -f "logic.toml" ]] && warn "logic.toml 已存在，将被覆盖。"
+    read -rp "  确认写入 logic.toml？(y/N): " confirm
+    if [[ "${confirm,,}" == "y" ]]; then
+        echo "$CONTENT" > logic.toml
+        info "logic.toml 已生成"
+    else
+        info "已取消"
+    fi
+    echo ""; read -rp "  按 Enter 返回主菜单..." _
 }
 
-# ── 功能：编译验证 ────────────────────────────────────────────────────────────
+# ── 功能 4：编译验证 ──────────────────────────────────────────────────────────
 
 run_check() {
     clear
@@ -486,65 +326,49 @@ run_check() {
     sep
     echo ""
     if [[ ! -f "check_features.sh" ]]; then
-        warn "未找到 check_features.sh，请确认在项目根目录"
+        warn "未找到 check_features.sh"
         read -rp "  按 Enter 返回..." _
         return
     fi
     bash check_features.sh || true
-    echo ""
-    read -rp "  按 Enter 返回主菜单..." _
+    echo ""; read -rp "  按 Enter 返回主菜单..." _
 }
 
-# ── 功能：调用 deploy.sh ──────────────────────────────────────────────────────
+# ── 功能 5：部署到服务器 ──────────────────────────────────────────────────────
 
 run_deploy() {
     clear
     title "  LianBot v${BOT_VERSION}  —  部署到服务器"
     sep
     echo ""
-    if [[ ! -f "deploy.sh" ]]; then
-        warn "未找到 deploy.sh，请确认在项目根目录"
-        read -rp "  按 Enter 返回..." _
-        return
-    fi
-    if [[ ! -f ".build_features" ]]; then
-        warn ".build_features 不存在，请先在「选择编译模块」中保存配置"
-        read -rp "  按 Enter 返回..." _
-        return
-    fi
-    if [[ ! -f "config.toml" ]]; then
-        warn "config.toml 不存在，请先在「生成 config.toml」中生成配置"
-        read -rp "  按 Enter 返回..." _
-        return
-    fi
+    [[ ! -f "deploy.sh" ]] && { warn "未找到 deploy.sh"; read -rp "  按 Enter 返回..." _; return; }
+    [[ ! -f "config.toml" ]] && { warn "config.toml 不存在，请先生成配置"; read -rp "  按 Enter 返回..." _; return; }
+
     echo "  将运行：sudo env PATH=\"$PATH\" bash deploy.sh"
     echo ""
     read -rp "  确认继续？(y/N): " confirm
     [[ "${confirm,,}" == "y" ]] || return
     echo ""
     sudo env PATH="$PATH" bash deploy.sh
-    echo ""
-    read -rp "  按 Enter 返回主菜单..." _
+    echo ""; read -rp "  按 Enter 返回主菜单..." _
 }
 
+# ── 功能 6：查看日志 ──────────────────────────────────────────────────────────
+
 show_logs() {
-    # 优先读部署目录的 config.toml（服务实际使用的），回退到本地
-    local deployed_cfg="${LIANBOT_DIR:-/opt/lianbot}/config.toml"
-    local read_from="config.toml"
+    local deployed_cfg="${LIANBOT_DIR:-/opt/lianbot}/runtime.toml"
+    local read_from="runtime.toml"
     [[ -f "$deployed_cfg" ]] && read_from="$deployed_cfg"
 
     local log_dir=""
-    if [[ -f "$read_from" ]]; then
-        log_dir=$(grep -E '^\s*log_dir\s*=' "$read_from" 2>/dev/null \
-                  | head -1 | sed 's/.*=\s*"\(.*\)".*/\1/')
-    fi
+    [[ -f "$read_from" ]] && log_dir=$(grep -E '^\s*log_dir\s*=' "$read_from" 2>/dev/null \
+                  | head -1 | sed 's/.*=\s*"\(.*\)".*/\1/' || true)
 
     if [[ -n "$log_dir" ]]; then
         local today
-        today=$(date -u +%Y-%m-%d)   # tracing-appender 用 UTC 命名文件
+        today=$(date -u +%Y-%m-%d)
         local log_file="${log_dir}/lianbot.log.utc.${today}"
 
-        # 找不到今日文件时，用目录里最新的一个
         if [[ ! -f "$log_file" ]]; then
             local latest
             latest=$(ls -1t "${log_dir}"/lianbot.log.utc.* 2>/dev/null | head -1)
@@ -554,18 +378,15 @@ show_logs() {
                 log_file="$latest"
             else
                 warn "日志目录 $log_dir 中暂无日志文件"
-                warn "Bot 可能尚未写入文件日志，检查 config.toml 中的 [log] 配置"
-                echo ""
                 read -rp "  按 Enter 返回主菜单..." _
                 return
             fi
         fi
-
         info "实时跟踪日志文件：$log_file（Ctrl-C 退出）"
         echo ""
         tail -f "$log_file"
     else
-        info "未配置 log_dir，回退到 journald 日志（Ctrl-C 退出）"
+        info "未配置 log_dir，回退到 journald（Ctrl-C 退出）"
         echo ""
         sudo journalctl -u lianbot -f
     fi
@@ -574,28 +395,26 @@ show_logs() {
 # ── 主菜单 ────────────────────────────────────────────────────────────────────
 
 main_menu() {
-    load_features
     while true; do
         clear
         title "  LianBot v${BOT_VERSION}  —  本地配置向导"
         sep
         echo ""
-        # 显示当前状态
-        local feat_str
-        feat_str=$(features_to_flag)
-        [[ -z "$feat_str" ]] && feat_str="（无，使用 --no-default-features）"
-        echo "  当前模块  : $feat_str"
-        local cfg_status="未生成" plg_status="未生成"
-        [[ -f "config.toml" ]]  && cfg_status="已存在"
-        [[ -f "plugins.toml" ]] && plg_status="已存在"
-        echo "  config.toml   : $cfg_status"
-        echo "  plugins.toml  : $plg_status"
+        # 状态
+        local cfg_s="❌" rt_s="❌" lg_s="❌"
+        [[ -f "config.toml" ]]  && cfg_s="✅"
+        [[ -f "runtime.toml" ]] && rt_s="✅"
+        [[ -f "logic.toml" ]]   && lg_s="✅"
+
+        echo "  config.toml   $cfg_s  (kernel: host/port)"
+        echo "  runtime.toml  $rt_s  (napcat/bot/pool/log)"
+        echo "  logic.toml    $lg_s  (smy/github/alive)"
         echo ""
         sep
         echo ""
-        echo "  1  选择编译模块"
-        echo "  2  生成 config.toml"
-        echo "  3  生成 plugins.toml"
+        echo "  1  生成 config.toml（kernel 层）"
+        echo "  2  生成 runtime.toml（运行时层）"
+        echo "  3  生成 logic.toml（业务逻辑层）"
         echo "  4  编译验证（check_features.sh）"
         echo "  5  部署到服务器（deploy.sh）"
         echo "  6  实时查看日志"
@@ -605,9 +424,9 @@ main_menu() {
         read -rp "  > " choice
 
         case "$choice" in
-            1) select_features; load_features ;;
-            2) gen_config ;;
-            3) gen_plugins ;;
+            1) gen_config ;;
+            2) gen_runtime ;;
+            3) gen_logic ;;
             4) run_check ;;
             5) run_deploy ;;
             6) show_logs ;;
