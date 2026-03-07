@@ -374,6 +374,9 @@ if [[ "$MODE" == "update" ]]; then
     fix_db_perms "$LIANBOT_DIR"
     fix_log_dir_perms "$LIANBOT_DIR"
 
+    # 确保工作目录归属正确（SQLite WAL 需要目录写权限）
+    chown "$LIANBOT_USER:$LIANBOT_USER" "$LIANBOT_DIR"
+
     info "重载 systemd 并重启服务..."
     systemctl daemon-reload
     systemctl restart lianbot
