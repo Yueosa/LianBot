@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::logic::smy::LlmConfig;
 use super::fetcher::{ChatMessage, format_for_llm};
@@ -210,9 +210,11 @@ fn clean_json(raw: &str) -> &str {
 
 pub async fn analyze(messages: &[ChatMessage], config: &LlmConfig) -> Result<LlmResult> {
     let formatted = format_for_llm(messages);
+    info!("[llm] 开始分析: {} 条消息, {}KB 文本", messages.len(), formatted.len() / 1024);
 
     // 如果消息文本太短，跳过 LLM
     if formatted.len() < 50 {
+        info!("[llm] 文本过短 ({}B), 跳过", formatted.len());
         return Ok(LlmResult::default());
     }
 
@@ -233,11 +235,13 @@ pub async fn analyze(messages: &[ChatMessage], config: &LlmConfig) -> Result<Llm
     let config2 = config.clone();
     let config3 = config.clone();
 
+    let start = std::time::Instant::now();
     let (topics_res, titles_res, rel_res) = tokio::join!(
         call_llm(&config1, &topics_prompt),
         call_llm(&config2, &titles_prompt),
         call_llm(&config3, &relationships_prompt),
     );
+    info!("[llm] 三路并行完成, 耗时 {:.1}s", start.elapsed().as_secs_f64());
 
     // 解析话题结果
     match topics_res {
@@ -286,5 +290,12 @@ pub async fn analyze(messages: &[ChatMessage], config: &LlmConfig) -> Result<Llm
         }
         Err(e) => warn!("LLM 关系报告失败: {e}"),
     }
+    info!(
+        "[llm] 结果: {} 话题, {} 称号, {} 金句, {} 关系",
+        result.topics.len(),
+        result.user_titles.len(),
+        result.golden_quotes.len(),
+        result.relationships.len(),
+    );
     Ok(result)
 }

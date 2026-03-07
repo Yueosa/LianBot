@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use tracing::info;
 
 use crate::commands::{Command, CommandContext, CommandKind};
 
@@ -13,6 +14,7 @@ impl Command for HelpCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
+        info!("[help] 群={}", ctx.group_id);
         let prefix = &ctx.cmd_prefix;
         ctx.api.send_text(ctx.group_id, &ctx.registry.help_text(prefix)).await
     }

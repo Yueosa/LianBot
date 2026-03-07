@@ -97,6 +97,7 @@ async fn webhook_handler(
         .unwrap_or("unknown")
         .to_string();
 
+    info!("[github] 收到 webhook: {event_type} / {repo} by {sender}");
     let evt = GitHubEvent { event_type, repo, sender, payload };
     if state.tx.send(evt).await.is_err() {
         warn!("[github] GitHubService channel 已关闭");
@@ -146,9 +147,11 @@ impl BotService for GitHubService {
                 .collect();
 
             if targets.is_empty() {
+                info!("[github] 事件 {} / {} 无匹配订阅，跳过", evt.event_type, evt.repo);
                 continue;
             }
 
+            info!("[github] 推送 {} / {} → {} 个群", evt.event_type, evt.repo, targets.len());
             for (group_id, at_list) in targets {
                 // 构造消息段：@ 段 + 换行 + 文本
                 let mut segments: Vec<MessageSegment> = at_list
