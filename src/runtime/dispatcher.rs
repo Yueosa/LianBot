@@ -325,6 +325,7 @@ impl Dispatcher {
             cmd_prefix: self.cmd_prefix.clone(),
             registry: self.registry.clone(),
             pool: self.pool.clone(),
+            access: self.access.clone(),
         }
     }
 }

@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
-use crate::runtime::permission::BotUser;
+use crate::runtime::permission::{AccessControl, BotUser};
 use crate::runtime::{
     api::ApiClient,
     parser::ParamValue,
@@ -153,6 +153,8 @@ pub struct CommandContext {
     pub registry: Arc<CommandRegistry>,
     /// 消息池（per-group 内存缓冲，可选）
     pub pool: Option<Arc<Pool>>,
+    /// 准入控制（block/unblock、enable/disable 等管理操作）
+    pub access: Arc<AccessControl>,
 }
 
 impl CommandContext {

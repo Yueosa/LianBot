@@ -1,16 +1,24 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use tracing::{info, warn};
 
-use super::{BotService, ServiceContext};
+use super::BotService;
+use crate::runtime::{api::ApiClient, permission::AccessControl, pool::Pool};
 
 pub struct SchedulerService {
-    ctx: ServiceContext,
+    api: Arc<ApiClient>,
+    access: Arc<AccessControl>,
+    pool: Option<Arc<Pool>>,
 }
 
 impl SchedulerService {
-    pub fn new(ctx: ServiceContext) -> Self {
-        Self { ctx }
+    pub fn new(
+        api: Arc<ApiClient>,
+        access: Arc<AccessControl>,
+        pool: Option<Arc<Pool>>,
+    ) -> Self {
+        Self { api, access, pool }
     }
 }
 
@@ -62,11 +70,11 @@ impl BotService for SchedulerService {
                     }
                     Some(llm_cfg) => {
                         let llm_cfg = llm_cfg.clone();
-                        let groups = self.ctx.access.enabled_groups();
+                        let groups = self.access.enabled_groups();
                         info!("[scheduler] 共 {} 个群需要生成日报", groups.len());
 
                         for group_id in groups {
-                            match run_smy_for_group(&self.ctx, group_id, &llm_cfg, cfg.screenshot_width).await {
+                            match run_smy_for_group(&self.api, &self.pool, group_id, &llm_cfg, cfg.screenshot_width).await {
                                 Ok(()) => info!("[scheduler] 群 {group_id} 日报完成"),
                                 Err(e) => warn!("[scheduler] 群 {group_id} 日报失败: {e:#}"),
                             }
@@ -83,7 +91,8 @@ impl BotService for SchedulerService {
 
 #[cfg(feature = "cmd-smy")]
 async fn run_smy_for_group(
-    ctx: &ServiceContext,
+    api: &ApiClient,
+    pool: &Option<Arc<Pool>>,
     group_id: i64,
     llm_config: &crate::logic::smy::LlmConfig,
     screenshot_width: u32,
@@ -91,8 +100,8 @@ async fn run_smy_for_group(
     use crate::logic::smy;
 
     let fetch_result = smy::fetcher::fetch(
-        &ctx.api,
-        &ctx.pool,
+        api,
+        pool,
         group_id,
         Duration::from_secs(86400),
     )
@@ -111,7 +120,7 @@ async fn run_smy_for_group(
         screenshot_width,
     ).await?;
 
-    ctx.api
+    api
         .send_image(group_id, &format!("base64://{base64_img}"))
         .await?;
 

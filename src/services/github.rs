@@ -7,6 +7,8 @@
 //!
 //! 业务逻辑（配置模型、验签、格式化）位于 `logic::github`。
 
+use std::sync::Arc;
+
 use axum::{
     Router,
     body::Bytes,
@@ -19,15 +21,15 @@ use tokio::sync::mpsc;
 use tracing::{info, warn};
 
 use crate::logic::github::{GitHubConfig, GitHubEvent, format_event, verify_signature};
-use crate::runtime::api::MsgTarget;
+use crate::runtime::api::{ApiClient, MsgTarget};
 
-use super::{BotService, ServiceContext};
+use super::BotService;
 
 // ── 自注册入口 ────────────────────────────────────────────────────────────────
 
 /// 注册 GitHub Webhook 路由和后台推送服务。
 /// secret 为空时跳过（路由不注册，返回 404）。
-pub fn register(app: &mut crate::kernel::app::App, svc_ctx: ServiceContext) {
+pub fn register(app: &mut crate::kernel::app::App) {
     let gh_cfg = crate::runtime::logic_config::section::<GitHubConfig>("github");
 
     if gh_cfg.secret.is_empty() {
@@ -37,7 +39,7 @@ pub fn register(app: &mut crate::kernel::app::App, svc_ctx: ServiceContext) {
 
     let (tx, rx) = mpsc::channel::<GitHubEvent>(64);
     let secret = gh_cfg.secret.clone();
-    app.spawn(GitHubService::new(rx, svc_ctx, gh_cfg).run());
+    app.spawn(GitHubService::new(rx, app.api.clone(), gh_cfg).run());
 
     app.merge(
         Router::new()
@@ -106,13 +108,13 @@ async fn webhook_handler(
 
 pub struct GitHubService {
     rx: mpsc::Receiver<GitHubEvent>,
-    ctx: ServiceContext,
+    api: Arc<ApiClient>,
     cfg: GitHubConfig,
 }
 
 impl GitHubService {
-    pub fn new(rx: mpsc::Receiver<GitHubEvent>, ctx: ServiceContext, cfg: GitHubConfig) -> Self {
-        Self { rx, ctx, cfg }
+    pub fn new(rx: mpsc::Receiver<GitHubEvent>, api: Arc<ApiClient>, cfg: GitHubConfig) -> Self {
+        Self { rx, api, cfg }
     }
 }
 
@@ -155,7 +157,6 @@ impl BotService for GitHubService {
                 let msg = format!("{at_prefix}{text}");
 
                 if let Err(e) = self
-                    .ctx
                     .api
                     .send_msg(MsgTarget::Group(group_id), &msg)
                     .await

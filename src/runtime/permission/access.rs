@@ -228,6 +228,53 @@ mod inner {
                 .await
                 .context("unblock_user: db write")
         }
+
+        /// 启用群：写入 group_policy + 内存缓存。
+        pub async fn enable_group(&self, group_id: i64) -> anyhow::Result<()> {
+            self.state
+                .write()
+                .expect("perm RwLock poisoned")
+                .groups
+                .insert(group_id, GroupPolicy { enabled: true, llm_free: false });
+
+            let now = unix_now();
+            self.db
+                .call(move |conn| {
+                    conn.execute(
+                        "INSERT INTO group_policy (group_id, enabled, llm_free, updated_at) \
+                         VALUES (?1, 1, 0, ?2) \
+                         ON CONFLICT(group_id) DO UPDATE SET enabled = 1, updated_at = ?2",
+                        rusqlite::params![group_id, now],
+                    )?;
+                    Ok(())
+                })
+                .await
+                .context("enable_group: db write")
+        }
+
+        /// 禁用群：置 enabled=false + 内存缓存。
+        pub async fn disable_group(&self, group_id: i64) -> anyhow::Result<()> {
+            if let Some(policy) = self.state
+                .write()
+                .expect("perm RwLock poisoned")
+                .groups
+                .get_mut(&group_id)
+            {
+                policy.enabled = false;
+            }
+
+            let now = unix_now();
+            self.db
+                .call(move |conn| {
+                    conn.execute(
+                        "UPDATE group_policy SET enabled = 0, updated_at = ?2 WHERE group_id = ?1",
+                        rusqlite::params![group_id, now],
+                    )?;
+                    Ok(())
+                })
+                .await
+                .context("disable_group: db write")
+        }
     }
 
     // ── 迁移、工具 ───────────────────────────────────────────────────────────
@@ -279,7 +326,7 @@ mod inner {
     /// Config 版准入控制：静态白名单 + 黑名单，来自 config.toml。
     /// 无持久化，block/unblock 只在内存生效（重启丢失）。
     pub struct AccessControl {
-        allowed_groups: HashSet<i64>,
+        allowed_groups: std::sync::RwLock<HashSet<i64>>,
         blocked_users: std::sync::RwLock<HashSet<i64>>,
     }
 
@@ -287,17 +334,25 @@ mod inner {
         /// 从 config.toml 字段构造。
         pub fn from_config(initial_groups: &[i64], blacklist: &[i64]) -> Arc<Self> {
             Arc::new(Self {
-                allowed_groups: initial_groups.iter().copied().collect(),
+                allowed_groups: std::sync::RwLock::new(initial_groups.iter().copied().collect()),
                 blocked_users: std::sync::RwLock::new(blacklist.iter().copied().collect()),
             })
         }
 
         pub fn is_group_enabled(&self, group_id: i64) -> bool {
-            self.allowed_groups.contains(&group_id)
+            self.allowed_groups
+                .read()
+                .expect("groups RwLock poisoned")
+                .contains(&group_id)
         }
 
         pub fn enabled_groups(&self) -> Vec<i64> {
-            self.allowed_groups.iter().copied().collect()
+            self.allowed_groups
+                .read()
+                .expect("groups RwLock poisoned")
+                .iter()
+                .copied()
+                .collect()
         }
 
         pub fn is_user_blocked(&self, user_id: i64, _scope: &Scope) -> bool {
@@ -322,6 +377,24 @@ mod inner {
                 .write()
                 .expect("blocked RwLock poisoned")
                 .remove(&user_id);
+            Ok(())
+        }
+
+        /// 启用群（内存，无 DB 时重启丢失）
+        pub async fn enable_group(&self, group_id: i64) -> anyhow::Result<()> {
+            self.allowed_groups
+                .write()
+                .expect("groups RwLock poisoned")
+                .insert(group_id);
+            Ok(())
+        }
+
+        /// 禁用群（内存，无 DB 时重启丢失）
+        pub async fn disable_group(&self, group_id: i64) -> anyhow::Result<()> {
+            self.allowed_groups
+                .write()
+                .expect("groups RwLock poisoned")
+                .remove(&group_id);
             Ok(())
         }
     }
