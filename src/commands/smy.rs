@@ -4,7 +4,7 @@ use tracing::{info, warn};
 use std::time::Duration;
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
-use crate::runtime::plugin_config::PluginConfig;
+use crate::runtime::logic_config;
 use crate::logic::smy;
 use crate::logic::smy::SmyPluginConfig;
 use crate::logic::smy::fetcher::{FetchSource, GapLevel};
@@ -28,7 +28,7 @@ impl Command for SmyCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let group_id = ctx.group_id;
-        let cfg = PluginConfig::global().get_section::<SmyPluginConfig>("smy");
+        let cfg = logic_config::section::<SmyPluginConfig>("smy");
 
         // AI 总结开关：默认关闭，用户显式传 -a/--ai 才启用
         let with_ai = ["-a", "--ai"].iter().any(|k| ctx.params.contains_key(*k));

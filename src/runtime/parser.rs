@@ -1,5 +1,27 @@
 use std::collections::HashMap;
 
+use serde::Deserialize;
+
+// ── 解析器配置 ────────────────────────────────────────────────────────────────
+
+/// runtime.toml `[parser]` 段。
+#[derive(Debug, Deserialize)]
+pub struct ParserConfig {
+    /// 简单命令前缀，默认 "!!"
+    #[serde(default = "ParserConfig::default_prefix")]
+    pub cmd_prefix: String,
+}
+
+impl ParserConfig {
+    fn default_prefix() -> String { "!!".to_string() }
+}
+
+impl Default for ParserConfig {
+    fn default() -> Self {
+        Self { cmd_prefix: Self::default_prefix() }
+    }
+}
+
 // ── 解析结果 ──────────────────────────────────────────────────────────────────
 
 /// 命令解析器的输出类型

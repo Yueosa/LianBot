@@ -10,7 +10,7 @@ use tracing::info;
 
 // ── 配置 ──────────────────────────────────────────────────────────────────────
 
-/// plugins.toml 中 `[github]` 段
+/// logic.toml 中 `[github]` 段
 #[derive(Debug, Deserialize, Default)]
 pub struct GitHubConfig {
     /// Webhook secret，与 GitHub 仓库设置里填写的一致

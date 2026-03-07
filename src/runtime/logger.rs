@@ -1,10 +1,44 @@
+use serde::Deserialize;
 use time::macros::{format_description, offset};
 use tracing_subscriber::fmt::time::OffsetTime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::kernel::config::LogConfig;
+// ── 日志配置 ──────────────────────────────────────────────────────────────────
+
+/// runtime.toml `[log]` 段。
+#[derive(Debug, Deserialize)]
+pub struct LogConfig {
+    /// 日志文件目录 — 仅编译时启用 core-log-file 后生效
+    #[cfg(feature = "core-log-file")]
+    pub log_dir: Option<String>,
+    /// 保留天数（启动时清理超期日志文件），默认 30 — 仅 core-log-file
+    #[cfg(feature = "core-log-file")]
+    #[serde(default = "LogConfig::default_max_days")]
+    pub max_days: u32,
+    /// 日志级别（trace/debug/info/warn/error），默认 info
+    #[serde(default = "LogConfig::default_level")]
+    pub level: String,
+}
+
+impl LogConfig {
+    fn default_level() -> String { "info".to_string() }
+    #[cfg(feature = "core-log-file")]
+    fn default_max_days() -> u32 { 30 }
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            #[cfg(feature = "core-log-file")]
+            log_dir:  None,
+            #[cfg(feature = "core-log-file")]
+            max_days: 30,
+            level:    Self::default_level(),
+        }
+    }
+}
 
 /// CST (+08:00) 时区计时器。
 fn cst_timer() -> OffsetTime<&'static [time::format_description::FormatItem<'static>]> {

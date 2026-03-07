@@ -6,10 +6,28 @@ pub mod screenshot;
 
 use serde::Deserialize;
 
-use crate::kernel::config::LlmConfig;
+// ── LLM 配置 ──────────────────────────────────────────────────────────────────
 
-/// smy 插件配置，从 `plugins.toml` 的 `[smy]` 段加载。
-/// 所有字段均有默认值，`plugins.toml` 不存在时也可正常运行。
+/// logic.toml `[smy.llm]` 段。
+#[derive(Debug, Deserialize, Clone)]
+pub struct LlmConfig {
+    /// OpenAI 兼容 API 地址
+    #[serde(default = "LlmConfig::default_url")]
+    pub api_url: String,
+    /// API Key
+    pub api_key: String,
+    /// 模型名称
+    #[serde(default = "LlmConfig::default_model")]
+    pub model: String,
+}
+
+impl LlmConfig {
+    fn default_url() -> String { "https://api.deepseek.com/v1".to_string() }
+    fn default_model() -> String { "deepseek-chat".to_string() }
+}
+
+/// smy 插件配置，从 `logic.toml` 的 `[smy]` 段加载。
+/// 所有字段均有默认值，`logic.toml` 不存在时也可正常运行。
 #[derive(Debug, Deserialize)]
 pub struct SmyPluginConfig {
     /// 截图宽度（像素）

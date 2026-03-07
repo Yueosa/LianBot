@@ -4,7 +4,6 @@ pub mod scheduler;
 use std::sync::Arc;
 
 use crate::{
-    kernel::config::Config,
     runtime::{api::ApiClient, permission::AccessControl, pool::Pool},
 };
 
@@ -14,7 +13,6 @@ pub struct ServiceContext {
     pub api: Arc<ApiClient>,
     pub access: Arc<AccessControl>,
     pub pool: Option<Arc<Pool>>,
-    pub config: &'static Config,
 }
 
 /// 所有后台服务实现此 trait。

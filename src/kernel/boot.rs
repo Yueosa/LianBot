@@ -21,10 +21,12 @@ use tokio::sync::mpsc;
 use crate::{
     logic::github::{GitHubConfig, GitHubEvent, verify_signature},
     runtime::{
-        permission::AccessControl,
-        api::ApiClient,
+        permission::{AccessControl, BotConfig},
+        api::{ApiClient, NapcatConfig},
         dispatcher::Dispatcher,
-        pool::{MessagePool, Pool, PoolMessage},
+        logger::LogConfig,
+        parser::ParserConfig,
+        pool::{MessagePool, Pool, PoolConfig, PoolMessage},
         registry::CommandRegistry,
         typ::OneBotEvent,
         ws::WsManager,
@@ -46,33 +48,41 @@ struct AppState {
 }
 
 pub async fn run() -> anyhow::Result<()> {
+    // ── 三层配置加载 ──────────────────────────────────────────────────────────
     crate::kernel::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
-    crate::runtime::plugin_config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
-    let cfg = crate::kernel::config::Config::global();
+    crate::runtime::config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+    crate::runtime::logic_config::init().map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let _log_guard = crate::runtime::logger::init(&cfg.log);
+    let kcfg = crate::kernel::config::KernelConfig::global();
+    let napcat: NapcatConfig     = crate::runtime::config::section("napcat");
+    let bot_cfg: BotConfig       = crate::runtime::config::section("bot");
+    let pool_cfg: PoolConfig     = crate::runtime::config::section("pool");
+    let log_cfg: LogConfig       = crate::runtime::config::section("log");
+    let parser_cfg: ParserConfig = crate::runtime::config::section("parser");
+
+    let _log_guard = crate::runtime::logger::init(&log_cfg);
     info!("配置加载成功");
-    info!("  NapCat URL : {}", cfg.napcat.url);
-    info!("  服务监听   : {}:{}", cfg.server.host, cfg.server.port);
-    info!("  Bot 主人   : {}", cfg.bot.owner);
+    info!("  NapCat URL : {}", napcat.url);
+    info!("  服务监听   : {}:{}", kcfg.host, kcfg.port);
+    info!("  Bot 主人   : {}", bot_cfg.owner);
 
-    let api = Arc::new(ApiClient::new(cfg.napcat.url.clone(), cfg.napcat.token.clone()));
+    let api = Arc::new(ApiClient::new(napcat.url.clone(), napcat.token.clone()));
     let ws = WsManager::new();
     let registry = Arc::new(CommandRegistry::default());
-    let pool = crate::runtime::pool::create_pool(&cfg.pool)
+    let pool = crate::runtime::pool::create_pool(&pool_cfg)
         .await
         .map_err(|e| anyhow::anyhow!("消息池初始化失败: {e}"))?;
 
     #[cfg(feature = "core-db")]
     let access = AccessControl::open(
-        std::path::Path::new(&cfg.bot.db_path),
-        &cfg.bot.initial_groups,
+        std::path::Path::new(&bot_cfg.db_path),
+        &bot_cfg.initial_groups,
     )
     .await
     .map_err(|e| anyhow::anyhow!("权限 DB 初始化失败: {e}"))?;
 
     #[cfg(not(feature = "core-db"))]
-    let access = AccessControl::from_config(&cfg.bot.initial_groups, &cfg.bot.blacklist);
+    let access = AccessControl::from_config(&bot_cfg.initial_groups, &bot_cfg.blacklist);
 
     {
         let api = api.clone();
@@ -83,15 +93,22 @@ pub async fn run() -> anyhow::Result<()> {
         });
     }
 
-    let dispatcher = Arc::new(Dispatcher::new(cfg, api.clone(), ws.clone(), registry, Some(pool.clone()), access.clone()));
+    let dispatcher = Arc::new(Dispatcher::new(
+        bot_cfg.owner,
+        parser_cfg.cmd_prefix,
+        api.clone(),
+        ws.clone(),
+        registry,
+        Some(pool.clone()),
+        access.clone(),
+    ));
 
     // ── 后台 Service ──────────────────────────────────────────────────────────
-    let svc_ctx = ServiceContext { api: api.clone(), access, pool: Some(pool.clone()), config: cfg };
+    let svc_ctx = ServiceContext { api: api.clone(), access, pool: Some(pool.clone()) };
     tokio::spawn(SchedulerService::new(svc_ctx.clone()).run());
 
     // GitHub Webhook Service
-    let gh_cfg = crate::runtime::plugin_config::PluginConfig::global()
-        .get_section::<GitHubConfig>("github");
+    let gh_cfg = crate::runtime::logic_config::section::<GitHubConfig>("github");
     let github_secret = gh_cfg.secret.clone();
     let github_tx = if github_secret.is_empty() {
         info!("[github] secret 未配置，/webhook/github 路由已禁用");
@@ -117,7 +134,7 @@ pub async fn run() -> anyhow::Result<()> {
     let app = app.route("/wstalk", get(ws_handler));
     let app = app.with_state(state);
 
-    let addr = format!("{}:{}", cfg.server.host, cfg.server.port);
+    let addr = format!("{}:{}", kcfg.host, kcfg.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!("LianBot 已启动，监听 {addr}");
     axum::serve(listener, app).await?;

@@ -13,13 +13,35 @@ mod history;
 
 use anyhow::{Context, Result};
 use reqwest::Client;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
 // ── re-export ─────────────────────────────────────────────────────────────────
 
 pub use send_msg::*;
 pub use history::*;
+
+// ── NapCat 连接配置 ────────────────────────────────────────────────────────────
+
+/// runtime.toml `[napcat]` 段。
+#[derive(Debug, Deserialize)]
+pub struct NapcatConfig {
+    /// NapCat/go-cqhttp HTTP API 地址，例如 "http://127.0.0.1:3000"
+    #[serde(default = "NapcatConfig::default_url")]
+    pub url: String,
+    /// Bearer Token（可选）
+    pub token: Option<String>,
+}
+
+impl NapcatConfig {
+    fn default_url() -> String { "http://127.0.0.1:3000".to_string() }
+}
+
+impl Default for NapcatConfig {
+    fn default() -> Self {
+        Self { url: Self::default_url(), token: None }
+    }
+}
 
 // ── 消息发送目标 ───────────────────────────────────────────────────────────────
 

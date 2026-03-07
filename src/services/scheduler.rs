@@ -41,7 +41,7 @@ impl BotService for SchedulerService {
         {
             use crate::{
                 logic::smy::SmyPluginConfig,
-                runtime::plugin_config::PluginConfig,
+                runtime::logic_config,
             };
 
             let secs = secs_until_midnight();
@@ -54,7 +54,7 @@ impl BotService for SchedulerService {
             loop {
                 info!("[scheduler] 触发每日 smy 日报");
 
-                let cfg = PluginConfig::global().get_section::<SmyPluginConfig>("smy");
+                let cfg = logic_config::section::<SmyPluginConfig>("smy");
 
                 match &cfg.llm {
                     None => {
@@ -85,7 +85,7 @@ impl BotService for SchedulerService {
 async fn run_smy_for_group(
     ctx: &ServiceContext,
     group_id: i64,
-    llm_config: &crate::kernel::config::LlmConfig,
+    llm_config: &crate::logic::smy::LlmConfig,
     screenshot_width: u32,
 ) -> anyhow::Result<()> {
     use crate::logic::smy;

@@ -18,7 +18,6 @@ use crate::runtime::{
     registry::CommandRegistry,
     ws::WsManager,
 };
-use crate::kernel::config::Config;
 
 // ── Command 元数据类型 ────────────────────────────────────────────────────────
 
@@ -67,7 +66,7 @@ pub struct ParamSpec {
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dependency {
-    /// 需要 `plugins.toml` 中的配置段（如 LLM）
+    /// 需要 `logic.toml` 中的配置段（如 LLM）
     Config,
     /// 需要 `WsManager`（WebSocket 客户端已连接）
     Ws,
@@ -126,9 +125,8 @@ pub struct CommandContext {
     pub api: Arc<ApiClient>,
     /// WebSocket 连接管理器（Arc 共享）
     pub ws: Arc<WsManager>,
-    /// 全局配置（供命令访问全局级配置，如白名单等）
-    #[allow(dead_code)]
-    pub config: &'static Config,
+    /// 命令前缀（从 runtime 配置提取）
+    pub cmd_prefix: String,
     /// 命令注册表（供 /help 等命令枚举全部命令）
     pub registry: Arc<CommandRegistry>,
     /// 消息池（per-group 内存缓冲，可选）

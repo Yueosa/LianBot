@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tracing::{info, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind};
-use crate::runtime::plugin_config::PluginConfig;
+use crate::runtime::logic_config;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ impl Command for AliveCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
-        let cfg = PluginConfig::global().get_section::<AlivePluginConfig>("alive");
+        let cfg = logic_config::section::<AlivePluginConfig>("alive");
         info!("[alive] 请求设备状态, url={}, 群={}", cfg.api_url, ctx.group_id);
         let resp = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(cfg.timeout_secs))

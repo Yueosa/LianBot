@@ -14,7 +14,6 @@ use crate::{
         ws::WsManager,
     },
 };
-use crate::kernel::config::Config;
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 //
@@ -25,7 +24,8 @@ use crate::kernel::config::Config;
 //   4. 非命令消息交给 `handle_plain`（关键词 / 未来 AI 对话入口）
 
 pub struct Dispatcher {
-    config: &'static Config,
+    owner: i64,
+    cmd_prefix: String,
     api: Arc<ApiClient>,
     ws: Arc<WsManager>,
     registry: Arc<CommandRegistry>,
@@ -35,14 +35,15 @@ pub struct Dispatcher {
 
 impl Dispatcher {
     pub fn new(
-        config: &'static Config,
+        owner: i64,
+        cmd_prefix: String,
         api: Arc<ApiClient>,
         ws: Arc<WsManager>,
         registry: Arc<CommandRegistry>,
         pool: Option<Arc<Pool>>,
         access: Arc<AccessControl>,
     ) -> Self {
-        Self { config, api, ws, registry, pool, access }
+        Self { owner, cmd_prefix, api, ws, registry, pool, access }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
@@ -113,7 +114,7 @@ impl Dispatcher {
         let message_id = event.message_id;
         let segments = event.message.clone();
 
-        match CommandParser::parse(&text, &self.config.cmd_prefix) {
+        match CommandParser::parse(&text, &self.cmd_prefix) {
             Some(ParsedCommand::Simple { name, trailing }) => {
                 self.dispatch_simple(group_id, message_id, bot_user, segments, name, trailing).await
             }
@@ -151,7 +152,7 @@ impl Dispatcher {
                 }
                 // Simple 命令不接受其他参数
                 if !trailing.is_empty() {
-                    let prefix = &self.config.cmd_prefix;
+                    let prefix = &self.cmd_prefix;
                     let unknown: Vec<_> = trailing.iter().filter(|t| t.starts_with('-')).collect();
                     let detail = if !unknown.is_empty() {
                         format!("❌ 未知参数: {}（输入 {prefix}{name} -h 查看用法）", unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "))
@@ -165,7 +166,7 @@ impl Dispatcher {
             }
             None => {
                 debug!("未知简单命令: {name}");
-                let prefix = &self.config.cmd_prefix;
+                let prefix = &self.cmd_prefix;
                 self.api.send_text(group_id, &format!("❓ 未知命令: {prefix}{name}，输入 {prefix}help 查看命令列表")).await
             }
         }
@@ -203,7 +204,7 @@ impl Dispatcher {
             }
             None => {
                 debug!("未知复杂命令: {name}");
-                let prefix = &self.config.cmd_prefix;
+                let prefix = &self.cmd_prefix;
                 self.api.send_text(group_id, &format!("❓ 未知命令: <{name}>，输入 {prefix}help 查看命令列表")).await
             }
         }
@@ -260,7 +261,7 @@ impl Dispatcher {
     /// 内联身份解析：综合 owner 判断 + 准入控制黑名单 → 产出 BotUser。
     /// 未来 LLM 接入后可扩展为独立的 UserResolver。
     fn resolve_user(&self, user_id: i64, scope: Scope) -> BotUser {
-        let role = if user_id == self.config.bot.owner {
+        let role = if user_id == self.owner {
             Role::Owner
         } else {
             Role::Member
@@ -294,7 +295,7 @@ impl Dispatcher {
             params,
             api: self.api.clone(),
             ws: self.ws.clone(),
-            config: self.config,
+            cmd_prefix: self.cmd_prefix.clone(),
             registry: self.registry.clone(),
             pool: self.pool.clone(),
         }

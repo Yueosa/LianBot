@@ -3,10 +3,38 @@ pub mod cache;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::runtime::typ::event::{MessageEvent, Sender};
 use crate::runtime::typ::message::MessageSegment;
+
+// ── 池配置 ────────────────────────────────────────────────────────────────────
+
+/// runtime.toml `[pool]` 段。
+#[derive(Debug, Deserialize)]
+pub struct PoolConfig {
+    /// 每个群的内存缓冲最大消息条数，默认 3000
+    #[serde(default = "PoolConfig::default_capacity")]
+    pub per_group_capacity: usize,
+    /// 内存淘汰阈值（秒），超过此时间的消息被清理，默认 1d
+    #[serde(default = "PoolConfig::default_evict")]
+    pub evict_after_secs: i64,
+}
+
+impl PoolConfig {
+    fn default_capacity() -> usize { 3000 }
+    fn default_evict() -> i64 { 86400 }
+}
+
+impl Default for PoolConfig {
+    fn default() -> Self {
+        Self {
+            per_group_capacity: Self::default_capacity(),
+            evict_after_secs:   Self::default_evict(),
+        }
+    }
+}
 
 // ── PoolMessage 及相关类型 ────────────────────────────────────────────────────
 
@@ -225,6 +253,6 @@ pub type Pool = cache::MemoryPool;
 
 /// 统一的消息池创建入口，在 `main.rs` 中调用。
 /// 当前：MemoryPool
-pub async fn create_pool(cfg: &crate::kernel::config::PoolConfig) -> anyhow::Result<std::sync::Arc<Pool>> {
+pub async fn create_pool(cfg: &PoolConfig) -> anyhow::Result<std::sync::Arc<Pool>> {
     Ok(cache::MemoryPool::new(cfg))
 }

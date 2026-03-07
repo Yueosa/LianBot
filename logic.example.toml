@@ -1,0 +1,32 @@
+# LianBot 业务逻辑配置（logic 层）
+# 复制本文件为 logic.toml 后按需修改
+# 所有段和字段均可选，缺失时使用编译期默认值
+
+# ── 群聊总结 (smy) ────────────────────────────────────────────────────────────
+[smy]
+# 截图宽度（像素），默认 1200
+# screenshot_width = 1200
+
+# LLM 配置（可选，不配置则 -a/--ai 功能不可用，纯统计模式仍可正常使用）
+# [smy.llm]
+# api_url = "https://api.deepseek.com/v1"
+# api_key = "sk-xxxxxxx"
+# model   = "deepseek-chat"
+
+# ── GitHub Webhook ─────────────────────────────────────────────────────────────
+[github]
+# Webhook secret，与 GitHub 仓库设置里填写的一致
+# 留空时 /webhook/github 路由自动禁用
+secret = ""
+
+# 订阅列表示例：
+# [[github.subscriptions]]
+# repo   = "你的用户名/仓库名"
+# events = ["push", "pull_request", "issues", "release"]
+# group  = 123456789      # 通知推送到哪个群
+# at     = []             # 通知时 @ 的 QQ 号列表（可为空）
+
+# ── 设备在线状态 (alive) ───────────────────────────────────────────────────────
+# [alive]
+# api_url      = "https://alive.yeastar.xin/api/status"
+# timeout_secs = 5

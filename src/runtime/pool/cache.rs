@@ -4,8 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use super::{MessagePool, MsgStatus, PoolMessage, ProcessRecord};
-use crate::kernel::config::PoolConfig;
+use super::{MessagePool, MsgStatus, PoolConfig, PoolMessage, ProcessRecord};
 
 // ── MemoryPool ────────────────────────────────────────────────────────────────
 
@@ -109,8 +108,7 @@ impl MessagePool for MemoryPool {
 mod tests {
     use super::*;
     use crate::{
-        kernel::config::PoolConfig,
-        runtime::pool::{MsgKind, MsgStatus, PoolMessage},
+        runtime::pool::{MsgKind, MsgStatus, PoolConfig, PoolMessage},
         runtime::typ::message::MessageSegment,
     };
 
