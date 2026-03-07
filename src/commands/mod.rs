@@ -16,8 +16,26 @@ use crate::runtime::{
     parser::ParamValue,
     pool::Pool,
     registry::CommandRegistry,
+    typ::MessageSegment,
     ws::WsManager,
 };
+
+// ── 共享 HTTP 客户端 ──────────────────────────────────────────────────────────
+
+/// 命令层共享的 reqwest::Client（OnceLock 惰性初始化，进程内唯一）。
+/// 配置：跟随最多 10 次重定向、10 秒超时。
+/// acg / alive / world 等外部 API 命令统一使用，避免每次调用新建 Client。
+pub fn http_client() -> &'static reqwest::Client {
+    use std::sync::OnceLock;
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(10))
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("reqwest::Client 初始化失败")
+    })
+}
 
 // ── Command 元数据类型 ────────────────────────────────────────────────────────
 
@@ -118,7 +136,7 @@ pub struct CommandContext {
     /// 发送者的虚拟用户对象（包含 user_id、role、status）
     pub bot_user: BotUser,
     /// 原始消息段列表（含图片/at/回复等非文本 segment）
-    pub segments: Vec<crate::runtime::typ::MessageSegment>,
+    pub segments: Vec<MessageSegment>,
     /// 解析后的参数 map
     pub params: HashMap<String, ParamValue>,
     /// OneBot API 客户端（Arc 共享）

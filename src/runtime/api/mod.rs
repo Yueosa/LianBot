@@ -16,11 +16,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
-// ── re-export ─────────────────────────────────────────────────────────────────
-
-pub use send_msg::*;
-pub use history::*;
-
 // ── NapCat 连接配置 ────────────────────────────────────────────────────────────
 
 /// runtime.toml `[napcat]` 段。

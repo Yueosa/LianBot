@@ -1,8 +1,3 @@
-use std::collections::HashSet;
-use std::sync::Arc;
-
-use super::model::Scope;
-
 // ══════════════════════════════════════════════════════════════════════════════
 //  AccessControl — 群/用户准入控制
 //

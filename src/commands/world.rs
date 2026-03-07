@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::{info, warn};
 
-use crate::commands::{Command, CommandContext, CommandKind};
+use crate::commands::{Command, CommandContext, CommandKind, http_client};
 
 const API_URL: &str = "https://api.ecylt.com/v1/world_60s";
 
@@ -22,9 +22,7 @@ impl Command for WorldCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         info!("[world] 请求新闻, 群={}", ctx.group_id);
-        let resp = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()?
+        let resp = http_client()
             .get(API_URL)
             .send()
             .await

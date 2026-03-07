@@ -1,9 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use reqwest::Client;
 use tracing::info;
 
-use crate::commands::{Command, CommandContext, CommandKind};
+use crate::commands::{Command, CommandContext, CommandKind, http_client};
 
 const ACG_URL: &str = "https://www.loliapi.com/bg/";
 
@@ -11,12 +10,7 @@ pub struct AcgCommand;
 
 /// 跟随 302 重定向，拿到落地图片 URL
 async fn resolve_final_url(url: &str) -> Option<String> {
-    let client = Client::builder()
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .timeout(std::time::Duration::from_secs(8))
-        .build()
-        .ok()?;
-    let resp = client.get(url).send().await.ok()?;
+    let resp = http_client().get(url).send().await.ok()?;
     let final_url = resp.url().to_string();
     if final_url != url { Some(final_url) } else { None }
 }

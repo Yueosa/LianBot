@@ -4,7 +4,11 @@ pub mod llm;
 pub mod renderer;
 pub mod screenshot;
 
+use anyhow::Result;
 use serde::Deserialize;
+use tracing::{info, warn};
+
+use self::fetcher::ChatMessage;
 
 // ── LLM 配置 ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +52,53 @@ impl Default for SmyPluginConfig {
             llm: None,
         }
     }
+}
+
+// ── 公共管道 ──────────────────────────────────────────────────────────────────
+
+/// smy 核心管道：统计 → 可选 LLM → 渲染 → 截图，返回 base64 PNG。
+///
+/// 调用方（命令 / 定时任务）负责消息拉取和图片发送，
+/// 本函数只做纯计算 + 截图，不涉及 API 交互。
+pub async fn generate_report(
+    messages: &[ChatMessage],
+    llm_config: Option<&LlmConfig>,
+    group_label: &str,
+    screenshot_width: u32,
+) -> Result<String> {
+    // ── 统计分析 ──────────────────────────────────────────────────────────────
+    info!("[smy] 统计分析: {} 条消息", messages.len());
+    let stats = statistics::analyze(messages);
+
+    // ── LLM 分析（可选） ──────────────────────────────────────────────────────
+    let llm_result = if let Some(cfg) = llm_config {
+        info!("[smy] 请求 LLM 分析...");
+        match llm::analyze(messages, cfg).await {
+            Ok(r) => {
+                info!("[smy] LLM 分析完成");
+                r
+            }
+            Err(e) => {
+                warn!("[smy] LLM 分析失败，使用空结果: {e:#}");
+                llm::LlmResult::default()
+            }
+        }
+    } else {
+        info!("[smy] 未启用 AI，跳过 LLM（仅统计模式）");
+        llm::LlmResult::default()
+    };
+
+    // ── 渲染 HTML ─────────────────────────────────────────────────────────────
+    info!("[smy] 渲染 HTML...");
+    let html = renderer::render(&stats, &llm_result, group_label, messages);
+    info!("[smy] HTML 渲染完成: {}KB", html.len() / 1024);
+
+    // ── 截图 ──────────────────────────────────────────────────────────────────
+    info!("[smy] 调用 Chrome 截图...");
+    let base64_img = screenshot::capture(&html, screenshot_width).await?;
+    info!("[smy] 截图完成: {}KB", base64_img.len() / 1024);
+
+    Ok(base64_img)
 }
 
 #[cfg(test)]

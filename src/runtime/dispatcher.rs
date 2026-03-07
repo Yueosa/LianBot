@@ -10,7 +10,7 @@ use crate::{
         parser::{CommandParser, ParsedCommand, ParamValue},
         pool::{MessagePool, MsgStatus, Pool, PoolMessage, ProcessRecord},
         registry::CommandRegistry,
-        typ::{MessageEvent, OneBotEvent},
+        typ::{MessageEvent, MessageSegment, OneBotEvent},
         ws::WsManager,
     },
 };
@@ -135,7 +135,7 @@ impl Dispatcher {
         group_id: i64,
         message_id: Option<i64>,
         bot_user: BotUser,
-        segments: Vec<crate::runtime::typ::MessageSegment>,
+        segments: Vec<MessageSegment>,
         name: String,
         trailing: Vec<String>,
     ) -> anyhow::Result<()> {
@@ -179,9 +179,9 @@ impl Dispatcher {
         group_id: i64,
         message_id: Option<i64>,
         bot_user: BotUser,
-        segments: Vec<crate::runtime::typ::MessageSegment>,
+        segments: Vec<MessageSegment>,
         name: String,
-        params: std::collections::HashMap<String, ParamValue>,
+        params: HashMap<String, ParamValue>,
     ) -> anyhow::Result<()> {
         match self.registry.get_advanced(&name) {
             Some(cmd) => {
@@ -284,8 +284,8 @@ impl Dispatcher {
         group_id: i64,
         message_id: Option<i64>,
         bot_user: BotUser,
-        segments: Vec<crate::runtime::typ::MessageSegment>,
-        params: std::collections::HashMap<String, ParamValue>,
+        segments: Vec<MessageSegment>,
+        params: HashMap<String, ParamValue>,
     ) -> CommandContext {
         CommandContext {
             group_id,

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::{info, warn};
 
-use crate::commands::{Command, CommandContext, CommandKind};
+use crate::commands::{Command, CommandContext, CommandKind, http_client};
 use crate::runtime::logic_config;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
@@ -12,18 +12,15 @@ use crate::runtime::logic_config;
 struct AlivePluginConfig {
     #[serde(default = "AlivePluginConfig::default_url")]
     api_url: String,
-    #[serde(default = "AlivePluginConfig::default_timeout")]
-    timeout_secs: u64,
 }
 
 impl AlivePluginConfig {
     fn default_url() -> String { "https://alive.yeastar.xin/api/status".into() }
-    fn default_timeout() -> u64 { 5 }
 }
 
 impl Default for AlivePluginConfig {
     fn default() -> Self {
-        Self { api_url: AlivePluginConfig::default_url(), timeout_secs: AlivePluginConfig::default_timeout() }
+        Self { api_url: AlivePluginConfig::default_url() }
     }
 }
 
@@ -62,9 +59,7 @@ impl Command for AliveCommand {
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<AlivePluginConfig>("alive");
         info!("[alive] 请求设备状态, url={}, 群={}", cfg.api_url, ctx.group_id);
-        let resp = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(cfg.timeout_secs))
-            .build()?
+        let resp = http_client()
             .get(&cfg.api_url)
             .send()
             .await

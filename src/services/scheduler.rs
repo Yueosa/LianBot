@@ -104,22 +104,13 @@ async fn run_smy_for_group(
         return Ok(());
     }
 
-    let stats = smy::statistics::analyze(&messages);
+    let base64_img = smy::generate_report(
+        &messages,
+        Some(llm_config),
+        "time=1d (定时日报)",
+        screenshot_width,
+    ).await?;
 
-    let llm_result = match smy::llm::analyze(&messages, llm_config).await {
-        Ok(r) => {
-            info!("[scheduler] 群 {group_id} LLM 分析完成");
-            r
-        }
-        Err(e) => {
-            warn!("[scheduler] 群 {group_id} LLM 分析失败，使用空结果: {e:#}");
-            smy::llm::LlmResult::default()
-        }
-    };
-
-    let html = smy::renderer::render(&stats, &llm_result, "time=1d (定时日报)", &messages);
-
-    let base64_img = smy::screenshot::capture(&html, screenshot_width).await?;
     ctx.api
         .send_image(group_id, &format!("base64://{base64_img}"))
         .await?;
