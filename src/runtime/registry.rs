@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::commands::{Command, CommandKind};
-use crate::commands;
 
 // ── 命令注册表 ─────────────────────────────────────────────────────────────────
 //
@@ -88,20 +87,5 @@ impl CommandRegistry {
         lines.push(String::new());
         lines.push("💡 输入 <命令> --help 查看详细参数".to_string());
         lines.join("\n")
-    }
-}
-
-/// 构建并注册所有内置命令（仅注册已启用 feature 的命令）
-impl Default for CommandRegistry {
-    fn default() -> Self {
-        let mut registry = Self::new();
-        #[cfg(feature = "cmd-ping")]  registry.register(Arc::new(commands::ping::PingCommand));
-        #[cfg(feature = "cmd-help")]  registry.register(Arc::new(commands::help::HelpCommand));
-        #[cfg(feature = "cmd-acg")]   registry.register(Arc::new(commands::acg::AcgCommand));
-        #[cfg(feature = "cmd-stalk")] registry.register(Arc::new(commands::stalk::StalkCommand));
-        #[cfg(feature = "cmd-smy")]   registry.register(Arc::new(commands::smy::SmyCommand));
-        #[cfg(feature = "cmd-alive")] registry.register(Arc::new(commands::alive::AliveCommand));
-        #[cfg(feature = "cmd-world")] registry.register(Arc::new(commands::world::WorldCommand));
-        registry
     }
 }

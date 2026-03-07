@@ -141,14 +141,9 @@ impl Dispatcher {
     ) -> anyhow::Result<()> {
         match self.registry.get_simple(&name) {
             Some(cmd) => {
-                // --help → 完整帮助（简介 + 参数表，Simple 命令无参数时两者相同）
-                if trailing.iter().any(|t| t == "--help") {
-                    return self.api.send_text(group_id, &format_full_help(cmd.as_ref())).await;
-                }
-                // -h → 一行简介
-                if trailing.iter().any(|t| t == "-h") {
-                    let text = format!("{} — {}", cmd.name(), cmd.help());
-                    return self.api.send_text(group_id, &text).await;
+                // 帮助请求
+                if let Some(help_text) = try_help(cmd.as_ref(), |f| trailing.iter().any(|t| t == f)) {
+                    return self.api.send_text(group_id, &help_text).await;
                 }
                 // Simple 命令不接受其他参数
                 if !trailing.is_empty() {
@@ -185,14 +180,9 @@ impl Dispatcher {
     ) -> anyhow::Result<()> {
         match self.registry.get_advanced(&name) {
             Some(cmd) => {
-                // --help → 完整帮助（简介 + 参数表）
-                if params.contains_key("--help") {
-                    return self.api.send_text(group_id, &format_full_help(cmd.as_ref())).await;
-                }
-                // -h → 一行简介
-                if params.contains_key("-h") {
-                    let text = format!("{} — {}", cmd.name(), cmd.help());
-                    return self.api.send_text(group_id, &text).await;
+                // 帮助请求
+                if let Some(help_text) = try_help(cmd.as_ref(), |f| params.contains_key(f)) {
+                    return self.api.send_text(group_id, &help_text).await;
                 }
                 // 参数校验（未知/必填/值约束）
                 if let Err(detail) = validate_params(&params, cmd.declared_params()) {
@@ -300,6 +290,20 @@ impl Dispatcher {
             pool: self.pool.clone(),
         }
     }
+}
+
+// ── 帮助检测 ──────────────────────────────────────────────────────────────────
+
+/// 统一检测 `--help` / `-h` 请求。
+/// `has_flag` 闭包由调用方提供，适配 Simple（trailing vec）和 Advanced（params map）两种场景。
+fn try_help(cmd: &dyn Command, has_flag: impl Fn(&str) -> bool) -> Option<String> {
+    if has_flag("--help") {
+        return Some(format_full_help(cmd));
+    }
+    if has_flag("-h") {
+        return Some(format!("{} — {}", cmd.name(), cmd.help()));
+    }
+    None
 }
 
 // ── 参数校验 ──────────────────────────────────────────────────────────────────

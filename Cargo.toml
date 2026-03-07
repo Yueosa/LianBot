@@ -36,10 +36,10 @@ async-trait = "0.1"
 once_cell   = "1"
 futures     = "0.3"
 
-# 加密 / 签名（GitHub Webhook HMAC-SHA256 验签）
-hmac = "0.12"
-sha2 = "0.10"
-hex  = "0.4"
+# 加密 / 签名（GitHub Webhook HMAC-SHA256 验签，可选）
+hmac = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+hex  = { version = "0.4",  optional = true }
 chrono      = { version = "0.4", features = ["serde"], optional = true }
 base64      = { version = "0.22", optional = true }
 
@@ -53,6 +53,7 @@ default = [
     "cmd-smy", "cmd-acg", "cmd-stalk",
     "cmd-world",
     "core-db",
+    "svc-github",
 ]
 
 # ── 各命令独立 feature ──────────────────────────────────────────────────────
@@ -63,6 +64,9 @@ cmd-acg   = []
 cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
 cmd-smy   = ["dep:chrono", "dep:base64"]  # 截图(base64) + 时间处理(chrono)
 cmd-world = []                            # /world 60秒看世界
+
+# ── 服务 feature ────────────────────────────────────────────────────────────
+svc-github = ["dep:hmac", "dep:sha2", "dep:hex"]  # GitHub Webhook 验签 + 通知
 
 # ── 基础设施 feature ────────────────────────────────────────────────────────
 core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由

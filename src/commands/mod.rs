@@ -167,3 +167,16 @@ impl CommandContext {
         None
     }
 }
+
+// ── 命令自注册 ────────────────────────────────────────────────────────────────
+
+/// 向 App 构建器注册所有已启用 feature 的命令。
+pub fn register(app: &mut crate::kernel::app::App) {
+    #[cfg(feature = "cmd-ping")]  app.command(Arc::new(ping::PingCommand));
+    #[cfg(feature = "cmd-help")]  app.command(Arc::new(help::HelpCommand));
+    #[cfg(feature = "cmd-acg")]   app.command(Arc::new(acg::AcgCommand));
+    #[cfg(feature = "cmd-stalk")] app.command(Arc::new(stalk::StalkCommand));
+    #[cfg(feature = "cmd-smy")]   app.command(Arc::new(smy::SmyCommand));
+    #[cfg(feature = "cmd-alive")] app.command(Arc::new(alive::AliveCommand));
+    #[cfg(feature = "cmd-world")] app.command(Arc::new(world::WorldCommand));
+}

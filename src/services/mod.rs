@@ -1,3 +1,4 @@
+#[cfg(feature = "svc-github")]
 pub mod github;
 pub mod scheduler;
 
@@ -20,4 +21,20 @@ pub struct ServiceContext {
 pub trait BotService: Send + 'static {
     fn name(&self) -> &'static str;
     async fn run(self) -> anyhow::Result<()>;
+}
+
+// ── 自注册入口 ────────────────────────────────────────────────────────────────
+
+/// 向 App 构建器注册所有后台服务和相关路由。
+pub fn register(app: &mut crate::kernel::app::App) {
+    let svc_ctx = ServiceContext {
+        api: app.api.clone(),
+        access: app.access.clone(),
+        pool: app.pool.clone(),
+    };
+
+    app.spawn(scheduler::SchedulerService::new(svc_ctx.clone()).run());
+
+    #[cfg(feature = "svc-github")]
+    github::register(app, svc_ctx);
 }
