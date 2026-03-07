@@ -62,9 +62,6 @@ impl Command for SmyCommand {
             .send_text(group_id, "📊 正在总结，请稍候...")
             .await?;
 
-        // ── 拉取消息 ─────────────────────────────────────────────────────────
-        info!("[smy] 拉取消息: group={group_id} {mode_desc}");
-
         let fetch_result = smy::fetcher::fetch(
             &ctx.api,
             &ctx.pool,
@@ -117,10 +114,8 @@ impl Command for SmyCommand {
         };
 
         // ── 发送图片 ─────────────────────────────────────────────────────────
-        info!("[smy] 发送图片: group={group_id}");
         ctx.api.send_image(group_id, &format!("base64://{base64_img}")).await?;
-
-        info!("[smy] 群聊日报发送完成: group={group_id}");
+        info!("[smy] 完成: group={group_id}, 已发送");
         Ok(())
     }
 }

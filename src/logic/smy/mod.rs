@@ -67,7 +67,6 @@ pub async fn generate_report(
     screenshot_width: u32,
 ) -> Result<String> {
     // ── 统计分析 ──────────────────────────────────────────────────────────────
-    info!("[smy] 统计分析: {} 条消息", messages.len());
     let stats = statistics::analyze(messages);
 
     // ── LLM 分析（可选） ──────────────────────────────────────────────────────
@@ -84,17 +83,14 @@ pub async fn generate_report(
             }
         }
     } else {
-        info!("[smy] 未启用 AI，跳过 LLM（仅统计模式）");
         llm::LlmResult::default()
     };
 
     // ── 渲染 HTML ─────────────────────────────────────────────────────────────
-    info!("[smy] 渲染 HTML...");
     let html = renderer::render(&stats, &llm_result, group_label, messages);
-    info!("[smy] HTML 渲染完成: {}KB", html.len() / 1024);
+    info!("[smy] 渲染完成: HTML {}KB", html.len() / 1024);
 
     // ── 截图 ──────────────────────────────────────────────────────────────────
-    info!("[smy] 调用 Chrome 截图...");
     let base64_img = screenshot::capture(&html, screenshot_width).await?;
     info!("[smy] 截图完成: {}KB", base64_img.len() / 1024);
 
