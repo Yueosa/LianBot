@@ -1,3 +1,4 @@
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -6,6 +7,17 @@ use tracing::{info, warn};
 
 use crate::logic::smy::LlmConfig;
 use super::fetcher::{ChatMessage, format_for_llm};
+
+static LLM_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn llm_client() -> &'static reqwest::Client {
+    LLM_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(120))
+            .build()
+            .expect("构建 LLM HTTP 客户端失败")
+    })
+}
 
 // ── LLM 分析结果 ─────────────────────────────────────────────────────────────
 
@@ -163,10 +175,7 @@ r#"你是一个善于解读人际关系的聚会侦探小将。请分析以下�
 // ── LLM 请求 ──────────────────────────────────────────────────────────────────
 
 async fn call_llm(config: &LlmConfig, prompt: &str) -> Result<String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(180))
-        .build()?;
-
+    let client = llm_client();
     let url = format!("{}/chat/completions", config.api_url.trim_end_matches('/'));
 
     let body = serde_json::json!({
