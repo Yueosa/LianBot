@@ -3,10 +3,10 @@ mod validation;
 
 use std::{collections::HashMap, sync::Arc};
 
-use tracing::{debug, info, warn};
+use tracing::{debug, info, info_span, warn, Instrument};
 
 use crate::{
-    commands::{Command, CommandContext, Dependency},
+    commands::{gen_trace_id, Command, CommandContext, Dependency},
     runtime::{
         permission::{AccessControl, BotUser, Role, Scope, Status},
         api::ApiClient,
@@ -272,6 +272,8 @@ impl Dispatcher {
 
     /// 执行命令并向消息池报告处理结果。
     /// 计时 → 执行 → 根据 Ok/Err 生成 ProcessRecord → pool.mark()
+    ///
+    /// 自动创建 tracing span，命令内部所有日志自动携带 tid/cmd/grp 字段。
     async fn execute_and_mark(
         &self,
         cmd: &Arc<dyn Command>,
@@ -280,11 +282,14 @@ impl Dispatcher {
         message_id: Option<i64>,
     ) -> anyhow::Result<()> {
         let cmd_name = cmd.name().to_string();
+        let tid = ctx.trace_id.clone();
+        let span = info_span!("cmd", tid = %tid, cmd = %cmd_name, grp = group_id);
         let start = std::time::Instant::now();
 
-        let result = cmd.execute(ctx).await;
+        let result = cmd.execute(ctx).instrument(span).await;
 
         let duration_ms = start.elapsed().as_millis() as u64;
+        info!("[{cmd_name}] tid={tid} 执行完毕 {duration_ms}ms");
 
         // 向消息池报告处理状态（无 pool 或无 msg_id 时跳过）
         if let (Some(pool), Some(mid)) = (&self.pool, message_id) {
@@ -332,6 +337,7 @@ impl Dispatcher {
         params: HashMap<String, ParamValue>,
     ) -> CommandContext {
         CommandContext {
+            trace_id: gen_trace_id(),
             group_id,
             message_id,
             bot_user,

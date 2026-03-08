@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, hash::{BuildHasher, Hasher, RandomState}, sync::Arc};
 
 use crate::runtime::permission::{AccessControl, BotUser};
 use crate::runtime::{
@@ -11,6 +11,8 @@ use crate::runtime::{
 };
 
 pub struct CommandContext {
+    /// 本次命令执行的追踪标识（8 字符 hex），用于关联并发日志
+    pub trace_id: String,
     /// 触发命令的群号
     pub group_id: i64,
     /// 触发消息的 message_id（用于回复等操作，部分事件可能无此字段）
@@ -48,4 +50,10 @@ impl CommandContext {
         }
         None
     }
+}
+
+/// 生成 8 字符十六进制随机 trace_id，纯标准库实现，不引入外部依赖。
+pub fn gen_trace_id() -> String {
+    let h = RandomState::new().build_hasher().finish();
+    format!("{:08x}", h as u32)
 }
