@@ -109,11 +109,23 @@ pub async fn run() -> anyhow::Result<()> {
     }
 
     // ── 启动服务 ──────────────────────────────────────────────────────────────
-    let router = app.into_router();
+    let (router, task_handles) = app.into_router();
     let addr = format!("{}:{}", kcfg.host, kcfg.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     info!("LianBot 已启动，监听 {addr}");
-    axum::serve(listener, router).await?;
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    // ── 优雅关闭：等待后台任务完成（最多 5s）────────────────────────────
+    if !task_handles.is_empty() {
+        info!("等待 {} 个后台任务结束...", task_handles.len());
+        let drain = futures::future::join_all(task_handles);
+        if tokio::time::timeout(std::time::Duration::from_secs(5), drain).await.is_err() {
+            tracing::warn!("后台任务未在 5s 内完成，强制退出");
+        }
+    }
+    info!("LianBot 已关闭");
 
     Ok(())
 }
@@ -148,4 +160,25 @@ async fn ws_handler(
     State(state): State<WsState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| state.ws.clone().handle_socket(socket, state.api.clone()))
+}
+
+// ── Shutdown Signal ─────────────────────────────────────────────────────────────
+
+async fn shutdown_signal() {
+    let ctrl_c = tokio::signal::ctrl_c();
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("注册 SIGTERM 失败")
+            .recv()
+            .await;
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => info!("\n收到 SIGINT，开始关闭..."),
+        _ = terminate => info!("收到 SIGTERM，开始关闭..."),
+    }
 }

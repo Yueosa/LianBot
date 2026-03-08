@@ -70,15 +70,15 @@ impl App {
         Arc::new(std::mem::replace(&mut self.registry, CommandRegistry::new()))
     }
 
-    /// 消耗自身：spawn 所有后台任务，返回最终 Router。
-    pub fn into_router(self) -> Router {
-        for task in self.tasks {
+    /// 消耗自身：spawn 所有后台任务，返回最终 Router 和任务句柄。
+    pub fn into_router(self) -> (Router, Vec<tokio::task::JoinHandle<()>>) {
+        let handles: Vec<_> = self.tasks.into_iter().map(|task| {
             tokio::spawn(async move {
                 if let Err(e) = task.await {
                     tracing::error!("后台任务异常退出: {e:#}");
                 }
-            });
-        }
-        self.router
+            })
+        }).collect();
+        (self.router, handles)
     }
 }
