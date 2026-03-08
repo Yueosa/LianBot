@@ -1191,10 +1191,12 @@ async fn main() {
     let line_count = llm_text.lines().count();
     println!("  输出: {} ({} 行)", human_size(llm_text.len()), line_count);
 
-    // 截断保护（与 LianBot 一致：80KB）
-    let truncated = if llm_text.len() > 80_000 {
-        println!("  ⚠ 超 80KB，截断为最后 80KB");
-        &llm_text[llm_text.len() - 80_000..]
+    // 截断保护（与 LianBot 一致：150KB，按 char boundary 对齐）
+    let truncated = if llm_text.len() > 150_000 {
+        println!("  ⚠ 超 150KB，截断为最后 ~150KB");
+        let mut start = llm_text.len() - 150_000;
+        while !llm_text.is_char_boundary(start) { start += 1; }
+        &llm_text[start..]
     } else { &llm_text };
 
     println!("  LLM 输入: {}", human_size(truncated.len()));
