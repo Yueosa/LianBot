@@ -67,7 +67,7 @@ if [[ ${#SUBS[@]} -gt 0 ]]; then
         _user=$(echo -e "${SUBS[$i]}" | grep -oP '(?<=user\s*=\s*")[^"]*' || true)
         _grp=$(echo -e "${SUBS[$i]}"  | grep -oP '(?<=group\s*=\s*)\d+' || true)
         _evt=$(echo -e "${SUBS[$i]}"  | grep -oP '(?<=events\s*=\s*\[)[^\]]*' || true)
-        local target="${_repo:-user:$_user}"
+        target="${_repo:-user:$_user}"
         echo "    $((i+1)). ${target}  →  群 ${_grp}  [${_evt}]"
     done
     echo ""

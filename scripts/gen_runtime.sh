@@ -24,13 +24,13 @@ echo "  ${C_BOLD}[bot]${C_NC}  Bot 身份与权限"
 ask OWNER "Bot 主人 QQ 号" "$(toml_section_val "$RT" bot owner '0')"
 ask DB_PATH "权限数据库路径" "$(toml_section_val "$RT" bot db_path 'permissions.db')"
 
-local _gl; _gl=$(toml_section_arr "$RT" bot initial_groups)
+_gl=$(toml_section_arr "$RT" bot initial_groups)
 echo "  初始群列表（启动时导入 DB，多个用逗号分隔）"
 read -rp "  initial_groups [${_gl:-（空）}]: " GROUPS_RAW
 GROUPS_RAW="${GROUPS_RAW:-$_gl}"
 GROUPS_TOML="[$(echo "$GROUPS_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
 
-local _bl; _bl=$(toml_section_arr "$RT" bot blacklist)
+_bl=$(toml_section_arr "$RT" bot blacklist)
 if [[ -n "$_bl" ]]; then
     ask BLACKLIST_RAW "静态黑名单（QQ 号逗号分隔）" "$_bl"
 else
@@ -43,7 +43,7 @@ echo ""
 # ── [napcat] ──────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[napcat]${C_NC}  NapCat HTTP API"
 ask NAPCAT_URL "NapCat HTTP URL" "$(toml_section_val "$RT" napcat url 'http://127.0.0.1:3000')"
-local _tok; _tok=$(toml_section_val "$RT" napcat token "")
+_tok=$(toml_section_val "$RT" napcat token "")
 if [[ -n "$_tok" ]]; then
     ask NAPCAT_TOKEN "Bearer Token" "$_tok"
 else
@@ -65,7 +65,7 @@ echo ""
 # ── [log] ─────────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[log]${C_NC}  日志"
 ask LOG_LEVEL "日志级别（trace/debug/info/warn/error）" "$(toml_section_val "$RT" log level 'info')"
-local _ldir; _ldir=$(toml_section_val "$RT" log log_dir "")
+_ldir=$(toml_section_val "$RT" log log_dir "")
 if [[ -n "$_ldir" ]]; then
     ask LOG_DIR "log_dir" "$_ldir"
 else
