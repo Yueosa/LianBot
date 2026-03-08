@@ -19,7 +19,7 @@ pub struct Statistics {
     pub top_speakers: Vec<(i64, String, usize)>,
     pub reply_count: usize,
     pub at_count: usize,
-    pub top_emoji: Option<String>,
+    pub top_faces: Vec<(String, usize)>,
 }
 
 // ── 统计逻辑 ──────────────────────────────────────────────────────────────────
@@ -72,11 +72,10 @@ pub fn analyze(messages: &[ChatMessage]) -> Statistics {
     top_speakers.sort_by(|a, b| b.2.cmp(&a.2));
     top_speakers.truncate(10);
 
-    // 最热表情 face_id
-    let top_emoji = face_freq
-        .into_iter()
-        .max_by_key(|(_, c)| *c)
-        .map(|(id, _)| id);
+    // 最热表情 top 3
+    let mut top_faces: Vec<(String, usize)> = face_freq.into_iter().collect();
+    top_faces.sort_by(|a, b| b.1.cmp(&a.1));
+    top_faces.truncate(3);
 
     Statistics {
         message_count: messages.len(),
@@ -89,6 +88,6 @@ pub fn analyze(messages: &[ChatMessage]) -> Statistics {
         top_speakers,
         reply_count,
         at_count,
-        top_emoji,
+        top_faces,
     }
 }
