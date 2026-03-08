@@ -36,7 +36,7 @@ impl Command for AdminCommand {
                 match target {
                     Some(uid) => {
                         ctx.access.block_user(&scope, uid).await?;
-                        info!("[admin] block user={uid} in group={}", ctx.group_id);
+                        info!("[admin] block user={uid}");
                         ctx.api.send_text(ctx.group_id, &format!("✅ 已拉黑用户 {uid}")).await
                     }
                     None => ctx.api.send_text(ctx.group_id, "❌ 用法：!!admin block @用户").await,
@@ -47,7 +47,7 @@ impl Command for AdminCommand {
                 match target {
                     Some(uid) => {
                         ctx.access.unblock_user(&scope, uid).await?;
-                        info!("[admin] unblock user={uid} in group={}", ctx.group_id);
+                        info!("[admin] unblock user={uid}");
                         ctx.api.send_text(ctx.group_id, &format!("✅ 已解除拉黑用户 {uid}")).await
                     }
                     None => ctx.api.send_text(ctx.group_id, "❌ 用法：!!admin unblock @用户").await,
@@ -55,12 +55,12 @@ impl Command for AdminCommand {
             }
             "enable" => {
                 ctx.access.enable_group(ctx.group_id).await?;
-                info!("[admin] enable group={}", ctx.group_id);
+                info!("[admin] enable");
                 ctx.api.send_text(ctx.group_id, &format!("✅ 已启用群 {}", ctx.group_id)).await
             }
             "disable" => {
                 ctx.access.disable_group(ctx.group_id).await?;
-                info!("[admin] disable group={}", ctx.group_id);
+                info!("[admin] disable");
                 ctx.api.send_text(ctx.group_id, &format!("✅ 已禁用群 {}", ctx.group_id)).await
             }
             _ => {

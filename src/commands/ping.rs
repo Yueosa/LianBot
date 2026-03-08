@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use tracing::info;
 
 use crate::commands::{Command, CommandContext, CommandKind};
 
@@ -13,7 +12,6 @@ impl Command for PingCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
-        info!("[ping] 响应, 群={}", ctx.group_id);
         ctx.api.send_text(ctx.group_id, "恋还活着哦! 🏓").await
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 use crate::commands::{Command, CommandContext, CommandKind, http_client};
 use crate::runtime::logic_config;
@@ -37,7 +37,6 @@ impl Command for WorldCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<WorldPluginConfig>("world");
-        info!("[world] 请求新闻, 群={}", ctx.group_id);
         let resp = http_client()
             .get(&cfg.api_url)
             .send()
@@ -48,9 +47,9 @@ impl Command for WorldCommand {
             .context("解析 60s 看世界响应失败")?;
 
         if resp.data.is_empty() {
-            warn!("[world] 获取到空新闻列表, 群={}", ctx.group_id);
+            warn!("[world] API 返回空新闻列表");
         } else {
-            info!("[world] 获取 {} 条新闻, 群={}", resp.data.len(), ctx.group_id);
+            debug!("[world] 获取 {} 条新闻", resp.data.len());
         }
 
         let text = format!(
