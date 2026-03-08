@@ -8,9 +8,13 @@ SERVICE="lianbot"
 do_cmd() {
     local action="$1"
     info "${action} ${SERVICE}..."
-    sudo systemctl "$action" "$SERVICE"
-    echo ""
-    systemctl status "$SERVICE" --no-pager || true
+    if [[ "$action" == "status" ]]; then
+        systemctl status "$SERVICE" --no-pager || true
+    else
+        sudo systemctl "$action" "$SERVICE"
+        echo ""
+        systemctl status "$SERVICE" --no-pager || true
+    fi
 }
 
 if [[ $# -ge 1 ]]; then

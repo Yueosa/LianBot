@@ -37,8 +37,13 @@ echo ""
 # ── 配置摘要 ──────────────────────────────────────────────────────────────────
 
 # 优先读部署目录的配置，否则读项目本地
+# 部署目录文件可能是 640:lianbot，用 _read_cfg 处理权限
 _cfg_dir="$LIANBOT_DIR"
 [[ -f "$_cfg_dir/config.toml" ]] || _cfg_dir="$PROJECT_ROOT"
+
+_read_cfg() {
+    if [[ -r "$1" ]]; then cat "$1"; else sudo cat "$1" 2>/dev/null; fi
+}
 
 echo "  ${C_BOLD}配置摘要${C_NC}"
 

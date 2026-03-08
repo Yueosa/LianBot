@@ -42,6 +42,8 @@ cd "$PROJECT_ROOT"
 
 # ── 编译 ──────────────────────────────────────────────────────────────────────
 
+command -v cargo &>/dev/null || error "未找到 cargo，请先安装 Rust: https://rustup.rs"
+
 info "编译模式: --release --all-features"
 echo ""
 

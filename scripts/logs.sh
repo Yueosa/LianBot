@@ -30,7 +30,11 @@ if [[ -n "$log_dir" ]]; then
 
     info "实时跟踪: $log_file  (Ctrl-C 退出)"
     echo ""
-    tail -f "$log_file"
+    if [[ -r "$log_file" ]]; then
+        tail -f "$log_file"
+    else
+        sudo tail -f "$log_file"
+    fi
 else
     info "未配置 log_dir，使用 journald  (Ctrl-C 退出)"
     echo ""
