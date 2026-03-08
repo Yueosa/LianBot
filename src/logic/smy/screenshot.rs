@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use tracing::debug;
@@ -6,6 +8,9 @@ const MEASURE_VIEWPORT_HEIGHT: u32 = 2000;
 const MIN_SCREENSHOT_HEIGHT: u32 = 600;
 const MAX_SCREENSHOT_HEIGHT: u32 = 20_000;
 const HEIGHT_SAFETY_PADDING: u32 = 24;
+
+/// 单步 Chrome 操作的超时时间。
+const CHROME_STEP_TIMEOUT: Duration = Duration::from_secs(30);
 
 // ── HTML → PNG → base64 ─────────────────────────────────────────────────────
 
@@ -22,12 +27,17 @@ pub async fn capture(html: &str, width: u32) -> Result<String> {
 fn capture_sync(html: &str, width: u32) -> Result<String> {
     use std::process::Command;
 
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let html_path = format!("/tmp/lianbot_smy_{ts}.html");
-    let img_path  = format!("/tmp/lianbot_smy_{ts}.png");
+    // 每次调用创建独立的临时目录，避免 Chrome user-data-dir 锁竞争
+    let tmp_dir = tempfile::tempdir().context("创建截图临时目录失败")?;
+    let tmp_path = tmp_dir.path();
+
+    let html_path = tmp_path.join("page.html");
+    let img_path  = tmp_path.join("shot.png");
+    let user_data = tmp_path.join("chrome-profile");
+    std::fs::create_dir_all(&user_data).context("创建 Chrome profile 目录失败")?;
+
+    let user_data_arg = format!("--user-data-dir={}", user_data.display());
+    let crash_dir_arg = format!("--crash-dumps-dir={}", tmp_path.join("crashes").display());
 
     // 注入 JS：将实际内容高度写入 <title>，供第一步测量
     let patched_html = html.replace(
@@ -39,21 +49,18 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
     let chrome = find_chrome()?;
     debug!("使用 Chrome: {chrome}");
 
-    let _ = std::fs::create_dir_all("/tmp/lianbot-chrome");
-
     let base_args: Vec<&str> = vec![
         "--headless=new",
         "--no-sandbox",
         "--disable-gpu",
         "--disable-dev-shm-usage",
-        "--user-data-dir=/tmp/lianbot-chrome",
-        "--crash-dumps-dir=/tmp/lianbot-chrome-crashes",
         "--disable-breakpad",
     ];
 
     // ── 第一步：dump-dom 测量内容高度 ──
     let mut cmd1 = Command::new(&chrome);
-    cmd1.env("HOME", "/tmp/lianbot-chrome");
+    cmd1.env("HOME", tmp_path);
+    cmd1.arg(&user_data_arg).arg(&crash_dir_arg);
     for a in &base_args { cmd1.arg(a); }
     cmd1.args([
         "--hide-scrollbars",
@@ -61,9 +68,9 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
         "--dump-dom",
     ]);
     cmd1.arg(format!("--window-size={width},{MEASURE_VIEWPORT_HEIGHT}"));
-    cmd1.arg(format!("file://{html_path}"));
+    cmd1.arg(format!("file://{}", html_path.display()));
 
-    let dom_output = cmd1.output().context("Chrome dump-dom 失败")?;
+    let dom_output = run_with_timeout(&mut cmd1, "dump-dom")?;
     let dom_str = String::from_utf8_lossy(&dom_output.stdout);
     let measured_height = extract_title_height(&dom_str).unwrap_or(4000);
     let target_height = measured_height.saturating_add(HEIGHT_SAFETY_PADDING);
@@ -78,21 +85,19 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
 
     // ── 第二步：用精确高度截图 ──
     let mut cmd2 = Command::new(&chrome);
-    cmd2.env("HOME", "/tmp/lianbot-chrome");
+    cmd2.env("HOME", tmp_path);
+    cmd2.arg(&user_data_arg).arg(&crash_dir_arg);
     for a in &base_args { cmd2.arg(a); }
     cmd2.args([
         "--hide-scrollbars",
         "--run-all-compositor-stages-before-draw",
         "--virtual-time-budget=5000",
     ]);
-    cmd2.arg(format!("--screenshot={img_path}"));
+    cmd2.arg(format!("--screenshot={}", img_path.display()));
     cmd2.arg(format!("--window-size={width},{height}"));
-    cmd2.arg(format!("file://{html_path}"));
+    cmd2.arg(format!("file://{}", html_path.display()));
 
-    let output = cmd2.output().context("Chrome 截图失败")?;
-
-    // 清理 HTML 临时文件
-    let _ = std::fs::remove_file(&html_path);
+    let output = run_with_timeout(&mut cmd2, "截图")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -100,7 +105,6 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
     }
 
     let img_data = std::fs::read(&img_path).context("读取截图文件失败")?;
-    let _ = std::fs::remove_file(&img_path);
 
     let size_kb = img_data.len() / 1024;
     debug!(
@@ -109,8 +113,33 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
         height,
         measured_height
     );
-
+    // tmp_dir drop 时自动清理所有临时文件
     Ok(B64.encode(&img_data))
+}
+
+/// 启动 Chrome 子进程并等待，超时则强制 kill。
+fn run_with_timeout(
+    cmd: &mut std::process::Command,
+    label: &str,
+) -> Result<std::process::Output> {
+    let mut child = cmd.spawn().with_context(|| format!("Chrome {label} 启动失败"))?;
+
+    let deadline = std::time::Instant::now() + CHROME_STEP_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => return child.wait_with_output()
+                .with_context(|| format!("Chrome {label} 读取输出失败")),
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait(); // 回收僵尸进程
+                    bail!("Chrome {label} 超时 ({}s)，已强制终止", CHROME_STEP_TIMEOUT.as_secs());
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => bail!("Chrome {label} 等待失败: {e}"),
+        }
+    }
 }
 
 /// 从 dump-dom 输出中提取 `<title>高度数字</title>`
