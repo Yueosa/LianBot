@@ -31,7 +31,7 @@ use super::BotService;
 /// 注册 GitHub Webhook 路由和后台推送服务。
 /// secret 为空时跳过（路由不注册，返回 404）。
 pub fn register(app: &mut crate::kernel::app::App) {
-    let gh_cfg = crate::runtime::logic_config::section::<GitHubConfig>("github");
+    let gh_cfg = crate::logic::config::section::<GitHubConfig>("github");
 
     if gh_cfg.secret.is_empty() {
         info!("[github] secret 未配置，/webhook/github 路由已禁用");

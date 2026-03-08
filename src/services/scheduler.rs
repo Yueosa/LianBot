@@ -49,7 +49,7 @@ impl BotService for SchedulerService {
         {
             use crate::{
                 logic::smy::SmyPluginConfig,
-                runtime::logic_config,
+                logic::config as logic_config,
             };
 
             let secs = secs_until_midnight();

@@ -29,7 +29,7 @@ pub async fn run() -> anyhow::Result<()> {
     crate::kernel::config::init()?;
     crate::runtime::config::init()?;
     crate::runtime::time::init();
-    crate::runtime::logic_config::init()?;
+    crate::logic::config::init()?;
 
     let kcfg = crate::kernel::config::KernelConfig::global();
     let napcat: NapcatConfig     = crate::runtime::config::section("napcat");

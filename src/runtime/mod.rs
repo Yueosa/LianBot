@@ -3,7 +3,6 @@ pub mod config;
 pub mod dispatcher;
 pub mod logger;
 pub mod time;
-pub mod logic_config;
 pub mod parser;
 pub mod permission;
 pub mod pool;

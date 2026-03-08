@@ -4,7 +4,7 @@ use tracing::{debug, info, warn};
 use std::time::Duration;
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
-use crate::runtime::logic_config;
+use crate::logic::config as logic_config;
 use crate::logic::smy;
 use crate::logic::smy::SmyPluginConfig;
 use crate::logic::smy::fetcher::{FetchSource, GapLevel};

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tracing::debug;
 
 use crate::commands::{Command, CommandContext, CommandKind, http_client};
-use crate::runtime::logic_config;
+use crate::logic::config as logic_config;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
 
