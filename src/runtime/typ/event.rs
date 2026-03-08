@@ -70,6 +70,35 @@ impl MessageEvent {
             .join("")
     }
 
+    /// 生成人类可读的消息摘要（用于日志），所有段类型均可见。
+    ///
+    /// 示例：`"[@123] 你好 [图片]"`、`"[表情] [表情]"`
+    pub fn describe(&self) -> String {
+        let mut buf = String::new();
+        for seg in &self.message {
+            match seg.seg_type.as_str() {
+                "text"  => if let Some(t) = seg.as_text() { buf.push_str(t); },
+                "image" => buf.push_str("[图片]"),
+                "face" | "mface" | "bface" | "sface" => buf.push_str("[表情]"),
+                "at"    => {
+                    let qq = seg.data.get("qq").map(|v| {
+                        if let Some(s) = v.as_str() { s.to_string() }
+                        else if let Some(n) = v.as_i64() { n.to_string() }
+                        else { "?".to_string() }
+                    }).unwrap_or_else(|| "?".to_string());
+                    buf.push_str(&format!("[@{qq}]"));
+                }
+                "reply"   => buf.push_str("[回复]"),
+                "forward" => buf.push_str("[转发]"),
+                "record"  => buf.push_str("[语音]"),
+                "video"   => buf.push_str("[视频]"),
+                "file"    => buf.push_str("[文件]"),
+                other     => { buf.push('['); buf.push_str(other); buf.push(']'); }
+            }
+        }
+        buf
+    }
+
     /// 判断是否群消息
     pub fn is_group(&self) -> bool {
         matches!(self.message_type, MessageType::Group)

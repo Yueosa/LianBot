@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use tokio::sync::RwLock;
+use tracing::debug;
 
 use super::{MessagePool, MsgStatus, PoolConfig, PoolMessage, ProcessRecord};
 
@@ -55,6 +56,8 @@ impl MessagePool for MemoryPool {
         while deque.len() > self.capacity {
             deque.pop_front();
         }
+
+        debug!("[pool] 群 {gid} push, depth={}", deque.len());
     }
 
     async fn recent_internal(&self, gid: i64, n: usize) -> Vec<PoolMessage> {

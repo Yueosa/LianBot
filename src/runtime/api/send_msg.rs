@@ -19,6 +19,7 @@
 // 消息段使用 typ::MessageSegment 构造器 + Serialize，避免手写 JSON。
 
 use anyhow::Result;
+use tracing::debug;
 
 use super::{ApiClient, MsgTarget};
 use crate::runtime::typ::MessageSegment;
@@ -38,6 +39,8 @@ impl ApiClient {
 
     /// 发送任意消息段列表到任意目标
     pub async fn send_segments(&self, target: MsgTarget, segments: Vec<MessageSegment>) -> Result<()> {
+        let tag = segments.iter().map(|s| s.seg_type.as_str()).collect::<Vec<_>>().join("+");
+        debug!("[api] send {tag} → {target:?}");
         let mut payload = target.into_payload();
         payload["message"] = serde_json::to_value(&segments)?;
         self.post("/send_msg", &payload).await?;

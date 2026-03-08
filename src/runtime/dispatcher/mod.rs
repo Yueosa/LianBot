@@ -108,8 +108,9 @@ impl Dispatcher {
         }
 
         // 6. 提取文本
+        let desc = event.describe();
         let text = event.full_text();
-        info!("[群 {group_id}] {}: {text}", event.user_id);
+        info!("[群 {group_id}] {}: {desc}", event.user_id);
 
         if text.is_empty() {
             return Ok(()); // 纯图片/语音等，跳过
@@ -289,7 +290,11 @@ impl Dispatcher {
         let result = cmd.execute(ctx).instrument(span).await;
 
         let duration_ms = start.elapsed().as_millis() as u64;
-        info!("[{cmd_name}] tid={tid} 执行完毕 {duration_ms}ms");
+
+        match &result {
+            Ok(()) => info!("[{cmd_name}] tid={tid} 完成 {duration_ms}ms"),
+            Err(e) => warn!("[{cmd_name}] tid={tid} 失败 {duration_ms}ms: {e:#}"),
+        }
 
         // 向消息池报告处理状态（无 pool 或无 msg_id 时跳过）
         if let (Some(pool), Some(mid)) = (&self.pool, message_id) {
