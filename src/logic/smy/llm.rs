@@ -292,9 +292,12 @@ pub async fn analyze(messages: &[ChatMessage], config: &LlmConfig) -> Result<Llm
         return Ok(LlmResult::default());
     }
 
-    // 截断保护: DeepSeek 128k 上下文, 保守限制在 ~80k 字符
-    let truncated = if formatted.len() > 80_000 {
-        &formatted[formatted.len() - 80_000..]
+    // 截断保护: DeepSeek 128k 上下文, 保留尾部 ~150KB (≈50k 中文字符 ≈ 60-70k tokens)
+    let truncated = if formatted.len() > 150_000 {
+        let mut start = formatted.len() - 150_000;
+        // 对齐到 UTF-8 char boundary，避免切到多字节字符中间
+        while !formatted.is_char_boundary(start) { start += 1; }
+        &formatted[start..]
     } else {
         &formatted
     };
