@@ -170,7 +170,7 @@ fn extract_nickname(sender: Option<&Sender>) -> String {
     }
 }
 
-fn concat_text_segs(segments: &[MessageSegment]) -> Option<String> {
+pub fn concat_text_segs(segments: &[MessageSegment]) -> Option<String> {
     let s: String = segments
         .iter()
         .filter_map(|seg| seg.as_text())
@@ -179,35 +179,33 @@ fn concat_text_segs(segments: &[MessageSegment]) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
-fn classify_kind(segments: &[MessageSegment]) -> MsgKind {
+/// 分类消息类型。
+///
+/// 优先级：Reply > File > Card > Image+Text(Mixed) > Image > At > Face > Text > Other
+/// - at / face 常伴随 text，不构成 Mixed
+/// - 只有 image + text 同时存在才是 Mixed
+pub fn classify_kind(segments: &[MessageSegment]) -> MsgKind {
     let mut has_text  = false;
     let mut has_image = false;
     let mut has_face  = false;
     let mut has_at    = false;
 
     for seg in segments {
-        if seg.is_reply()                          { return MsgKind::Reply; }
-        if seg.seg_type == "file"                   { return MsgKind::File; }
-        if seg.seg_type == "json"                   { return MsgKind::Card; }
-        if seg.is_text()                            { has_text  = true; }
-        if seg.is_image()                           { has_image = true; }
-        if seg.is_face()                            { has_face  = true; }
-        if seg.is_at()                              { has_at    = true; }
+        if seg.is_reply()        { return MsgKind::Reply; }
+        if seg.seg_type == "file" { return MsgKind::File; }
+        if seg.seg_type == "json" { return MsgKind::Card; }
+        if seg.is_text()         { has_text  = true; }
+        if seg.is_image()        { has_image = true; }
+        if seg.is_face()         { has_face  = true; }
+        if seg.is_at()           { has_at    = true; }
     }
 
-    // 多类型混合
-    let type_count = [has_text, has_image, has_face, has_at].iter().filter(|&&b| b).count();
-    if type_count > 1 {
-        return MsgKind::Mixed;
-    }
-
-    match (has_text, has_image, has_face, has_at) {
-        (true,  false, false, false) => MsgKind::Text,
-        (false, true,  false, _   ) => MsgKind::Image,
-        (false, false, true,  _   ) => MsgKind::Face,
-        (_,     _,     _,     true ) => MsgKind::At,
-        _ => MsgKind::Other,
-    }
+    if has_image && has_text { return MsgKind::Mixed; }
+    if has_image             { return MsgKind::Image; }
+    if has_at                { return MsgKind::At; }
+    if has_face && !has_text { return MsgKind::Face; }
+    if has_text              { return MsgKind::Text; }
+    MsgKind::Other
 }
 
 pub(super) fn now_secs() -> i64 {

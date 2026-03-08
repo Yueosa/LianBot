@@ -19,16 +19,6 @@ pub struct ChatMessage {
     pub face_ids: Vec<String>,
 }
 
-/// 从 message 段数组提取的结构化结果
-pub(super) struct ExtractedSegments {
-    pub text: String,
-    pub emoji_count: u32,
-    pub image_count: u32,
-    pub reply_to: Option<i64>,
-    pub at_targets: Vec<i64>,
-    pub face_ids: Vec<String>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FetchSource {
     Pool,

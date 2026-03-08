@@ -564,6 +564,12 @@ body {{
     border-radius: 10px;
     border-left: 3px solid #F5A9B8;
     line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}}
+.rel-evidence-item {{
+    padding: 2px 0;
 }}
 /* ── Footer ── */
 .footer {{
@@ -684,14 +690,18 @@ fn render_relationships(
 
             let members_str = r.members.iter().map(|m| html_escape(m)).collect::<Vec<_>>().join(" · ");
 
+            let evidence_html: String = r.evidence.iter().map(|e| {
+                format!(r#"<div class="rel-evidence-item">“{}”</div>"#, nl2br(e))
+            }).collect();
+
             format!(
-                r#"<div class="rel-card"><div class="rel-card-header"><div class="rel-avatars">{avatars}</div><span class="rel-badge {badge_class}">{members}</span><span class="rel-label">{label}</span></div><div class="rel-vibe">{vibe}</div><div class="rel-evidence">"{evidence}"</div></div>"#,
+                r#"<div class="rel-card"><div class="rel-card-header"><div class="rel-avatars">{avatars}</div><span class="rel-badge {badge_class}">{members}</span><span class="rel-label">{label}</span></div><div class="rel-vibe">{vibe}</div><div class="rel-evidence">{evidence}</div></div>"#,
                 avatars  = avatars,
                 badge_class = badge_class,
                 members  = members_str,
                 label    = html_escape(&r.label),
-                vibe     = html_escape(&r.vibe),
-                evidence = html_escape(&r.evidence),
+                vibe     = nl2br(&r.vibe),
+                evidence = evidence_html,
             )
         })
         .collect::<Vec<_>>()
@@ -786,8 +796,8 @@ fn render_topics(topics: &[super::llm::Topic]) -> String {
         .enumerate()
         .map(|(i, t)| {
             // detail 中的 @名字 替换为高亮 span
-            let detail_escaped = html_escape(&t.detail);
-            let detail_highlighted = highlight_names(&detail_escaped, &t.contributors);
+            let detail_with_br = nl2br(&t.detail);
+            let detail_highlighted = highlight_names(&detail_with_br, &t.contributors);
             let contribs = t.contributors.iter().map(|c| html_escape(c)).collect::<Vec<_>>().join("、");
             format!(
                 r#"<div class="topic-item"><div class="topic-header"><div class="topic-number">{num}</div><div class="topic-title">{title}</div></div><div class="topic-contributors">参与者: {contribs}</div><div class="topic-detail">{detail}</div></div>"#,
@@ -815,8 +825,8 @@ fn render_user_titles(titles: &[super::llm::UserTitle], name_to_uid: &HashMap<St
                 name = html_escape(&u.name),
                 title = html_escape(&u.title),
                 mbti = html_escape(&u.mbti),
-                habit = html_escape(&u.habit),
-                reason = html_escape(&u.reason),
+                habit = nl2br(&u.habit),
+                reason = nl2br(&u.reason),
             )
         })
         .collect::<Vec<_>>()
@@ -828,10 +838,10 @@ fn render_quotes(quotes: &[super::llm::Quote]) -> String {
         .iter()
         .map(|q| {
             format!(
-                r#"<div class="quote-item"><div class="quote-content">"{content}"</div><div class="quote-author">—— {sender}</div><div class="quote-reason">{reason}</div></div>"#,
-                content = html_escape(&q.content),
+                r#"<div class="quote-item"><div class="quote-content">“{content}”</div><div class="quote-author">—— {sender}</div><div class="quote-reason">{reason}</div></div>"#,
+                content = nl2br(&q.content),
                 sender = html_escape(&q.sender),
-                reason = html_escape(&q.reason),
+                reason = nl2br(&q.reason),
             )
         })
         .collect::<Vec<_>>()
@@ -857,4 +867,9 @@ fn html_escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+}
+
+/// HTML 转义后将 `\n` 转为 `<br>`，保留 LLM 输出中的换行。
+fn nl2br(s: &str) -> String {
+    html_escape(s).replace('\n', "<br>")
 }
