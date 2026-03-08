@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serde_json::Value;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 use crate::runtime::{
     api::ApiClient,
@@ -34,7 +34,7 @@ pub async fn fetch(
         let pool_msgs = pool.range(group_id, cutoff, now).await;
         let oldest = pool.oldest_timestamp(group_id).await;
         if !pool_msgs.is_empty() && oldest.is_some_and(|t| t <= cutoff) {
-            info!(
+            debug!(
                 "[fetcher] 时间模式: pool完整覆盖 {} 条 (oldest={}, cutoff={})",
                 pool_msgs.len(),
                 oldest.unwrap(),
@@ -48,12 +48,12 @@ pub async fn fetch(
                 source: FetchSource::Pool,
             });
         }
-        info!(
+        debug!(
             "[fetcher] 时间模式: pool起点={:?} > cutoff={}, 回退 API 分页",
             oldest, cutoff
         );
     } else {
-        info!("[fetcher] 无消息池，直接走 API 分页");
+        debug!("[fetcher] 无消息池，直接走 API 分页");
     }
 
     let (raw, reached_cutoff, earliest_ts) = fetch_api_until_cutoff(api, group_id, cutoff).await?;
@@ -73,7 +73,7 @@ pub async fn fetch(
         FetchSource::ApiExhausted
     };
 
-    info!(
+    debug!(
         "[fetcher] 时间模式: API过滤后 {} 条, source={:?}",
         messages.len(), source
     );

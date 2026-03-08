@@ -6,7 +6,7 @@ pub mod screenshot;
 
 use anyhow::Result;
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 
 use self::fetcher::ChatMessage;
 
@@ -71,10 +71,10 @@ pub async fn generate_report(
 
     // ── LLM 分析（可选） ──────────────────────────────────────────────────────
     let llm_result = if let Some(cfg) = llm_config {
-        info!("[smy] 请求 LLM 分析...");
+        debug!("[smy] 请求 LLM 分析...");
         match llm::analyze(messages, cfg).await {
             Ok(r) => {
-                info!("[smy] LLM 分析完成");
+                debug!("[smy] LLM 分析完成");
                 r
             }
             Err(e) => {
@@ -88,11 +88,11 @@ pub async fn generate_report(
 
     // ── 渲染 HTML ─────────────────────────────────────────────────────────────
     let html = renderer::render(&stats, &llm_result, group_label, messages);
-    info!("[smy] 渲染完成: HTML {}KB", html.len() / 1024);
+    debug!("[smy] 渲染完成: HTML {}KB", html.len() / 1024);
 
     // ── 截图 ──────────────────────────────────────────────────────────────────
     let base64_img = screenshot::capture(&html, screenshot_width).await?;
-    info!("[smy] 截图完成: {}KB", base64_img.len() / 1024);
+    debug!("[smy] 截图完成: {}KB", base64_img.len() / 1024);
 
     Ok(base64_img)
 }

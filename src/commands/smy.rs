@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use std::time::Duration;
 
 use crate::commands::{Command, CommandContext, CommandKind, Dependency, ParamKind, ParamSpec, ValueConstraint};
@@ -56,7 +56,7 @@ impl Command for SmyCommand {
         };
         let mode_desc = format!("time={} (时间模式)", time_opt.unwrap_or("1d"));
 
-        info!("[smy] 模式: group={group_id} {mode_desc}, ai={with_ai}");
+        info!("[smy] 模式: {mode_desc}, ai={with_ai}");
 
         ctx.api
             .send_text(group_id, "📊 正在总结，请稍候...")
@@ -97,7 +97,7 @@ impl Command for SmyCommand {
             return ctx.api.send_text(group_id, "📭 该时间范围内没有聊天记录").await;
         }
 
-        info!("[smy] 拉取完成: {} 条消息", messages.len());
+        debug!("[smy] 拉取完成: {} 条消息", messages.len());
 
         // ── 核心管道：统计 → LLM → 渲染 → 截图 ──────────────────────────────
         let base64_img = match smy::generate_report(
@@ -115,7 +115,6 @@ impl Command for SmyCommand {
 
         // ── 发送图片 ─────────────────────────────────────────────────────────
         ctx.api.send_image(group_id, &format!("base64://{base64_img}")).await?;
-        info!("[smy] 完成: group={group_id}, 已发送");
         Ok(())
     }
 }
