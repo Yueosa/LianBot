@@ -1,9 +1,12 @@
+mod help;
+mod validation;
+
 use std::{collections::HashMap, sync::Arc};
 
 use tracing::{debug, info, warn};
 
 use crate::{
-    commands::{Command, CommandContext, Dependency, ParamKind, ParamSpec, ValueConstraint},
+    commands::{Command, CommandContext, Dependency},
     runtime::{
         permission::{AccessControl, BotUser, Role, Scope, Status},
         api::ApiClient,
@@ -144,7 +147,7 @@ impl Dispatcher {
         match self.registry.get_simple(&name) {
             Some(cmd) => {
                 // 帮助请求
-                if let Some(help_text) = try_help(cmd.as_ref(), |f| trailing.iter().any(|t| t == f)) {
+                if let Some(help_text) = help::try_help(cmd.as_ref(), |f| trailing.iter().any(|t| t == f)) {
                     return self.api.send_text(group_id, &help_text).await;
                 }
                 // 依赖预检
@@ -200,7 +203,7 @@ impl Dispatcher {
         match self.registry.get_advanced(&name) {
             Some(cmd) => {
                 // 帮助请求
-                if let Some(help_text) = try_help(cmd.as_ref(), |f| params.contains_key(f)) {
+                if let Some(help_text) = help::try_help(cmd.as_ref(), |f| params.contains_key(f)) {
                     return self.api.send_text(group_id, &help_text).await;
                 }
                 // 依赖预检
@@ -212,7 +215,7 @@ impl Dispatcher {
                     return self.api.send_text(group_id, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
                 }
                 // 参数校验（未知/必填/值约束）
-                if let Err(detail) = validate_params(&params, cmd.declared_params()) {
+                if let Err(detail) = validation::validate_params(&params, cmd.declared_params()) {
                     let text = format!("❌ {detail}\n输入 <{}> --help 查看用法", cmd.name());
                     return self.api.send_text(group_id, &text).await;
                 }
@@ -241,6 +244,7 @@ impl Dispatcher {
         // TODO: 关键词匹配、AI 自动对话
         Ok(())
     }
+
     // ── 依赖预检 ────────────────────────────────────────────────────────────────
 
     /// 检查命令的运行时依赖是否全部可用。
@@ -263,7 +267,9 @@ impl Dispatcher {
         }
         None
     }
+
     // ── 辅助 ──────────────────────────────────────────────────────────────────
+
     /// 执行命令并向消息池报告处理结果。
     /// 计时 → 执行 → 根据 Ok/Err 生成 ProcessRecord → pool.mark()
     async fn execute_and_mark(
@@ -339,111 +345,4 @@ impl Dispatcher {
             access: self.access.clone(),
         }
     }
-}
-
-// ── 帮助检测 ──────────────────────────────────────────────────────────────────
-
-/// 统一检测 `--help` / `-h` 请求。
-/// `has_flag` 闭包由调用方提供，适配 Simple（trailing vec）和 Advanced（params map）两种场景。
-fn try_help(cmd: &dyn Command, has_flag: impl Fn(&str) -> bool) -> Option<String> {
-    if has_flag("--help") {
-        return Some(format_full_help(cmd));
-    }
-    if has_flag("-h") {
-        return Some(format!("{} — {}", cmd.name(), cmd.help()));
-    }
-    None
-}
-
-// ── 参数校验 ──────────────────────────────────────────────────────────────────
-
-/// 校验 params 是否符合 specs 声明。返回第一条错误的用户可见文本。
-fn validate_params(
-    params: &HashMap<String, ParamValue>,
-    specs: &[ParamSpec],
-) -> Result<(), String> {
-    // 收集所有已声明的 key
-    let declared: std::collections::HashSet<&str> = specs.iter()
-        .flat_map(|s| s.keys.iter().copied())
-        .collect();
-
-    // 1. 未知参数
-    for key in params.keys() {
-        if !declared.contains(key.as_str()) {
-            return Err(format!("未知参数: {key}"));
-        }
-    }
-
-    // 2. 必填参数
-    for spec in specs {
-        if spec.required && !spec.keys.iter().any(|k| params.contains_key(*k)) {
-            return Err(format!("缺少必填参数: {}", spec.keys.join(" / ")));
-        }
-    }
-
-    // 3. 值约束
-    for spec in specs {
-        if let ParamKind::Value(constraint) = spec.kind {
-            for &key in spec.keys {
-                if let Some(ParamValue::Value(s)) = params.get(key) {
-                    match constraint {
-                        ValueConstraint::Any => {}
-                        ValueConstraint::Integer { min, max } => {
-                            match s.parse::<i64>() {
-                                Err(_) => return Err(format!("{key} 需要整数，收到: \"{s}\"")),
-                                Ok(n) => {
-                                    if let Some(lo) = min {
-                                        if n < lo { return Err(format!("{key} 不能小于 {lo}，收到: {n}")); }
-                                    }
-                                    if let Some(hi) = max {
-                                        if n > hi { return Err(format!("{key} 不能大于 {hi}，收到: {n}")); }
-                                    }
-                                }
-                            }
-                        }
-                        ValueConstraint::OneOf(choices) => {
-                            if !choices.contains(&s.as_str()) {
-                                return Err(format!("{key} 仅支持: {}，收到: \"{s}\"", choices.join(" / ")));
-                            }
-                        }
-                    }
-                    break; // 只校验第一个命中的 key
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-// ── 帮助文本生成 ───────────────────────────────────────────────────────────────
-
-/// 完整帮助文本：一行简介 + 自动格式化的参数表（`--help` 触发）。
-fn format_full_help(cmd: &dyn Command) -> String {
-    let specs = cmd.declared_params();
-    let header = format!("{} — {}", cmd.name(), cmd.help());
-    if specs.is_empty() {
-        return header;
-    }
-    let mut lines = vec![header, String::new(), "参数：".to_string()];
-    for spec in specs {
-        let keys = spec.keys.join(", ");
-        let type_tag: String = match spec.kind {
-            ParamKind::Flag => String::new(),
-            ParamKind::Value(ValueConstraint::Any) => " <字符串>".into(),
-            ParamKind::Value(ValueConstraint::Integer { min, max }) => match (min, max) {
-                (Some(lo), Some(hi)) => format!(" <整数 {lo}-{hi}>"),
-                (Some(lo), None)     => format!(" <整数 ≥{lo}>"),
-                (None,     Some(hi)) => format!(" <整数 ≤{hi}>"),
-                (None,     None)     => " <整数>".into(),
-            },
-            ParamKind::Value(ValueConstraint::OneOf(choices)) => {
-                format!(" <{}>", choices.join("|"))
-            }
-        };
-        let req_tag = if spec.required { "[必填]" } else { "[可选]" };
-        let col = format!("{keys}{type_tag}");
-        lines.push(format!("  {:<24}  {}  {}", col, req_tag, spec.help));
-    }
-    lines.join("\n")
 }
