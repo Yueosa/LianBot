@@ -45,6 +45,11 @@ impl MessagePool for MemoryPool {
         let mut guard = self.groups.write().await;
         let deque = guard.entry(gid).or_default();
 
+        // msg_id 去重：已存在则跳过（back_seed 场景）
+        if deque.iter().rev().any(|m| m.msg_id == msg.msg_id) {
+            return;
+        }
+
         deque.push_back(msg);
 
         // 1. 时间淘汰：从队头清理过期消息
@@ -183,5 +188,19 @@ mod tests {
         let r = p.recent_internal(1, 10).await;
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].text.as_deref(), Some("new"));
+    }
+
+    #[tokio::test]
+    async fn test_dedup_msg_id() {
+        let p = pool(100, i64::MAX);
+        // 推入两条不同消息
+        p.push(make_msg(1, 100, 1, "first")).await;
+        p.push(make_msg(1, 200, 2, "second")).await;
+        // 重复 msg_id=1，应被拒绝
+        p.push(make_msg(1, 100, 1, "dup")).await;
+        let r = p.recent_internal(1, 10).await;
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0].text.as_deref(), Some("first"));
+        assert_eq!(r[1].text.as_deref(), Some("second"));
     }
 }
