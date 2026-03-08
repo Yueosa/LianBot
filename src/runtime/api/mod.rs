@@ -80,8 +80,12 @@ pub struct ApiClient {
 impl ApiClient {
     /// 创建客户端。`base_url` 例如 `"http://127.0.0.1:3000"`
     pub fn new(base_url: impl Into<String>, token: Option<String>) -> Self {
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("构建 HTTP 客户端失败");
         Self {
-            client: Client::new(),
+            client,
             base_url: base_url.into().trim_end_matches('/').to_string(),
             token,
         }
