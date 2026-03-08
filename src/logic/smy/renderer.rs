@@ -23,7 +23,7 @@ pub fn render(
         name_to_uid.entry(msg.nickname.clone()).or_insert(msg.user_id);
     }
 
-    let date = chrono::Utc::now() + chrono::Duration::hours(8);
+    let date = crate::runtime::time::now();
     let date_str = date.format("%Y年%m月%d日").to_string();
     let datetime_str = date.format("%Y-%m-%d %H:%M").to_string();
 

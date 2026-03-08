@@ -40,7 +40,7 @@ futures     = "0.3"
 hmac = { version = "0.12", optional = true }
 sha2 = { version = "0.10", optional = true }
 hex  = { version = "0.4",  optional = true }
-chrono      = { version = "0.4", features = ["serde"], optional = true }
+chrono      = { version = "0.4", features = ["serde"] }
 base64      = { version = "0.22", optional = true }
 tempfile    = { version = "3", optional = true }
 
@@ -63,7 +63,7 @@ cmd-help  = []
 cmd-alive = []
 cmd-acg   = []
 cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
-cmd-smy   = ["dep:chrono", "dep:base64", "dep:tempfile"]  # 截图(base64) + 时间处理(chrono) + 截图临时目录(tempfile)
+cmd-smy   = ["dep:base64", "dep:tempfile"]  # 截图(base64) + 截图临时目录(tempfile)
 cmd-world = []                            # /world 60秒看世界
 
 # ── 服务 feature ────────────────────────────────────────────────────────────

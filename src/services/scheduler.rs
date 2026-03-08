@@ -22,11 +22,11 @@ impl SchedulerService {
     }
 }
 
-/// 返回距下一个本地 00:00:00 的秒数
+/// 返回距下一个配置时区 00:00:00 的秒数
 #[cfg(feature = "cmd-smy")]
 fn secs_until_midnight() -> u64 {
     use chrono::Timelike;
-    let passed = chrono::Local::now().num_seconds_from_midnight() as u64;
+    let passed = crate::runtime::time::now().num_seconds_from_midnight() as u64;
     86400_u64.saturating_sub(passed)
 }
 

@@ -50,8 +50,7 @@ pub fn analyze(messages: &[ChatMessage]) -> Statistics {
             *face_freq.entry(fid.clone()).or_insert(0) += 1;
         }
 
-        // 按小时分桶 (UTC+8)
-        let hour = ((msg.time % 86400 + 8 * 3600) % 86400) / 3600;
+        let hour = crate::runtime::time::hour_of_day(msg.time);
         hourly[hour as usize] += 1;
 
         // 发言人统计

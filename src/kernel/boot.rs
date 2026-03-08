@@ -28,6 +28,7 @@ pub async fn run() -> anyhow::Result<()> {
     // ── 三层配置加载 ──────────────────────────────────────────────────────────
     crate::kernel::config::init()?;
     crate::runtime::config::init()?;
+    crate::runtime::time::init();
     crate::runtime::logic_config::init()?;
 
     let kcfg = crate::kernel::config::KernelConfig::global();

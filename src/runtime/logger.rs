@@ -1,5 +1,6 @@
 use serde::Deserialize;
-use time::macros::{format_description, offset};
+use time::format_description::FormatItem;
+use time::macros::format_description;
 use tracing_subscriber::fmt::time::OffsetTime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -40,11 +41,11 @@ impl Default for LogConfig {
     }
 }
 
-/// CST (+08:00) 时区计时器。
-fn cst_timer() -> OffsetTime<&'static [time::format_description::FormatItem<'static>]> {
+/// 按配置时区格式化的日志计时器。
+fn configured_timer() -> OffsetTime<&'static [FormatItem<'static>]> {
     OffsetTime::new(
-        offset!(+8),
-        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6]+08:00"),
+        crate::runtime::time::utc_offset(),
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:3] [offset_hour sign:mandatory]:[offset_minute padding:zero]"),
     )
 }
 
@@ -68,7 +69,7 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(&cfg.level));
 
-    let stdout_layer = fmt::layer().with_writer(std::io::stdout).with_timer(cst_timer());
+    let stdout_layer = fmt::layer().with_writer(std::io::stdout).with_timer(configured_timer());
 
     // 文件日志层（仅 core-log-file feature 编译进来）
     #[cfg(feature = "core-log-file")]
@@ -82,7 +83,7 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
             .unwrap_or(SystemTime::UNIX_EPOCH);
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
-                if !entry.file_name().to_string_lossy().starts_with("lianbot.log.utc") { continue; }
+                if !entry.file_name().to_string_lossy().starts_with("lianbot.log.") { continue; }
                 if let Ok(meta) = entry.metadata() {
                     if let Ok(mtime) = meta.modified() {
                         if mtime < cutoff {
@@ -104,9 +105,9 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
                     }
                     Ok(()) => {
                         let _ = fs::remove_file(&probe);
-                        let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log.utc");
+                        let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log");
                         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-                        let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false).with_timer(cst_timer());
+                        let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false).with_timer(configured_timer());
                         tracing_subscriber::registry()
                             .with(filter)
                             .with(stdout_layer)

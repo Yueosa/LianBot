@@ -44,20 +44,13 @@ pub fn detect_gap(messages: &[ChatMessage]) -> Option<GapWarning> {
 /// 将消息列表格式化为 LLM 可读的纯文本，剔除无关信息
 /// 格式: [HH:MM] 昵称: 内容
 pub fn format_for_llm(messages: &[ChatMessage]) -> String {
-    use chrono::{TimeZone, Utc};
-
     let mut lines = Vec::with_capacity(messages.len());
     for msg in messages {
         if msg.text.is_empty() {
             continue;
         }
-        let dt = Utc.timestamp_opt(msg.time, 0).single();
-        let time_str = dt
-            .map(|t| {
-                // 转为 UTC+8
-                let t8 = t + chrono::Duration::hours(8);
-                t8.format("%H:%M").to_string()
-            })
+        let time_str = crate::runtime::time::from_timestamp(msg.time)
+            .map(|t| t.format("%H:%M").to_string())
             .unwrap_or_else(|| "??:??".to_string());
 
         lines.push(format!("[{}] {}: {}", time_str, msg.nickname, msg.text));
