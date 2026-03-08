@@ -214,8 +214,33 @@ struct Relationship {
     label: String,
     #[serde(default)]
     vibe: String,
-    #[serde(default)]
+    /// DeepSeek 有时返回 string 而非 array，需要兼容
+    #[serde(default, deserialize_with = "string_or_vec")]
     evidence: Vec<String>,
+}
+
+fn string_or_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where D: serde::Deserializer<'de> {
+    use serde::de;
+    struct V;
+    impl<'de> de::Visitor<'de> for V {
+        type Value = Vec<String>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("string or array of strings")
+        }
+        fn visit_str<E: de::Error>(self, v: &str) -> Result<Vec<String>, E> {
+            Ok(vec![v.to_string()])
+        }
+        fn visit_string<E: de::Error>(self, v: String) -> Result<Vec<String>, E> {
+            Ok(vec![v])
+        }
+        fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<String>, A::Error> {
+            let mut out = Vec::new();
+            while let Some(s) = seq.next_element::<String>()? { out.push(s); }
+            Ok(out)
+        }
+    }
+    deserializer.deserialize_any(V)
 }
 
 // ── CLI 参数 ─────────────────────────────────────────────────────────────────
@@ -566,7 +591,14 @@ fn clean_llm_json(raw: &str) -> String {
 
 fn parse_llm_topics(content: &str) -> Vec<Topic> {
     let cleaned = clean_llm_json(content);
-    serde_json::from_str(&cleaned).unwrap_or_default()
+    match serde_json::from_str::<Vec<Topic>>(&cleaned) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("    ⚠ topics 解析失败: {e}");
+            eprintln!("      原文前200字: {}", &cleaned[..cleaned.len().min(200)]);
+            Vec::new()
+        }
+    }
 }
 
 fn parse_llm_titles(content: &str) -> (Vec<UserTitle>, Vec<Quote>) {
@@ -578,13 +610,26 @@ fn parse_llm_titles(content: &str) -> (Vec<UserTitle>, Vec<Quote>) {
         #[serde(default)]
         golden_quotes: Vec<Quote>,
     }
-    let r: TitleResp = serde_json::from_str(&cleaned).unwrap_or_default();
-    (r.user_titles, r.golden_quotes)
+    match serde_json::from_str::<TitleResp>(&cleaned) {
+        Ok(r) => (r.user_titles, r.golden_quotes),
+        Err(e) => {
+            eprintln!("    ⚠ titles 解析失败: {e}");
+            eprintln!("      原文前200字: {}", &cleaned[..cleaned.len().min(200)]);
+            (Vec::new(), Vec::new())
+        }
+    }
 }
 
 fn parse_llm_relationships(content: &str) -> Vec<Relationship> {
     let cleaned = clean_llm_json(content);
-    serde_json::from_str(&cleaned).unwrap_or_default()
+    match serde_json::from_str::<Vec<Relationship>>(&cleaned) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("    ⚠ relationships 解析失败: {e}");
+            eprintln!("      原文前500字: {}", &cleaned[..cleaned.len().min(500)]);
+            Vec::new()
+        }
+    }
 }
 
 // ── P7: HTML 渲染（复刻真实 ~1000 行模板，同等复杂度）──────────────────────
