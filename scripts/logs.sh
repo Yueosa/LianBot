@@ -32,10 +32,20 @@ if [[ -n "$log_dir" ]]; then
 
     info "实时跟踪: $log_file  (Ctrl-C 退出)"
     echo ""
-    if [[ -r "$log_file" ]]; then
-        tail -F "$log_file"
+
+    # 初始展示最近 30 行；若其中有「配置加载成功」则从该行开始
+    _boot_line=$(tail -n 30 "$log_file" 2>/dev/null | grep -n '配置加载成功' | tail -1 | cut -d: -f1)
+    if [[ -n "$_boot_line" ]]; then
+        tail -n 30 "$log_file" 2>/dev/null | tail -n +"$_boot_line"
     else
-        sudo tail -F "$log_file"
+        tail -n 30 "$log_file" 2>/dev/null
+    fi
+    echo ""
+
+    if [[ -r "$log_file" ]]; then
+        tail -n 0 -F "$log_file"
+    else
+        sudo tail -n 0 -F "$log_file"
     fi
 else
     info "未配置 log_dir，使用 journald  (Ctrl-C 退出)"
