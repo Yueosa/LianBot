@@ -56,18 +56,20 @@ body {{
     background: #FFFFFF;
     border-radius: 24px;
     box-shadow: 0 8px 40px rgba(245,169,184,0.12);
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
 }}
 .content {{
-    flex: 1;
     padding: 40px 45px;
-    border-radius: 0 0 24px 24px;
+}}
+.content > .section:last-child {{
+    margin-bottom: 0;
 }}
 .header {{
     background: #5BCEFA;
     color: #fff;
+    border-radius: 24px 24px 0 0;
     padding: 50px 50px 45px;
     text-align: center;
 }}
@@ -591,6 +593,7 @@ body {{
     color: #fff;
     text-align: center;
     padding: 30px;
+    border-radius: 0 0 24px 24px;
     font-size: 0.9em;
     font-weight: 300;
     letter-spacing: 0.5px;

@@ -91,7 +91,8 @@ pub async fn generate_report(
     debug!("[smy] 渲染完成: HTML {}KB", html.len() / 1024);
 
     // ── 截图 ──────────────────────────────────────────────────────────────────
-    let base64_img = screenshot::capture(&html, screenshot_width).await?;
+    let hint = screenshot::estimate_height(&llm_result);
+    let base64_img = screenshot::capture(&html, screenshot_width, hint).await?;
     debug!("[smy] 截图完成: {}KB", base64_img.len() / 1024);
 
     Ok(base64_img)
