@@ -10,6 +10,14 @@ _rt="$LIANBOT_DIR/runtime.toml"
 log_dir=""
 [[ -f "$_rt" ]] && log_dir=$(toml_section_val "$_rt" log log_dir "")
 
+find_latest_log() {
+    local dir="$1"
+    find "$dir" -maxdepth 1 -type f -name 'lianbot.log.20*' -printf '%T@ %p\n' 2>/dev/null \
+        | sort -nr \
+        | head -1 \
+        | cut -d' ' -f2-
+}
+
 if [[ -n "$log_dir" ]]; then
     [[ "$log_dir" != /* ]] && log_dir="$LIANBOT_DIR/$log_dir"
 
@@ -17,7 +25,7 @@ if [[ -n "$log_dir" ]]; then
     log_file="${log_dir}/lianbot.log.${today}"
 
     if [[ ! -f "$log_file" ]]; then
-        latest=$(ls -1t "${log_dir}"/lianbot.log.20* 2>/dev/null | head -1)
+        latest=$(find_latest_log "$log_dir")
         if [[ -n "$latest" ]]; then
             warn "今日日志尚未生成，显示最近: $latest"
             echo ""
@@ -34,11 +42,12 @@ if [[ -n "$log_dir" ]]; then
     echo ""
 
     # 初始展示最近 30 行；若其中有「配置加载成功」则从该行开始
-    _boot_line=$(tail -n 30 "$log_file" 2>/dev/null | grep -n '配置加载成功' | tail -1 | cut -d: -f1)
+    _tail_preview=$(tail -n 30 "$log_file" 2>/dev/null || true)
+    _boot_line=$(printf '%s\n' "$_tail_preview" | grep -n '配置加载成功' | tail -1 | cut -d: -f1 || true)
     if [[ -n "$_boot_line" ]]; then
-        tail -n 30 "$log_file" 2>/dev/null | tail -n +"$_boot_line"
+        printf '%s\n' "$_tail_preview" | tail -n +"$_boot_line"
     else
-        tail -n 30 "$log_file" 2>/dev/null
+        printf '%s\n' "$_tail_preview"
     fi
     echo ""
 
