@@ -191,6 +191,11 @@ fix_db_perms
 fix_log_dir_perms
 chown "$LIANBOT_USER:$LIANBOT_USER" "$LIANBOT_DIR"
 
+# 清理旧 service 文件中可能存在的 RUST_LOG 硬编码
+if [[ -f "$SERVICE_FILE" ]] && grep -q 'Environment=RUST_LOG' "$SERVICE_FILE"; then
+    info "清理旧 service 中的 RUST_LOG 硬编码..."
+fi
+
 # 写 systemd 服务
 info "写入 $SERVICE_FILE"
 cat > "$SERVICE_FILE" <<SERVICE
