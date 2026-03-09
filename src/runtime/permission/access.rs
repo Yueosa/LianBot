@@ -4,6 +4,11 @@
 //  两种实现，编译时二选一：
 //    core-db ON  → DB 版（SQLite 持久化 + 内存缓存）
 //    core-db OFF → Config 版（从 config.toml 静态读取）
+//
+//  黑名单分两级：
+//    group_blacklist   — 群聊黑名单，Bot 忽略该用户在任何群中的消息
+//    private_blacklist — 私聊黑名单，Bot 忽略该用户的私聊消息
+//  DB 版额外支持运行时 per-scope block/unblock（admin 命令动态管理）。
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── DB 版 ─────────────────────────────────────────────────────────────────────
@@ -31,7 +36,7 @@ mod inner {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     struct BlockKey {
-        /// 0 = global, 1 = group
+        /// 1 = group, 2 = private
         scope_type: u8,
         scope_id: i64,
         user_id: i64,
@@ -44,14 +49,24 @@ mod inner {
     }
 
     /// DB 版准入控制：内存缓存（热路径）+ SQLite 持久化（写穿）。
+    /// 配置黑名单作为不可变底层，DB 动态 block 作为叠加层。
     pub struct AccessControl {
         db: SqliteDb,
         state: RwLock<PermState>,
+        /// 配置文件群聊黑名单（不可变，启动时加载）
+        cfg_group_blocked: HashSet<i64>,
+        /// 配置文件私聊黑名单（不可变，启动时加载）
+        cfg_private_blocked: HashSet<i64>,
     }
 
     impl AccessControl {
         /// 打开权限数据库，加载缓存，并将 `initial_groups` 中尚不存在的群写入。
-        pub async fn open(path: &Path, initial_groups: &[i64]) -> anyhow::Result<Arc<Self>> {
+        pub async fn open(
+            path: &Path,
+            initial_groups: &[i64],
+            group_blacklist: &[i64],
+            private_blacklist: &[i64],
+        ) -> anyhow::Result<Arc<Self>> {
             let path_buf = path.to_path_buf();
             let db = tokio::task::spawn_blocking(move || {
                 SqliteDb::open(&path_buf, &[migration_v1])
@@ -110,7 +125,11 @@ mod inner {
                         .query_map([], |row| {
                             let st: String = row.get(0)?;
                             Ok(BlockKey {
-                                scope_type: if st == "global" { 0 } else { 1 },
+                                scope_type: match st.as_str() {
+                                    "group" => 1,
+                                    "private" => 2,
+                                    _ => 0,
+                                },
                                 scope_id: row.get(1)?,
                                 user_id: row.get(2)?,
                             })
@@ -122,14 +141,18 @@ mod inner {
                 .context("load user_status")?;
 
             info!(
-                "[access] 已加载 {} 个群策略，{} 条黑名单",
+                "[access] 已加载 {} 个群策略，{} 条 DB 黑名单，配置黑名单: 群 {} / 私聊 {}",
                 groups.len(),
-                blocked.len()
+                blocked.len(),
+                group_blacklist.len(),
+                private_blacklist.len(),
             );
 
             Ok(Arc::new(Self {
                 db,
                 state: RwLock::new(PermState { groups, blocked }),
+                cfg_group_blocked: group_blacklist.iter().copied().collect(),
+                cfg_private_blocked: private_blacklist.iter().copied().collect(),
             }))
         }
 
@@ -156,27 +179,36 @@ mod inner {
                 .collect()
         }
 
+        /// 判断用户是否被拉黑（配置黑名单 + DB 动态黑名单两层叠加）。
         pub fn is_user_blocked(&self, user_id: i64, scope: &Scope) -> bool {
-            let state = self.state.read().expect("perm RwLock poisoned");
-
-            // 全局黑名单
-            let global = state.blocked.contains(&BlockKey {
-                scope_type: 0,
-                scope_id: 0,
-                user_id,
-            });
-
-            // scope 级黑名单
-            let scoped = match scope {
-                Scope::Group(gid) => state.blocked.contains(&BlockKey {
-                    scope_type: 1,
-                    scope_id: *gid,
-                    user_id,
-                }),
-                Scope::Private(_) => false,
-            };
-
-            global || scoped
+            match scope {
+                Scope::Group(gid) => {
+                    // 配置群聊黑名单（全群生效）
+                    if self.cfg_group_blocked.contains(&user_id) {
+                        return true;
+                    }
+                    // DB per-group 黑名单
+                    let state = self.state.read().expect("perm RwLock poisoned");
+                    state.blocked.contains(&BlockKey {
+                        scope_type: 1,
+                        scope_id: *gid,
+                        user_id,
+                    })
+                }
+                Scope::Private(_) => {
+                    // 配置私聊黑名单
+                    if self.cfg_private_blocked.contains(&user_id) {
+                        return true;
+                    }
+                    // DB 私聊黑名单
+                    let state = self.state.read().expect("perm RwLock poisoned");
+                    state.blocked.contains(&BlockKey {
+                        scope_type: 2,
+                        scope_id: 0,
+                        user_id,
+                    })
+                }
+            }
         }
 
         // ── 写操作（内存 + 写穿 DB） ─────────────────────────────────────────
@@ -288,7 +320,7 @@ mod inner {
                 updated_at INTEGER NOT NULL
             );
             CREATE TABLE user_status (
-                scope_type TEXT    NOT NULL CHECK(scope_type IN ('group','global')),
+                scope_type TEXT    NOT NULL CHECK(scope_type IN ('group','private')),
                 scope_id   INTEGER NOT NULL,
                 user_id    INTEGER NOT NULL,
                 status     TEXT    NOT NULL DEFAULT 'blocked',
@@ -309,7 +341,7 @@ mod inner {
     fn scope_parts(scope: &Scope) -> (&'static str, u8, i64) {
         match scope {
             Scope::Group(gid) => ("group", 1, *gid),
-            Scope::Private(_) => ("global", 0, 0),
+            Scope::Private(_) => ("private", 2, 0),
         }
     }
 }
@@ -323,19 +355,25 @@ mod inner {
 
     use super::super::model::Scope;
 
-    /// Config 版准入控制：静态白名单 + 黑名单，来自 config.toml。
+    /// Config 版准入控制：静态白名单 + 双级黑名单，来自 runtime.toml。
     /// 无持久化，block/unblock 只在内存生效（重启丢失）。
     pub struct AccessControl {
         allowed_groups: std::sync::RwLock<HashSet<i64>>,
-        blocked_users: std::sync::RwLock<HashSet<i64>>,
+        group_blocked: std::sync::RwLock<HashSet<i64>>,
+        private_blocked: std::sync::RwLock<HashSet<i64>>,
     }
 
     impl AccessControl {
-        /// 从 config.toml 字段构造。
-        pub fn from_config(initial_groups: &[i64], blacklist: &[i64]) -> Arc<Self> {
+        /// 从 runtime.toml 字段构造。
+        pub fn from_config(
+            initial_groups: &[i64],
+            group_blacklist: &[i64],
+            private_blacklist: &[i64],
+        ) -> Arc<Self> {
             Arc::new(Self {
                 allowed_groups: std::sync::RwLock::new(initial_groups.iter().copied().collect()),
-                blocked_users: std::sync::RwLock::new(blacklist.iter().copied().collect()),
+                group_blocked: std::sync::RwLock::new(group_blacklist.iter().copied().collect()),
+                private_blocked: std::sync::RwLock::new(private_blacklist.iter().copied().collect()),
             })
         }
 
@@ -355,28 +393,58 @@ mod inner {
                 .collect()
         }
 
-        pub fn is_user_blocked(&self, user_id: i64, _scope: &Scope) -> bool {
-            self.blocked_users
-                .read()
-                .expect("blocked RwLock poisoned")
-                .contains(&user_id)
+        pub fn is_user_blocked(&self, user_id: i64, scope: &Scope) -> bool {
+            match scope {
+                Scope::Group(_) => {
+                    self.group_blocked
+                        .read()
+                        .expect("group_blocked RwLock poisoned")
+                        .contains(&user_id)
+                }
+                Scope::Private(_) => {
+                    self.private_blocked
+                        .read()
+                        .expect("private_blocked RwLock poisoned")
+                        .contains(&user_id)
+                }
+            }
         }
 
         /// 内存 block（无 DB 时重启丢失）
-        pub async fn block_user(&self, _scope: &Scope, user_id: i64) -> anyhow::Result<()> {
-            self.blocked_users
-                .write()
-                .expect("blocked RwLock poisoned")
-                .insert(user_id);
+        pub async fn block_user(&self, scope: &Scope, user_id: i64) -> anyhow::Result<()> {
+            match scope {
+                Scope::Group(_) => {
+                    self.group_blocked
+                        .write()
+                        .expect("group_blocked RwLock poisoned")
+                        .insert(user_id);
+                }
+                Scope::Private(_) => {
+                    self.private_blocked
+                        .write()
+                        .expect("private_blocked RwLock poisoned")
+                        .insert(user_id);
+                }
+            }
             Ok(())
         }
 
         /// 内存 unblock（无 DB 时重启丢失）
-        pub async fn unblock_user(&self, _scope: &Scope, user_id: i64) -> anyhow::Result<()> {
-            self.blocked_users
-                .write()
-                .expect("blocked RwLock poisoned")
-                .remove(&user_id);
+        pub async fn unblock_user(&self, scope: &Scope, user_id: i64) -> anyhow::Result<()> {
+            match scope {
+                Scope::Group(_) => {
+                    self.group_blocked
+                        .write()
+                        .expect("group_blocked RwLock poisoned")
+                        .remove(&user_id);
+                }
+                Scope::Private(_) => {
+                    self.private_blocked
+                        .write()
+                        .expect("private_blocked RwLock poisoned")
+                        .remove(&user_id);
+                }
+            }
             Ok(())
         }
 

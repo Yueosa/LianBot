@@ -1,7 +1,7 @@
 mod model;
 mod access;
 
-pub use model::{BotUser, Role, Scope, Status};
+pub use model::{BotUser, Role, Scope};
 pub use access::AccessControl;
 
 use serde::Deserialize;
@@ -18,9 +18,12 @@ pub struct BotConfig {
     /// 启动时导入 DB 的初始群列表（已有记录则跳过，不会覆盖）
     #[serde(default)]
     pub initial_groups: Vec<i64>,
-    /// 静态黑名单（QQ 号列表），无 core-db 时作为 fallback
+    /// 群聊黑名单（QQ 号列表），Bot 忽略这些用户在任何群中的消息
     #[serde(default)]
-    pub blacklist: Vec<i64>,
+    pub group_blacklist: Vec<i64>,
+    /// 私聊黑名单（QQ 号列表），Bot 忽略这些用户的私聊消息
+    #[serde(default)]
+    pub private_blacklist: Vec<i64>,
 }
 
 impl Default for BotConfig {
@@ -29,7 +32,8 @@ impl Default for BotConfig {
             owner: 0,
             db_path: "permissions.db".to_string(),
             initial_groups: Vec::new(),
-            blacklist: Vec::new(),
+            group_blacklist: Vec::new(),
+            private_blacklist: Vec::new(),
         }
     }
 }
