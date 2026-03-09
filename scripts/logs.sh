@@ -14,29 +14,31 @@ if [[ -n "$log_dir" ]]; then
     [[ "$log_dir" != /* ]] && log_dir="$LIANBOT_DIR/$log_dir"
 
     today=$(date -u +%Y-%m-%d)
-    log_file="${log_dir}/lianbot.log.utc.${today}"
+    log_file="${log_dir}/lianbot.log.${today}"
 
     if [[ ! -f "$log_file" ]]; then
-        latest=$(ls -1t "${log_dir}"/lianbot.log.utc.* 2>/dev/null | head -1)
+        latest=$(ls -1t "${log_dir}"/lianbot.log.20* 2>/dev/null | head -1)
         if [[ -n "$latest" ]]; then
             warn "今日日志尚未生成，显示最近: $latest"
             echo ""
             log_file="$latest"
         else
-            warn "日志目录 $log_dir 中暂无日志文件"
-            exit 1
+            warn "日志目录 $log_dir 中暂无日志文件，回退 journald"
+            echo ""
+            sudo journalctl -u lianbot -f --no-pager
+            exit 0
         fi
     fi
 
     info "实时跟踪: $log_file  (Ctrl-C 退出)"
     echo ""
     if [[ -r "$log_file" ]]; then
-        tail -f "$log_file"
+        tail -F "$log_file"
     else
-        sudo tail -f "$log_file"
+        sudo tail -F "$log_file"
     fi
 else
     info "未配置 log_dir，使用 journald  (Ctrl-C 退出)"
     echo ""
-    sudo journalctl -u lianbot -f
+    sudo journalctl -u lianbot -f --no-pager
 fi
