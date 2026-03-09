@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::runtime::permission::Scope;
 use crate::runtime::typ::event::{MessageEvent, Sender};
 use crate::runtime::typ::message::MessageSegment;
 
@@ -41,7 +42,7 @@ impl Default for PoolConfig {
 pub struct PoolMessage {
     /// OneBot message_id（接近 i32::MAX，使用 i64）
     pub msg_id: i64,
-    pub group_id: i64,
+    pub scope: Scope,
     pub user_id: i64,
     /// sender.card（群名片）|| sender.nickname，已提取
     pub nickname: String,
@@ -98,12 +99,7 @@ pub struct ProcessRecord {
 
 impl PoolMessage {
     /// 从实时推送的 MessageEvent 构造。
-    /// 非群消息返回 None。
-    pub fn from_event(event: &MessageEvent, group_id: i64) -> Option<Self> {
-        if !event.is_group() {
-            return None;
-        }
-
+    pub fn from_event(event: &MessageEvent, scope: Scope) -> Option<Self> {
         let msg_id   = event.message_id.unwrap_or(0);
         let user_id  = event.user_id;
         let timestamp = event.time.unwrap_or_else(now_secs);
@@ -116,7 +112,7 @@ impl PoolMessage {
         let kind = classify_kind(&segments);
 
         Some(Self {
-            msg_id, group_id, user_id, nickname, timestamp,
+            msg_id, scope, user_id, nickname, timestamp,
             kind, text, segments,
             status: MsgStatus::Pending,
             process: None,
@@ -125,7 +121,7 @@ impl PoolMessage {
 
     /// 从 `get_group_msg_history` 返回的原始 JSON 构造。
     /// 用于冷启动 back-seeding。
-    pub fn from_api_value(value: &Value, group_id: i64) -> Option<Self> {
+    pub fn from_api_value(value: &Value, scope: Scope) -> Option<Self> {
         // 跳过 Bot 自身发送的消息
         if value.get("post_type").and_then(Value::as_str) == Some("message_sent") {
             return None;
@@ -150,7 +146,7 @@ impl PoolMessage {
         let kind = classify_kind(&segments);
 
         Some(Self {
-            msg_id, group_id, user_id, nickname, timestamp,
+            msg_id, scope, user_id, nickname, timestamp,
             kind, text, segments,
             status: MsgStatus::Pending,
             process: None,

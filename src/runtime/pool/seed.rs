@@ -2,6 +2,7 @@ use anyhow::Context;
 use serde_json::Value;
 
 use crate::runtime::api::ApiClient;
+use crate::runtime::permission::Scope;
 
 use super::model::{PoolConfig, PoolMessage};
 use super::traits::MessagePool;
@@ -72,7 +73,7 @@ async fn seed_one_group(
             if ts < cutoff {
                 reached_cutoff = true;
             }
-            if let Some(msg) = PoolMessage::from_api_value(value, group_id) {
+            if let Some(msg) = PoolMessage::from_api_value(value, Scope::Group(group_id)) {
                 pool.push(msg).await;
                 seeded += 1;
             }

@@ -5,19 +5,18 @@ use async_trait::async_trait;
 use tokio::sync::RwLock;
 use tracing::debug;
 
+use crate::runtime::permission::Scope;
 use super::{MessagePool, MsgStatus, PoolConfig, PoolMessage, ProcessRecord};
 
 // ── MemoryPool ────────────────────────────────────────────────────────────────
 
-/// 基于 RwLock<HashMap<群号, VecDeque<PoolMessage>>> 的内存消息缓冲。
+/// 基于 RwLock<HashMap<Scope, VecDeque<PoolMessage>>> 的内存消息缓冲。
 ///
 /// 淘汰策略（双重触发）：
 ///   1. 容量淘汰：每次 push 后若 len > capacity，从队头 pop_front（最旧的先淘汰）
 ///   2. 时间淘汰：每次 push 后扫描队头，删除早于 (now - evict_after_secs) 的消息
-///
-/// `recent_internal(n)` 的结果是 "capacity 内最近 n 条"，不保证跨越超长时间窗口。
 pub struct MemoryPool {
-    groups: RwLock<HashMap<i64, VecDeque<PoolMessage>>>,
+    scopes: RwLock<HashMap<Scope, VecDeque<PoolMessage>>>,
     capacity: usize,
     evict_after_secs: i64,
 }
@@ -25,7 +24,7 @@ pub struct MemoryPool {
 impl MemoryPool {
     pub fn new(cfg: &PoolConfig) -> Arc<Self> {
         Arc::new(Self {
-            groups: RwLock::new(HashMap::new()),
+            scopes: RwLock::new(HashMap::new()),
             capacity: cfg.per_group_capacity,
             evict_after_secs: cfg.evict_after_secs,
         })
@@ -41,9 +40,9 @@ impl MessagePool for MemoryPool {
             .unwrap_or(0);
         let cutoff = now.saturating_sub(self.evict_after_secs);
 
-        let gid = msg.group_id;
-        let mut guard = self.groups.write().await;
-        let deque = guard.entry(gid).or_default();
+        let scope = msg.scope;
+        let mut guard = self.scopes.write().await;
+        let deque = guard.entry(scope).or_default();
 
         // msg_id 去重：已存在则跳过（back_seed 场景）
         if deque.iter().rev().any(|m| m.msg_id == msg.msg_id) {
@@ -62,14 +61,13 @@ impl MessagePool for MemoryPool {
             deque.pop_front();
         }
 
-        debug!("[pool] 群 {gid} push, depth={}", deque.len());
+        debug!("[pool] {scope:?} push, depth={}", deque.len());
     }
 
-    async fn recent_internal(&self, gid: i64, n: usize) -> Vec<PoolMessage> {
-        let guard = self.groups.read().await;
-        let Some(deque) = guard.get(&gid) else { return vec![] };
+    async fn recent_internal(&self, scope: &Scope, n: usize) -> Vec<PoolMessage> {
+        let guard = self.scopes.read().await;
+        let Some(deque) = guard.get(scope) else { return vec![] };
 
-        // 取最后 n 条，按时序 旧→新 返回
         deque.iter()
             .rev()
             .take(n)
@@ -80,9 +78,9 @@ impl MessagePool for MemoryPool {
             .collect()
     }
 
-    async fn range(&self, gid: i64, since: i64, until: i64) -> Vec<PoolMessage> {
-        let guard = self.groups.read().await;
-        let Some(deque) = guard.get(&gid) else { return vec![] };
+    async fn range(&self, scope: &Scope, since: i64, until: i64) -> Vec<PoolMessage> {
+        let guard = self.scopes.read().await;
+        let Some(deque) = guard.get(scope) else { return vec![] };
 
         deque.iter()
             .filter(|m| m.timestamp >= since && m.timestamp <= until)
@@ -90,14 +88,14 @@ impl MessagePool for MemoryPool {
             .collect()
     }
 
-    async fn oldest_timestamp(&self, gid: i64) -> Option<i64> {
-        let guard = self.groups.read().await;
-        guard.get(&gid)?.front().map(|m| m.timestamp)
+    async fn oldest_timestamp(&self, scope: &Scope) -> Option<i64> {
+        let guard = self.scopes.read().await;
+        guard.get(scope)?.front().map(|m| m.timestamp)
     }
 
-    async fn mark(&self, msg_id: i64, group_id: i64, status: MsgStatus, record: ProcessRecord) {
-        let mut guard = self.groups.write().await;
-        let Some(deque) = guard.get_mut(&group_id) else { return };
+    async fn mark(&self, msg_id: i64, scope: &Scope, status: MsgStatus, record: ProcessRecord) {
+        let mut guard = self.scopes.write().await;
+        let Some(deque) = guard.get_mut(scope) else { return };
 
         // 从队尾反向查找（最近的消息在队尾，绝大多数场景 O(1)~O(几)）
         for msg in deque.iter_mut().rev() {
@@ -116,14 +114,15 @@ impl MessagePool for MemoryPool {
 mod tests {
     use super::*;
     use crate::{
+        runtime::permission::Scope,
         runtime::pool::{MsgKind, MsgStatus, PoolConfig, PoolMessage},
         runtime::typ::message::MessageSegment,
     };
 
-    fn make_msg(gid: i64, uid: i64, ts: i64, text: &str) -> PoolMessage {
+    fn make_msg(scope: Scope, uid: i64, ts: i64, text: &str) -> PoolMessage {
         PoolMessage {
             msg_id: ts,
-            group_id: gid,
+            scope,
             user_id: uid,
             nickname: "test".into(),
             timestamp: ts,
@@ -143,49 +142,51 @@ mod tests {
         })
     }
 
+    fn g(id: i64) -> Scope { Scope::Group(id) }
+
     #[tokio::test]
     async fn test_push_and_recent() {
-        let p = pool(5, i64::MAX); // 不测试时间淘汰（saturating_sub → cutoff ≤ 0）
+        let p = pool(5, i64::MAX);
         for i in 1..=3 {
-            p.push(make_msg(1, 100, i, &format!("msg{i}"))).await;
+            p.push(make_msg(g(1), 100, i, &format!("msg{i}"))).await;
         }
-        let r = p.recent_internal(1, 10).await;
+        let r = p.recent_internal(&g(1), 10).await;
         assert_eq!(r.len(), 3);
-        assert_eq!(r[0].timestamp, 1); // 旧 → 新
+        assert_eq!(r[0].timestamp, 1);
         assert_eq!(r[2].timestamp, 3);
     }
 
     #[tokio::test]
     async fn test_capacity_eviction() {
-        let p = pool(3, i64::MAX); // 不测试时间淘汰
+        let p = pool(3, i64::MAX);
         for i in 1..=5 {
-            p.push(make_msg(1, 100, i, "x")).await;
+            p.push(make_msg(g(1), 100, i, "x")).await;
         }
-        let r = p.recent_internal(1, 10).await;
+        let r = p.recent_internal(&g(1), 10).await;
         assert_eq!(r.len(), 3);
-        assert_eq!(r[0].timestamp, 3); // 最旧的 1,2 被淘汰
+        assert_eq!(r[0].timestamp, 3);
     }
 
     #[tokio::test]
     async fn test_range() {
-        let p = pool(100, i64::MAX); // 不测试时间淘汰
+        let p = pool(100, i64::MAX);
         for i in 1..=10 {
-            p.push(make_msg(1, 100, i * 1000, "x")).await;
+            p.push(make_msg(g(1), 100, i * 1000, "x")).await;
         }
-        let r = p.range(1, 3000, 7000).await;
-        assert_eq!(r.len(), 5); // ts=3000,4000,5000,6000,7000
+        let r = p.range(&g(1), 3000, 7000).await;
+        assert_eq!(r.len(), 5);
     }
 
     #[tokio::test]
     async fn test_time_eviction() {
-        let p = pool(100, 10); // evict > 10s
+        let p = pool(100, 10);
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        p.push(make_msg(1, 100, now - 20, "old")).await; // 过期
-        p.push(make_msg(1, 100, now, "new")).await;      // 新消息触发淘汰
-        let r = p.recent_internal(1, 10).await;
+        p.push(make_msg(g(1), 100, now - 20, "old")).await;
+        p.push(make_msg(g(1), 100, now, "new")).await;
+        let r = p.recent_internal(&g(1), 10).await;
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].text.as_deref(), Some("new"));
     }
@@ -193,12 +194,10 @@ mod tests {
     #[tokio::test]
     async fn test_dedup_msg_id() {
         let p = pool(100, i64::MAX);
-        // 推入两条不同消息
-        p.push(make_msg(1, 100, 1, "first")).await;
-        p.push(make_msg(1, 200, 2, "second")).await;
-        // 重复 msg_id=1，应被拒绝
-        p.push(make_msg(1, 100, 1, "dup")).await;
-        let r = p.recent_internal(1, 10).await;
+        p.push(make_msg(g(1), 100, 1, "first")).await;
+        p.push(make_msg(g(1), 200, 2, "second")).await;
+        p.push(make_msg(g(1), 100, 1, "dup")).await;
+        let r = p.recent_internal(&g(1), 10).await;
         assert_eq!(r.len(), 2);
         assert_eq!(r[0].text.as_deref(), Some("first"));
         assert_eq!(r[1].text.as_deref(), Some("second"));
