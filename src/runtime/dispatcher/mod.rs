@@ -8,8 +8,8 @@ use tracing::{debug, info, info_span, warn, Instrument};
 use crate::{
     commands::{gen_trace_id, Command, CommandContext, Dependency},
     runtime::{
-        permission::{AccessControl, BotUser, Role, Scope, Status},
-        api::ApiClient,
+        permission::{AccessControl, BotUser, Role, Scope},
+        api::{ApiClient, MsgTarget},
         parser::{CommandParser, ParsedCommand, ParamValue},
         pool::{MessagePool, MsgStatus, Pool, PoolMessage, ProcessRecord},
         registry::CommandRegistry,
@@ -22,7 +22,7 @@ use crate::{
 //
 // 事件分发器，是整个 Bot 的"大脑"入口：
 //   1. 接收已反序列化的 OneBotEvent
-//   2. 白名单过滤
+//   2. 网关过滤（群白名单 / 私聊黑名单）
 //   3. 命令识别 → 命令路由
 //   4. 非命令消息交给 `handle_plain`（关键词 / 未来 AI 对话入口）
 
@@ -64,7 +64,6 @@ impl Dispatcher {
                 debug!("收到 Notice 事件（暂未处理）");
             }
             OneBotEvent::MetaEvent(meta) => {
-                // 心跳等元事件静默忽略
                 debug!("MetaEvent: {:?}", meta.meta_event_type);
             }
             OneBotEvent::Request(_) => {
@@ -79,41 +78,54 @@ impl Dispatcher {
     // ── 消息处理 ──────────────────────────────────────────────────────────────
 
     async fn handle_message(&self, event: MessageEvent) -> anyhow::Result<()> {
-        // 1. 只处理群消息
-        let group_id = match event.group_id {
-            Some(id) if event.is_group() => id,
-            _ => return Ok(()), // 私聊暂不处理
+        // 1. 提取交互域
+        let scope = if let Some(gid) = event.group_id.filter(|_| event.is_group()) {
+            Scope::Group(gid)
+        } else {
+            Scope::Private(event.user_id)
         };
 
-        // 2. 群网关校验（该群是否对 Bot 开放）
-        //    Owner 绕过：允许在禁用群中使用管理命令和调试
         let is_owner = event.user_id == self.owner;
-        if !is_owner && !self.access.is_group_enabled(group_id) {
-            return Ok(());
+
+        // 2. 网关校验（Owner 绕过）
+        match scope {
+            Scope::Group(gid) => {
+                if !is_owner && !self.access.is_group_enabled(gid) {
+                    return Ok(());
+                }
+            }
+            Scope::Private(_) => {
+                // 私聊网关：当前仅 Owner 和非黑名单用户可通过
+                // TODO: 后续可在 AccessControl 增加私聊白名单策略
+            }
         }
 
-        // 3. 写入消息池（群开着就忠实记录，与用户状态无关）
+        // 3. 写入消息池（通过网关就忠实记录，与用户黑名单无关）
         if let Some(pool) = &self.pool {
-            if let Some(pool_msg) = PoolMessage::from_event(&event, group_id) {
+            if let Some(pool_msg) = PoolMessage::from_event(&event, scope) {
                 pool.push(pool_msg).await;
             }
         }
 
-        // 4. 构造 BotUser（内联身份解析）
-        let bot_user = self.resolve_user(event.user_id, Scope::Group(group_id));
+        // 4. 构造 BotUser
+        let bot_user = self.resolve_user(event.user_id, scope);
 
-        // 5. 用户门控（Blocked 静默丢弃，不触发任何动作，但消息已入池）
-        if bot_user.status == Status::Blocked {
+        // 5. 用户门控（黑名单检查，Owner 永远通过）
+        if !is_owner && self.access.is_user_blocked(event.user_id, &scope) {
             return Ok(());
         }
 
         // 6. 提取文本
         let desc = event.describe();
         let text = event.full_text();
-        info!("[群 {group_id}] {}: {desc}", event.user_id);
+        let scope_label = match scope {
+            Scope::Group(gid) => format!("群 {gid}"),
+            Scope::Private(uid) => format!("私聊 {uid}"),
+        };
+        info!("[{scope_label}] {}: {desc}", event.user_id);
 
         if text.is_empty() {
-            return Ok(()); // 纯图片/语音等，跳过
+            return Ok(());
         }
 
         // 7. 尝试解析命令
@@ -122,14 +134,13 @@ impl Dispatcher {
 
         match CommandParser::parse(&text, &self.cmd_prefix) {
             Some(ParsedCommand::Simple { name, trailing }) => {
-                self.dispatch_simple(group_id, message_id, bot_user, segments, name, trailing).await
+                self.dispatch_simple(scope, message_id, bot_user, segments, name, trailing).await
             }
             Some(ParsedCommand::Advanced { name, params }) => {
-                self.dispatch_advanced(group_id, message_id, bot_user, segments, name, params).await
+                self.dispatch_advanced(scope, message_id, bot_user, segments, name, params).await
             }
             None => {
-                // 非命令消息 → 关键词匹配 / AI 对话入口（可扩展）
-                self.handle_plain(group_id, &event, &text).await
+                self.handle_plain(scope, &event, &text).await
             }
         }
     }
@@ -138,36 +149,36 @@ impl Dispatcher {
 
     async fn dispatch_simple(
         &self,
-        group_id: i64,
+        scope: Scope,
         message_id: Option<i64>,
         bot_user: BotUser,
         segments: Vec<MessageSegment>,
         name: String,
         trailing: Vec<String>,
     ) -> anyhow::Result<()> {
+        let target = MsgTarget::from(scope);
         match self.registry.get_simple(&name) {
             Some(cmd) => {
                 // 帮助请求
                 if let Some(help_text) = help::try_help(cmd.as_ref(), |f| trailing.iter().any(|t| t == f)) {
-                    return self.api.send_text(group_id, &help_text).await;
+                    return self.api.send_msg(target, &help_text).await;
                 }
                 // 依赖预检
                 if let Some(msg) = self.check_dependencies(cmd.as_ref()).await {
-                    return self.api.send_text(group_id, &msg).await;
+                    return self.api.send_msg(target, &msg).await;
                 }
                 // 权限检查
                 if bot_user.role < cmd.required_role() {
-                    return self.api.send_text(group_id, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
+                    return self.api.send_msg(target, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
                 }
                 // Simple 命令参数处理
                 if cmd.accepts_trailing() {
-                    // 支持尾部参数的 Simple 命令：将 trailing 合并为 _args
                     let mut params: HashMap<String, ParamValue> = HashMap::new();
                     if !trailing.is_empty() {
                         params.insert("_args".into(), ParamValue::Value(trailing.join(" ")));
                     }
-                    let ctx = self.build_ctx(group_id, message_id, bot_user, segments, params);
-                    self.execute_and_mark(cmd, ctx, group_id, message_id).await
+                    let ctx = self.build_ctx(message_id, bot_user, segments, params);
+                    self.execute_and_mark(cmd, ctx, scope, message_id).await
                 } else if !trailing.is_empty() {
                     let prefix = &self.cmd_prefix;
                     let unknown: Vec<_> = trailing.iter().filter(|t| t.starts_with('-')).collect();
@@ -176,16 +187,16 @@ impl Dispatcher {
                     } else {
                         format!("❌ {prefix}{name} 是简单命令，不接受额外参数（输入 {prefix}{name} -h 查看用法）")
                     };
-                    return self.api.send_text(group_id, &detail).await;
+                    return self.api.send_msg(target, &detail).await;
                 } else {
-                    let ctx = self.build_ctx(group_id, message_id, bot_user, segments, Default::default());
-                    self.execute_and_mark(cmd, ctx, group_id, message_id).await
+                    let ctx = self.build_ctx(message_id, bot_user, segments, Default::default());
+                    self.execute_and_mark(cmd, ctx, scope, message_id).await
                 }
             }
             None => {
                 debug!("未知简单命令: {name}");
                 let prefix = &self.cmd_prefix;
-                self.api.send_text(group_id, &format!("❓ 未知命令: {prefix}{name}，输入 {prefix}help 查看命令列表")).await
+                self.api.send_msg(target, &format!("❓ 未知命令: {prefix}{name}，输入 {prefix}help 查看命令列表")).await
             }
         }
     }
@@ -194,51 +205,49 @@ impl Dispatcher {
 
     async fn dispatch_advanced(
         &self,
-        group_id: i64,
+        scope: Scope,
         message_id: Option<i64>,
         bot_user: BotUser,
         segments: Vec<MessageSegment>,
         name: String,
         params: HashMap<String, ParamValue>,
     ) -> anyhow::Result<()> {
+        let target = MsgTarget::from(scope);
         match self.registry.get_advanced(&name) {
             Some(cmd) => {
                 // 帮助请求
                 if let Some(help_text) = help::try_help(cmd.as_ref(), |f| params.contains_key(f)) {
-                    return self.api.send_text(group_id, &help_text).await;
+                    return self.api.send_msg(target, &help_text).await;
                 }
                 // 依赖预检
                 if let Some(msg) = self.check_dependencies(cmd.as_ref()).await {
-                    return self.api.send_text(group_id, &msg).await;
+                    return self.api.send_msg(target, &msg).await;
                 }
                 // 权限检查
                 if bot_user.role < cmd.required_role() {
-                    return self.api.send_text(group_id, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
+                    return self.api.send_msg(target, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
                 }
-                // 参数校验（未知/必填/值约束）
+                // 参数校验
                 if let Err(detail) = validation::validate_params(&params, cmd.declared_params()) {
                     let text = format!("❌ {detail}\n输入 <{}> --help 查看用法", cmd.name());
-                    return self.api.send_text(group_id, &text).await;
+                    return self.api.send_msg(target, &text).await;
                 }
-                let ctx = self.build_ctx(group_id, message_id, bot_user, segments, params);
-                self.execute_and_mark(cmd, ctx, group_id, message_id).await
+                let ctx = self.build_ctx(message_id, bot_user, segments, params);
+                self.execute_and_mark(cmd, ctx, scope, message_id).await
             }
             None => {
                 debug!("未知复杂命令: {name}");
                 let prefix = &self.cmd_prefix;
-                self.api.send_text(group_id, &format!("❓ 未知命令: <{name}>，输入 {prefix}help 查看命令列表")).await
+                self.api.send_msg(target, &format!("❓ 未知命令: <{name}>，输入 {prefix}help 查看命令列表")).await
             }
         }
     }
 
     // ── 普通消息处理（关键词 / AI 预留入口） ──────────────────────────────────
 
-    /// 非命令消息处理。
-    /// 当前：空实现（静默）。
-    /// 未来：接入关键词表、AI 自动对话等。
     async fn handle_plain(
         &self,
-        _group_id: i64,
+        _scope: Scope,
         _event: &MessageEvent,
         _text: &str,
     ) -> anyhow::Result<()> {
@@ -248,14 +257,12 @@ impl Dispatcher {
 
     // ── 依赖预检 ────────────────────────────────────────────────────────────────
 
-    /// 检查命令的运行时依赖是否全部可用。
-    /// 返回第一个不可用依赖的友好提示，或 `None` 表示全部可用。
     async fn check_dependencies(&self, cmd: &dyn Command) -> Option<String> {
         for dep in cmd.dependencies() {
             let available = match dep {
                 Dependency::Pool   => self.pool.is_some(),
                 Dependency::Ws     => self.ws.has_clients().await,
-                Dependency::Config => true, // 配置始终可用
+                Dependency::Config => true,
             };
             if !available {
                 let desc = match dep {
@@ -271,20 +278,20 @@ impl Dispatcher {
 
     // ── 辅助 ──────────────────────────────────────────────────────────────────
 
-    /// 执行命令并向消息池报告处理结果。
-    /// 计时 → 执行 → 根据 Ok/Err 生成 ProcessRecord → pool.mark()
-    ///
-    /// 自动创建 tracing span，命令内部所有日志自动携带 tid/cmd/grp 字段。
     async fn execute_and_mark(
         &self,
         cmd: &Arc<dyn Command>,
         ctx: CommandContext,
-        group_id: i64,
+        scope: Scope,
         message_id: Option<i64>,
     ) -> anyhow::Result<()> {
         let cmd_name = cmd.name().to_string();
         let tid = ctx.trace_id.clone();
-        let span = info_span!("cmd", tid = %tid, cmd = %cmd_name, grp = group_id);
+        let scope_label = match scope {
+            Scope::Group(gid) => format!("{gid}"),
+            Scope::Private(uid) => format!("p{uid}"),
+        };
+        let span = info_span!("cmd", tid = %tid, cmd = %cmd_name, scope = %scope_label);
         let start = std::time::Instant::now();
 
         let result = cmd.execute(ctx).instrument(span).await;
@@ -296,13 +303,13 @@ impl Dispatcher {
             Err(e) => warn!("[{cmd_name}] tid={tid} 失败 {duration_ms}ms: {e:#}"),
         }
 
-        // 向消息池报告处理状态（无 pool 或无 msg_id 时跳过）
+        // 向消息池报告处理状态
         if let (Some(pool), Some(mid)) = (&self.pool, message_id) {
             let (status, error) = match &result {
                 Ok(()) => (MsgStatus::Done, None),
                 Err(e) => (MsgStatus::Error, Some(format!("{e:#}"))),
             };
-            pool.mark(mid, group_id, status, ProcessRecord {
+            pool.mark(mid, &scope, status, ProcessRecord {
                 command: cmd_name,
                 duration_ms,
                 error,
@@ -312,8 +319,8 @@ impl Dispatcher {
         result
     }
 
-    /// 内联身份解析：综合 owner 判断 + 准入控制黑名单 → 产出 BotUser。
-    /// 未来 LLM 接入后可扩展为独立的 UserResolver。
+    /// 内联身份解析：综合 owner 判断 → 产出 BotUser。
+    /// 黑名单检查在网关层完成，此处不再判断 Status。
     fn resolve_user(&self, user_id: i64, scope: Scope) -> BotUser {
         let role = if user_id == self.owner {
             Role::Owner
@@ -321,21 +328,11 @@ impl Dispatcher {
             Role::Member
         };
 
-        let status = if role == Role::Owner {
-            // Owner 永远 Normal，不受黑名单影响
-            Status::Normal
-        } else if self.access.is_user_blocked(user_id, &scope) {
-            Status::Blocked
-        } else {
-            Status::Normal
-        };
-
-        BotUser { user_id, scope, role, status }
+        BotUser { user_id, scope, role }
     }
 
     fn build_ctx(
         &self,
-        group_id: i64,
         message_id: Option<i64>,
         bot_user: BotUser,
         segments: Vec<MessageSegment>,
@@ -343,7 +340,6 @@ impl Dispatcher {
     ) -> CommandContext {
         CommandContext {
             trace_id: gen_trace_id(),
-            group_id,
             message_id,
             bot_user,
             segments,
