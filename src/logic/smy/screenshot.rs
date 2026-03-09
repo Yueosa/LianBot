@@ -2,12 +2,13 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
-use tracing::debug;
+use tracing::{debug, warn};
 
-const MEASURE_VIEWPORT_HEIGHT: u32 = 2000;
+const MEASURE_VIEWPORT_HEIGHT: u32 = 20_000;
 const MIN_SCREENSHOT_HEIGHT: u32 = 600;
 const MAX_SCREENSHOT_HEIGHT: u32 = 20_000;
 const HEIGHT_SAFETY_PADDING: u32 = 24;
+const FALLBACK_HEIGHT: u32 = 8000;
 
 /// 单步 Chrome 操作的超时时间。
 const CHROME_STEP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -72,7 +73,19 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
 
     let dom_output = run_with_timeout(&mut cmd1, "dump-dom")?;
     let dom_str = String::from_utf8_lossy(&dom_output.stdout);
-    let measured_height = extract_title_height(&dom_str).unwrap_or(4000);
+    let measured_height = match extract_title_height(&dom_str) {
+        Some(h) => h,
+        None => {
+            if !dom_output.status.success() {
+                let stderr = String::from_utf8_lossy(&dom_output.stderr);
+                warn!("dump-dom 失败 (exit={}): {}", dom_output.status, &stderr[..stderr.len().min(200)]);
+            } else {
+                warn!("dump-dom 高度提取失败，回退 {FALLBACK_HEIGHT}px (title 区域: {:?})",
+                    dom_str.find("<title>").map(|s| &dom_str[s..dom_str.len().min(s + 60)]));
+            }
+            FALLBACK_HEIGHT
+        }
+    };
     let target_height = measured_height.saturating_add(HEIGHT_SAFETY_PADDING);
     let height = target_height.clamp(MIN_SCREENSHOT_HEIGHT, MAX_SCREENSHOT_HEIGHT);
     debug!(
