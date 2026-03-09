@@ -27,7 +27,10 @@ impl Command for SmyCommand {
     fn dependencies(&self) -> &[Dependency] { &[Dependency::Config] }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
-        let group_id = ctx.group_id;
+        let group_id = match ctx.group_id() {
+            Some(gid) => gid,
+            None => return ctx.reply("❌ 群聊总结仅在群聊中可用").await,
+        };
         let cfg = logic_config::section::<SmyPluginConfig>("smy");
 
         // AI 总结开关：默认关闭，用户显式传 -a/--ai 才启用
@@ -38,7 +41,7 @@ impl Command for SmyCommand {
             match &cfg.llm {
                 Some(c) => Some(c.clone()),
                 None => {
-                    return ctx.api.send_text(group_id, "❌ 未配置 LLM，无法进行 AI 总结（可去掉 -a 使用纯统计模式）").await;
+                    return ctx.reply("❌ 未配置 LLM，无法进行 AI 总结（可去掉 -a 使用纯统计模式）").await;
                 }
             }
         } else {
@@ -50,7 +53,7 @@ impl Command for SmyCommand {
         let time_window_secs = match time_opt {
             Some(v) => match smy::fetcher::parse_duration(v) {
                 Some(secs) => secs,
-                None => return ctx.api.send_text(group_id, "❌ 时间格式错误，请使用 30m / 2h / 1d").await,
+                None => return ctx.reply("❌ 时间格式错误，请使用 30m / 2h / 1d").await,
             },
             None => 86400,
         };
@@ -58,9 +61,7 @@ impl Command for SmyCommand {
 
         info!("[smy] 模式: {mode_desc}, ai={with_ai}");
 
-        ctx.api
-            .send_text(group_id, "📊 正在总结，请稍候...")
-            .await?;
+        ctx.reply("📊 正在总结，请稍候...").await?;
 
         let fetch_result = smy::fetcher::fetch(
             &ctx.api,
@@ -71,9 +72,7 @@ impl Command for SmyCommand {
         let messages = fetch_result.messages;
 
         if matches!(fetch_result.source, FetchSource::ApiExhausted) {
-            ctx.api
-                .send_text(group_id, "⚠️ 服务端历史消息不足，当前时间窗口未被完整覆盖")
-                .await?;
+            ctx.reply("⚠️ 服务端历史消息不足，当前时间窗口未被完整覆盖").await?;
         }
 
         if let Some(gap) = fetch_result.gap {
@@ -82,19 +81,16 @@ impl Command for SmyCommand {
                 GapLevel::Week => "跨周",
                 GapLevel::Month => "跨月",
             };
-            ctx.api
-                .send_text(
-                    group_id,
-                    &format!(
-                        "⚠️ 检测到消息时间断层（{}，约 {:.1} 小时），统计结果可能不连续",
-                        level, gap.gap_hours
-                    ),
-                )
-                .await?;
+            ctx.reply(
+                &format!(
+                    "⚠️ 检测到消息时间断层（{}，约 {:.1} 小时），统计结果可能不连续",
+                    level, gap.gap_hours
+                ),
+            ).await?;
         }
 
         if messages.is_empty() {
-            return ctx.api.send_text(group_id, "📭 该时间范围内没有聊天记录").await;
+            return ctx.reply("📭 该时间范围内没有聊天记录").await;
         }
 
         debug!("[smy] 拉取完成: {} 条消息", messages.len());
@@ -109,12 +105,12 @@ impl Command for SmyCommand {
             Ok(b) => b,
             Err(e) => {
                 warn!("[smy] 管道失败: {e:#}");
-                return ctx.api.send_text(group_id, &format!("❌ 生成报告失败: {e}")).await;
+                return ctx.reply(&format!("❌ 生成报告失败: {e}")).await;
             }
         };
 
         // ── 发送图片 ─────────────────────────────────────────────────────────
-        ctx.api.send_image(group_id, &format!("base64://{base64_img}")).await?;
+        ctx.reply_image(&format!("base64://{base64_img}")).await?;
         Ok(())
     }
 }
