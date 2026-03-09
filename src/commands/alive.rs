@@ -63,7 +63,7 @@ impl Command for AliveCommand {
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<AlivePluginConfig>("alive");
         if cfg.api_url.is_empty() {
-            return ctx.api.send_text(ctx.group_id, "❌ alive 未配置 api_url，请在 logic.toml [alive] 中设置").await;
+            return ctx.reply("❌ alive 未配置 api_url，请在 logic.toml [alive] 中设置").await;
         }
         debug!("[alive] 请求设备状态, url={}", cfg.api_url);
         let resp = http_client()
@@ -80,8 +80,7 @@ impl Command for AliveCommand {
         if resp.privacy {
             warn!("[alive] 主人开启了私密模式");
             return ctx
-                .api
-                .send_text(ctx.group_id, "主人开启了私密模式哦！不能看！")
+                .reply("主人开启了私密模式哦！不能看！")
                 .await;
         }
 
@@ -116,6 +115,6 @@ impl Command for AliveCommand {
             }
         }
 
-        ctx.api.send_text(ctx.group_id, &lines.join("\n")).await
+        ctx.reply(&lines.join("\n")).await
     }
 }

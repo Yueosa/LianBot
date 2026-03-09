@@ -57,6 +57,6 @@ impl Command for WorldCommand {
             resp.data.join("\n")
         );
 
-        ctx.api.send_text(ctx.group_id, &text).await
+        ctx.reply(&text).await
     }
 }

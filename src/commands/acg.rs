@@ -43,9 +43,9 @@ impl Command for AcgCommand {
         match resolve_final_url(url).await {
             Some(final_url) => {
                 debug!("[acg] 落地 URL: {final_url}");
-                ctx.api.send_text_image(ctx.group_id, &final_url, &final_url).await
+                ctx.reply_text_image(&final_url, &final_url).await
             }
-            None => ctx.api.send_image(ctx.group_id, url).await,
+            None => ctx.reply_image(url).await,
         }
     }
 }

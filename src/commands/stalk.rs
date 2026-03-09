@@ -17,19 +17,19 @@ impl Command for StalkCommand {
         if !ctx.ws.has_clients().await {
             debug!("[stalk] 无 WS 客户端");
             return ctx
-                .api
-                .send_text(ctx.group_id, "主人没有在使用电脑哦 🖥️")
+                .reply("主人没有在使用电脑哦 🖥️")
                 .await;
         }
 
         // 广播截图请求到所有已连接的客户端
         debug!("[stalk] 广播截图请求");
-        ctx.ws
-            .broadcast(format!("stalk:{}", ctx.group_id))
-            .await;
+        let scope = ctx.bot_user.scope;
+        let payload = match scope {
+            crate::runtime::permission::Scope::Group(gid) => format!("stalk:{gid}"),
+            crate::runtime::permission::Scope::Private(uid) => format!("stalk:private:{uid}"),
+        };
+        ctx.ws.broadcast(payload).await;
 
-        ctx.api
-            .send_text(ctx.group_id, "📸 正在获取截图，请稍候...")
-            .await
+        ctx.reply("📸 正在获取截图，请稍候...").await
     }
 }

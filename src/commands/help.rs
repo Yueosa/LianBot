@@ -14,6 +14,6 @@ impl Command for HelpCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let prefix = &ctx.cmd_prefix;
-        ctx.api.send_text(ctx.group_id, &ctx.registry.help_text(prefix)).await
+        ctx.reply(&ctx.registry.help_text(prefix)).await
     }
 }

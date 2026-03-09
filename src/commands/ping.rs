@@ -12,6 +12,6 @@ impl Command for PingCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
-        ctx.api.send_text(ctx.group_id, "恋还活着哦! 🏓").await
+        ctx.reply("恋还活着哦! 🏓").await
     }
 }
