@@ -14,14 +14,14 @@ pub struct PoolConfig {
     /// 每个群的内存缓冲最大消息条数，默认 3000
     #[serde(default = "PoolConfig::default_capacity")]
     pub per_group_capacity: usize,
-    /// 内存淘汰阈值（秒），超过此时间的消息被清理，默认 1d
+    /// 内存淘汰阈值（秒），超过此时间的消息被清理，默认 25h（比 smy 的 24h 窗口多 1h 余量）
     #[serde(default = "PoolConfig::default_evict")]
     pub evict_after_secs: i64,
 }
 
 impl PoolConfig {
     fn default_capacity() -> usize { 3000 }
-    fn default_evict() -> i64 { 86400 }
+    fn default_evict() -> i64 { 90000 }
 }
 
 impl Default for PoolConfig {
