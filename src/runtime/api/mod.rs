@@ -65,6 +65,15 @@ impl MsgTarget {
     }
 }
 
+impl From<crate::runtime::permission::Scope> for MsgTarget {
+    fn from(scope: crate::runtime::permission::Scope) -> Self {
+        match scope {
+            crate::runtime::permission::Scope::Group(gid) => MsgTarget::Group(gid),
+            crate::runtime::permission::Scope::Private(uid) => MsgTarget::Private(uid),
+        }
+    }
+}
+
 // ── API 客户端 ─────────────────────────────────────────────────────────────────
 //
 // 封装所有对 NapCat/go-cqhttp HTTP API 的调用。
