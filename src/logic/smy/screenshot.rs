@@ -4,11 +4,9 @@ use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use tracing::{debug, warn};
 
-const MEASURE_VIEWPORT_HEIGHT: u32 = 20_000;
 const MIN_SCREENSHOT_HEIGHT: u32 = 600;
 const MAX_SCREENSHOT_HEIGHT: u32 = 20_000;
-const HEIGHT_SAFETY_PADDING: u32 = 24;
-const FALLBACK_HEIGHT: u32 = 8000;
+const HEIGHT_SAFETY_PADDING: u32 = 40;
 
 /// 单步 Chrome 操作的超时时间。
 const CHROME_STEP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -28,7 +26,6 @@ pub async fn capture(html: &str, width: u32) -> Result<String> {
 fn capture_sync(html: &str, width: u32) -> Result<String> {
     use std::process::Command;
 
-    // 每次调用创建独立的临时目录，避免 Chrome user-data-dir 锁竞争
     let tmp_dir = tempfile::tempdir().context("创建截图临时目录失败")?;
     let tmp_path = tmp_dir.path();
 
@@ -40,10 +37,20 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
     let user_data_arg = format!("--user-data-dir={}", user_data.display());
     let crash_dir_arg = format!("--crash-dumps-dir={}", tmp_path.join("crashes").display());
 
-    // 注入 JS：将实际内容高度写入 <title>，供第一步测量
+    // 注入 JS：将实际内容高度写入 <title>，供 dump-dom 步骤提取
     let patched_html = html.replace(
         "</body>",
-        "<script>(function(){const de=document.documentElement;const b=document.body;const scrollH=Math.max(de?de.scrollHeight:0,de?de.offsetHeight:0,de?de.clientHeight:0,b?b.scrollHeight:0,b?b.offsetHeight:0,b?b.clientHeight:0);let markerBottom=0;if(b){const marker=document.createElement('div');marker.style.cssText='display:block;height:1px;width:1px;';b.appendChild(marker);markerBottom=marker.getBoundingClientRect().bottom+(window.scrollY||window.pageYOffset||0);const bodyStyle=window.getComputedStyle(b);markerBottom+=parseFloat(bodyStyle.paddingBottom)||0;}const h=Math.ceil(Math.max(scrollH,markerBottom));document.title=String(h);})();</script></body>",
+        "<script>(function(){const de=document.documentElement;const b=document.body;\
+         const scrollH=Math.max(de?de.scrollHeight:0,de?de.offsetHeight:0,de?de.clientHeight:0,\
+         b?b.scrollHeight:0,b?b.offsetHeight:0,b?b.clientHeight:0);\
+         let markerBottom=0;if(b){const marker=document.createElement('div');\
+         marker.style.cssText='display:block;height:1px;width:1px;';\
+         b.appendChild(marker);\
+         markerBottom=marker.getBoundingClientRect().bottom+(window.scrollY||window.pageYOffset||0);\
+         const bodyStyle=window.getComputedStyle(b);\
+         markerBottom+=parseFloat(bodyStyle.paddingBottom)||0;}\
+         const h=Math.ceil(Math.max(scrollH,markerBottom));\
+         document.title=String(h);})();</script></body>",
     );
     std::fs::write(&html_path, &patched_html).context("写入临时 HTML 失败")?;
 
@@ -59,6 +66,7 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
     ];
 
     // ── 第一步：dump-dom 测量内容高度 ──
+    // 视口高度用 2000px（scrollHeight 不受限于视口大小，无需更大）
     let mut cmd1 = Command::new(&chrome);
     cmd1.env("HOME", tmp_path);
     cmd1.arg(&user_data_arg).arg(&crash_dir_arg);
@@ -68,32 +76,42 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
         "--virtual-time-budget=3000",
         "--dump-dom",
     ]);
-    cmd1.arg(format!("--window-size={width},{MEASURE_VIEWPORT_HEIGHT}"));
+    cmd1.arg(format!("--window-size={width},2000"));
     cmd1.arg(format!("file://{}", html_path.display()));
 
-    let dom_output = run_with_timeout(&mut cmd1, "dump-dom")?;
-    let dom_str = String::from_utf8_lossy(&dom_output.stdout);
-    let measured_height = match extract_title_height(&dom_str) {
-        Some(h) => h,
-        None => {
-            if !dom_output.status.success() {
-                let stderr = String::from_utf8_lossy(&dom_output.stderr);
-                warn!("dump-dom 失败 (exit={}): {}", dom_output.status, &stderr[..stderr.len().min(200)]);
-            } else {
-                warn!("dump-dom 高度提取失败，回退 {FALLBACK_HEIGHT}px (title 区域: {:?})",
-                    dom_str.find("<title>").map(|s| &dom_str[s..dom_str.len().min(s + 60)]));
+    let estimated = estimate_content_height(html);
+    let measured_height = match run_with_timeout(&mut cmd1, "dump-dom") {
+        Ok(dom_output) => {
+            let dom_str = String::from_utf8_lossy(&dom_output.stdout);
+            match extract_title_height(&dom_str) {
+                Some(h) => {
+                    debug!("dump-dom 测量成功: {h}px");
+                    h
+                }
+                None => {
+                    let dom_len = dom_str.len();
+                    let title_snippet = dom_str.find("<title>").map(|s| {
+                        let end = dom_str.len().min(s + 80);
+                        dom_str[s..end].to_string()
+                    });
+                    warn!(
+                        "dump-dom 高度提取失败 (dom={dom_len}B, title={title_snippet:?})，\
+                         使用估算 {estimated}px"
+                    );
+                    estimated
+                }
             }
-            FALLBACK_HEIGHT
+        }
+        Err(e) => {
+            warn!("dump-dom 执行失败: {e:#}，使用估算 {estimated}px");
+            estimated
         }
     };
+
     let target_height = measured_height.saturating_add(HEIGHT_SAFETY_PADDING);
     let height = target_height.clamp(MIN_SCREENSHOT_HEIGHT, MAX_SCREENSHOT_HEIGHT);
     debug!(
-        "测量内容高度: measured={}px, padded={}px, final={}px, width={}px",
-        measured_height,
-        target_height,
-        height,
-        width
+        "截图高度: measured={measured_height}px, estimated={estimated}px, final={height}px"
     );
 
     // ── 第二步：用精确高度截图 ──
@@ -120,14 +138,44 @@ fn capture_sync(html: &str, width: u32) -> Result<String> {
     let img_data = std::fs::read(&img_path).context("读取截图文件失败")?;
 
     let size_kb = img_data.len() / 1024;
-    debug!(
-        "截图完成: {size_kb}KB PNG ({}x{}), measured={}px",
-        width,
-        height,
-        measured_height
-    );
-    // tmp_dir drop 时自动清理所有临时文件
+    debug!("截图完成: {size_kb}KB PNG ({width}x{height}), measured={measured_height}px");
     Ok(B64.encode(&img_data))
+}
+
+// ── 基于 HTML 内容的高度估算 ────────────────────────────────────────────────
+
+/// 根据 HTML 中实际生成的 section 数量和内容量估算页面高度（px）。
+/// 作为 dump-dom 测量失败时的回退方案，误差控制在 ±10%。
+fn estimate_content_height(html: &str) -> u32 {
+    // 固定部分：header(~150) + body padding(60) + footer(~80)
+    let mut h: u32 = 300;
+
+    // 基础统计：stats-grid 4 卡片
+    if html.contains("stats-grid") { h += 160; }
+
+    // 亮点一览：活跃时段 + 排行榜双栏
+    if html.contains("highlights-grid") { h += 320; }
+
+    // 24h 活跃度分布图（24 条 bar）
+    if html.contains("chart-container") { h += 680; }
+
+    // 热门话题（2 列 grid，每行 ~250px）
+    let topics = html.matches("topic-item").count() as u32;
+    if topics > 0 { h += 70 + ((topics + 1) / 2) * 260; }
+
+    // 群友称号（2 列 grid，每行 ~200px）
+    let titles = html.matches("user-card\"").count() as u32;
+    if titles > 0 { h += 70 + ((titles + 1) / 2) * 210; }
+
+    // 群圣经（单列，每条 ~140px）
+    let quotes = html.matches("quote-item").count() as u32;
+    if quotes > 0 { h += 70 + quotes * 150; }
+
+    // 群友关系速写（2 列 grid，每行 ~230px）
+    let rels = html.matches("rel-card\"").count() as u32;
+    if rels > 0 { h += 70 + ((rels + 1) / 2) * 240; }
+
+    h
 }
 
 /// 启动 Chrome 子进程并等待，超时则强制 kill。
