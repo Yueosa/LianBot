@@ -48,14 +48,20 @@ echo "  ${C_BOLD}[[github.subscriptions]]${C_NC}  仓库订阅列表"
 # 读取已有订阅
 SUBS=()
 if [[ -f "$LG" ]]; then
-    # 解析已有 [[github.subscriptions]] 块
-    while IFS= read -r line; do
-        SUBS+=("$line")
+    # 解析已有 [[github.subscriptions]] 块（用 NUL 分隔完整块）
+    while IFS= read -r -d '' block; do
+        [[ -n "$block" ]] && SUBS+=("$block")
     done < <(awk '
-        /^\[\[github\.subscriptions\]\]/ { in_sub=1; block=""; next }
-        in_sub && /^\[/ { print block; in_sub=0 }
-        in_sub { block = block (block=="" ? "" : "\n") $0 }
-        END { if (in_sub && block!="") print block }
+        /^\[\[github\.subscriptions\]\]/ {
+            if (in_sub && block!="") printf "%s\0", block
+            in_sub=1; block=""; next
+        }
+        in_sub && /^\[/ {
+            if (block!="") printf "%s\0", block
+            in_sub=0; block=""
+        }
+        in_sub && !/^\s*$/ { block = block (block=="" ? "" : "\n") $0 }
+        END { if (in_sub && block!="") printf "%s\0", block }
     ' "$LG")
 fi
 
@@ -63,10 +69,10 @@ if [[ ${#SUBS[@]} -gt 0 ]]; then
     echo ""
     info "已有 ${#SUBS[@]} 条订阅规则："
     for i in "${!SUBS[@]}"; do
-        _repo=$(echo -e "${SUBS[$i]}" | grep -oP '(?<=repo\s*=\s*")[^"]*' || true)
-        _user=$(echo -e "${SUBS[$i]}" | grep -oP '(?<=user\s*=\s*")[^"]*' || true)
-        _grp=$(echo -e "${SUBS[$i]}"  | grep -oP '(?<=group\s*=\s*)\d+' || true)
-        _evt=$(echo -e "${SUBS[$i]}"  | grep -oP '(?<=events\s*=\s*\[)[^\]]*' || true)
+        _repo=$(echo -e "${SUBS[$i]}" | sed -n 's/.*repo.*=.*"\(.*\)".*/\1/p' | head -1)
+        _user=$(echo -e "${SUBS[$i]}" | sed -n 's/.*user.*=.*"\(.*\)".*/\1/p' | head -1)
+        _grp=$(echo -e "${SUBS[$i]}"  | sed -n 's/.*group.*=[ \t]*\([0-9]*\).*/\1/p' | head -1)
+        _evt=$(echo -e "${SUBS[$i]}"  | sed -n 's/.*events.*=.*\[\(.*\)\].*/\1/p' | head -1)
         target="${_repo:-user:$_user}"
         echo "    $((i+1)). ${target}  →  群 ${_grp}  [${_evt}]"
     done
