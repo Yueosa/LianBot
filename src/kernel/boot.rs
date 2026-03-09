@@ -57,12 +57,18 @@ pub async fn run() -> anyhow::Result<()> {
     let access = AccessControl::open(
         std::path::Path::new(&bot_cfg.db_path),
         &bot_cfg.initial_groups,
+        &bot_cfg.group_blacklist,
+        &bot_cfg.private_blacklist,
     )
     .await
     .context("权限 DB 初始化失败")?;
 
     #[cfg(not(feature = "core-db"))]
-    let access = AccessControl::from_config(&bot_cfg.initial_groups, &bot_cfg.blacklist);
+    let access = AccessControl::from_config(
+        &bot_cfg.initial_groups,
+        &bot_cfg.group_blacklist,
+        &bot_cfg.private_blacklist,
+    );
 
     // 启动预热（后台拉取历史消息填充 pool）
     {
