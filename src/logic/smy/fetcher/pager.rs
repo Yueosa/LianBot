@@ -7,6 +7,7 @@ use tracing::{debug, warn};
 
 use crate::runtime::{
     api::ApiClient,
+    permission::Scope,
     pool::{MessagePool, Pool, PoolMessage},
 };
 
@@ -28,11 +29,12 @@ pub async fn fetch(
 ) -> Result<FetchResult> {
     let now = chrono::Utc::now().timestamp();
     let cutoff = now - time_window.as_secs() as i64;
+    let scope = Scope::Group(group_id);
 
     // 优先尝试 pool 路径
     if let Some(pool) = pool {
-        let pool_msgs = pool.range(group_id, cutoff, now).await;
-        let oldest = pool.oldest_timestamp(group_id).await;
+        let pool_msgs = pool.range(&scope, cutoff, now).await;
+        let oldest = pool.oldest_timestamp(&scope).await;
         if !pool_msgs.is_empty() && oldest.is_some_and(|t| t <= cutoff) {
             debug!(
                 "[fetcher] 时间模式: pool完整覆盖 {} 条 (oldest={}, cutoff={})",
@@ -58,7 +60,7 @@ pub async fn fetch(
 
     let (raw, reached_cutoff, earliest_ts) = fetch_api_until_cutoff(api, group_id, cutoff).await?;
     if let Some(pool) = pool {
-        back_seed_pool(pool, &raw, group_id, cutoff).await;
+        back_seed_pool(pool, &raw, scope, cutoff).await;
     }
     let mut messages = parse_raw_messages(&raw, Some(cutoff));
     messages.sort_by_key(|m| m.time);
@@ -86,13 +88,13 @@ pub async fn fetch(
 }
 
 /// 将 pool 中的 API 原始 JSON 批量写入 pool（back-seeding）
-async fn back_seed_pool(pool: &Pool, raw: &[Value], group_id: i64, cutoff: i64) {
+async fn back_seed_pool(pool: &Pool, raw: &[Value], scope: Scope, cutoff: i64) {
     for value in raw {
         let ts = value.get("time").and_then(Value::as_i64).unwrap_or(0);
         if ts < cutoff {
             continue;
         }
-        if let Some(msg) = PoolMessage::from_api_value(value, group_id) {
+        if let Some(msg) = PoolMessage::from_api_value(value, scope) {
             pool.push(msg).await;
         }
     }
