@@ -209,8 +209,6 @@ ExecStart=$BINARY_DST
 Restart=on-failure
 RestartSec=5s
 
-Environment=RUST_LOG=info
-
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
