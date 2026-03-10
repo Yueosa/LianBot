@@ -20,11 +20,12 @@ fn server_uri() -> String {
     env::var("SERVER_URI").unwrap_or_else(|_| "ws://127.0.0.1:8080/wstalk".into())
 }
 
-fn private_ws() -> u32 {
+fn private_ws() -> std::collections::HashSet<u32> {
     env::var("PRIVATE_WS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(9)
+        .unwrap_or_else(|_| "9".into())
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .collect()
 }
 
 const HEARTBEAT_SECS: u64 = 30;
@@ -234,7 +235,7 @@ async fn run_session(uri: &str) -> Result<(), Box<dyn std::error::Error>> {
 
         // 隐私工作区保护
         if let Some(ws_id) = active_workspace().await {
-            if ws_id == private_ws() {
+            if private_ws().contains(&ws_id) {
                 warn!("工作区 {ws_id} 为隐私区，拒绝截图");
                 let _ = out_tx
                     .send(Message::Text(
