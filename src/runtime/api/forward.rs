@@ -58,6 +58,20 @@ impl ApiClient {
         let resp = self.post("/get_forward_msg", &payload).await
             .context("get_forward_msg: API 调用失败")?;
 
+        // 调试：输出响应的顶层 key 和 data 的子 key
+        if depth > 0 {
+            let top_keys: Vec<&str> = resp.as_object()
+                .map(|o| o.keys().map(|k| k.as_str()).collect())
+                .unwrap_or_default();
+            debug!("[forward] depth={depth} resp top keys: {top_keys:?}");
+            if let Some(data) = resp.get("data") {
+                let data_keys: Vec<&str> = data.as_object()
+                    .map(|o| o.keys().map(|k| k.as_str()).collect())
+                    .unwrap_or_default();
+                debug!("[forward] depth={depth} data keys: {data_keys:?}");
+            }
+        }
+
         let messages = resp
             .pointer("/data/messages")
             .or_else(|| resp.get("messages"))
@@ -65,8 +79,18 @@ impl ApiClient {
             .cloned()
             .unwrap_or_default();
 
+        debug!("[forward] depth={depth} parsed {n} messages", n = messages.len());
+
         let mut nodes = Vec::with_capacity(messages.len());
         for msg in &messages {
+            // 调试：查看每条消息的字段名
+            if depth > 0 {
+                let msg_keys: Vec<&str> = msg.as_object()
+                    .map(|o| o.keys().map(|k| k.as_str()).collect())
+                    .unwrap_or_default();
+                debug!("[forward] depth={depth} msg keys: {msg_keys:?}");
+            }
+
             let sender_id = msg
                 .pointer("/sender/user_id")
                 .and_then(|v| v.as_i64())
