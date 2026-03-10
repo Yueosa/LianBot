@@ -64,21 +64,18 @@ impl BotService for SchedulerService {
 
                 let cfg = logic_config::section::<SmyPluginConfig>("smy");
 
-                match &cfg.llm {
-                    None => {
-                        warn!("[scheduler] [smy].llm 未配置，跳过本次 AI 日报");
-                    }
-                    Some(llm_cfg) => {
-                        let llm_cfg = llm_cfg.clone();
-                        let groups = self.access.enabled_groups();
-                        info!("[scheduler] 共 {} 个群需要生成日报", groups.len());
+                let with_ai = crate::runtime::llm::get().is_some();
+                if !with_ai {
+                    warn!("[scheduler] [llm] 未配置，日报将使用纯统计模式");
+                }
 
-                        for group_id in groups {
-                            match run_smy_for_group(&self.api, &self.pool, group_id, &llm_cfg, cfg.screenshot_width).await {
-                                Ok(()) => info!("[scheduler] 群 {group_id} 日报完成"),
-                                Err(e) => warn!("[scheduler] 群 {group_id} 日报失败: {e:#}"),
-                            }
-                        }
+                let groups = self.access.enabled_groups();
+                info!("[scheduler] 共 {} 个群需要生成日报 (ai={})", groups.len(), with_ai);
+
+                for group_id in groups {
+                    match run_smy_for_group(&self.api, &self.pool, group_id, with_ai, cfg.screenshot_width).await {
+                        Ok(()) => info!("[scheduler] 群 {group_id} 日报完成"),
+                        Err(e) => warn!("[scheduler] 群 {group_id} 日报失败: {e:#}"),
                     }
                 }
 
@@ -96,7 +93,7 @@ async fn run_smy_for_group(
     api: &ApiClient,
     pool: &Option<Arc<Pool>>,
     group_id: i64,
-    llm_config: &crate::logic::smy::LlmConfig,
+    with_ai: bool,
     screenshot_width: u32,
 ) -> anyhow::Result<()> {
     use crate::logic::smy;
@@ -117,7 +114,7 @@ async fn run_smy_for_group(
 
     let base64_img = smy::generate_report(
         &messages,
-        Some(llm_config),
+        with_ai,
         "time=1d (定时日报)",
         screenshot_width,
     ).await?;
