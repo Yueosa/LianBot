@@ -3,6 +3,9 @@
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
+# Ctrl-C 只退出本脚本，不传播到父进程 (setup.sh)
+trap 'exit 0' INT
+
 # 尝试从运行时配置读 log_dir
 _rt="$LIANBOT_DIR/runtime.toml"
 [[ ! -f "$_rt" ]] && _rt="$PROJECT_ROOT/runtime.toml"

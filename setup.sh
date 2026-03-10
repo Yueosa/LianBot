@@ -74,7 +74,7 @@ main_menu() {
                 read -rp "  按 Enter 返回主菜单..." _
                 ;;
             7) bash "$SCRIPT_DIR/service.sh"     ; read -rp "  按 Enter 返回主菜单..." _ ;;
-            8) bash "$SCRIPT_DIR/logs.sh"        ;;
+            8) bash "$SCRIPT_DIR/logs.sh" || true ;;  
             0) echo ""; info "再见！"; echo ""; exit 0 ;;
             *) warn "请输入 0-8"; sleep 0.5 ;;
         esac
