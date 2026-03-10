@@ -60,6 +60,9 @@ impl Dispatcher {
                     warn!("消息处理出错: {e:#}");
                 }
             }
+            OneBotEvent::MessageSent(msg) => {
+                self.handle_bot_message(msg).await;
+            }
             OneBotEvent::Notice(_) => {
                 debug!("收到 Notice 事件（暂未处理）");
             }
@@ -102,7 +105,7 @@ impl Dispatcher {
 
         // 3. 写入消息池（通过网关就忠实记录，与用户黑名单无关）
         if let Some(pool) = &self.pool {
-            if let Some(pool_msg) = PoolMessage::from_event(&event, scope) {
+            if let Some(pool_msg) = PoolMessage::from_event(&event, scope, false) {
                 pool.push(pool_msg).await;
             }
         }
@@ -141,6 +144,28 @@ impl Dispatcher {
             }
             None => {
                 self.handle_plain(scope, &event, &text).await
+            }
+        }
+    }
+
+    // ── Bot 自身消息处理（仅入池，不走命令路由） ──────────────────────────────
+
+    async fn handle_bot_message(&self, event: MessageEvent) {
+        let scope = if let Some(gid) = event.group_id.filter(|_| event.is_group()) {
+            Scope::Group(gid)
+        } else {
+            Scope::Private(event.user_id)
+        };
+
+        if let Scope::Group(gid) = scope {
+            if !self.access.is_group_enabled(gid) {
+                return;
+            }
+        }
+
+        if let Some(pool) = &self.pool {
+            if let Some(pool_msg) = PoolMessage::from_event(&event, scope, true) {
+                pool.push(pool_msg).await;
             }
         }
     }
