@@ -42,6 +42,7 @@ pub async fn run() -> anyhow::Result<()> {
     info!("配置加载成功");
     info!("  NapCat URL : {}", napcat.url);
     info!("  服务监听   : {}:{}", kcfg.host, kcfg.port);
+    info!("  Bot QQ    : {}", bot_cfg.bot_id);
     info!("  Bot 主人   : {}", bot_cfg.owner);
     #[cfg(feature = "core-db")]
     info!("  权限 DB   : {}", bot_cfg.db_path);
@@ -90,6 +91,7 @@ pub async fn run() -> anyhow::Result<()> {
     // Dispatcher + OneBot 路由
     let registry = app.take_registry();
     let dispatcher = Arc::new(Dispatcher::new(
+        bot_cfg.bot_id,
         bot_cfg.owner,
         parser_cfg.cmd_prefix,
         api.clone(),
