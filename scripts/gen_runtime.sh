@@ -30,14 +30,23 @@ read -rp "  initial_groups [${_gl:-（空）}]: " GROUPS_RAW
 GROUPS_RAW="${GROUPS_RAW:-$_gl}"
 GROUPS_TOML="[$(echo "$GROUPS_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
 
-_bl=$(toml_section_arr "$RT" bot blacklist)
-if [[ -n "$_bl" ]]; then
-    ask BLACKLIST_RAW "静态黑名单（QQ 号逗号分隔）" "$_bl"
+_gbl=$(toml_section_arr "$RT" bot group_blacklist)
+if [[ -n "$_gbl" ]]; then
+    ask GBL_RAW "群聊黑名单（QQ 号逗号分隔）" "$_gbl"
 else
-    ask_optional BLACKLIST_RAW "静态黑名单（QQ 号逗号分隔）" "不限制"
+    ask_optional GBL_RAW "群聊黑名单（QQ 号逗号分隔）" "不限制"
 fi
-BL_TOML="[]"
-[[ -n "${BLACKLIST_RAW:-}" ]] && BL_TOML="[$(echo "$BLACKLIST_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
+GBL_TOML="[]"
+[[ -n "${GBL_RAW:-}" ]] && GBL_TOML="[$(echo "$GBL_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
+
+_pbl=$(toml_section_arr "$RT" bot private_blacklist)
+if [[ -n "$_pbl" ]]; then
+    ask PBL_RAW "私聊黑名单（QQ 号逗号分隔）" "$_pbl"
+else
+    ask_optional PBL_RAW "私聊黑名单（QQ 号逗号分隔）" "不限制"
+fi
+PBL_TOML="[]"
+[[ -n "${PBL_RAW:-}" ]] && PBL_TOML="[$(echo "$PBL_RAW" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')]"
 echo ""
 
 # ── [napcat] ──────────────────────────────────────────────────────────────────
@@ -89,8 +98,9 @@ timezone = $TIMEZONE
 [bot]
 owner          = $OWNER
 db_path        = \"$DB_PATH\"
-initial_groups = $GROUPS_TOML
-blacklist      = $BL_TOML
+initial_groups    = $GROUPS_TOML
+group_blacklist   = $GBL_TOML
+private_blacklist = $PBL_TOML
 
 [napcat]
 url   = \"$NAPCAT_URL\"
