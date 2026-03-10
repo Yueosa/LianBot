@@ -310,7 +310,7 @@ impl Dispatcher {
             .unwrap_or("未知");
 
         // Bot 昵称（如果 pool 里有 bot 的消息就能拿到，否则用默认）
-        let bot_name = "莲莲";
+        let bot_name = "小恋";
 
         let pool = match &self.pool {
             Some(p) => p,
