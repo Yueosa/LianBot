@@ -71,6 +71,22 @@ ask POOL_CAP   "每群内存缓冲最大条数" "$(toml_section_val "$RT" pool p
 ask POOL_EVICT "内存淘汰阈值（秒）"   "$(toml_section_val "$RT" pool evict_after_secs '86400')"
 echo ""
 
+# ── [llm] ─────────────────────────────────────────────────────────────────────
+echo "  ${C_BOLD}[llm]${C_NC}  LLM / AI 模型（smy AI 总结、未来 AI 对话等）"
+_llm_key=$(toml_section_val "$RT" llm api_key "")
+_llm_hint="N"
+[[ -n "$_llm_key" ]] && _llm_hint="Y（已配置）"
+read -rp "  是否启用 LLM？(y/N) [${_llm_hint}]: " _llm_confirm
+ENABLE_LLM=0 LLM_URL="" LLM_KEY="" LLM_MODEL="" LLM_TIMEOUT=""
+if [[ "${_llm_confirm,,}" == "y" ]] || [[ -z "$_llm_confirm" && -n "$_llm_key" ]]; then
+    ENABLE_LLM=1
+    ask LLM_URL     "OpenAI 兼容 API 地址" "$(toml_section_val "$RT" llm api_url 'https://api.deepseek.com/v1')"
+    ask LLM_KEY     "API Key"               "$(toml_section_val "$RT" llm api_key '')"
+    ask LLM_MODEL   "模型名称"               "$(toml_section_val "$RT" llm model  'deepseek-chat')"
+    ask LLM_TIMEOUT "请求超时（秒）"         "$(toml_section_val "$RT" llm timeout_secs '120')"
+fi
+echo ""
+
 # ── [log] ─────────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[log]${C_NC}  日志"
 ask LOG_LEVEL "日志级别（trace/debug/info/warn/error）" "$(toml_section_val "$RT" log level 'info')"
@@ -117,6 +133,22 @@ evict_after_secs   = $POOL_EVICT
 [[ -n "$LOG_DIR_LINE" ]] && CONTENT+=$'\n'"$LOG_DIR_LINE"
 [[ -n "$LOG_MAX_LINE" ]] && CONTENT+=$'\n'"$LOG_MAX_LINE"
 CONTENT+=$'\n'"level = \"$LOG_LEVEL\""
+
+if [[ $ENABLE_LLM -eq 1 ]]; then
+    CONTENT+="
+
+[llm]
+api_url      = \"$LLM_URL\"
+api_key      = \"$LLM_KEY\"
+model        = \"$LLM_MODEL\"
+timeout_secs = $LLM_TIMEOUT"
+else
+    CONTENT+=$'\n'"# [llm]  取消注释并填入以启用 AI 功能"
+    CONTENT+=$'\n'"# api_url      = \"https://api.deepseek.com/v1\""
+    CONTENT+=$'\n'"# api_key      = \"sk-xxx\""
+    CONTENT+=$'\n'"# model        = \"deepseek-chat\""
+    CONTENT+=$'\n'"# timeout_secs = 120"
+fi
 
 echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
 [[ -f "$RT" ]] && warn "runtime.toml 已存在，将被覆盖。"
