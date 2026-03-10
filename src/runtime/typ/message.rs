@@ -91,6 +91,16 @@ impl MessageSegment {
         v.as_i64().or_else(|| v.as_str()?.parse().ok())
     }
 
+    // ── 合并转发 ─────────────────────────────────────────────────────────────
+
+    pub fn is_forward(&self) -> bool { self.seg_type == "forward" }
+
+    /// 提取合并转发的 resId（用于调用 get_forward_msg）
+    pub fn forward_id(&self) -> Option<&str> {
+        if !self.is_forward() { return None; }
+        self.data.get("id").and_then(|v| v.as_str())
+    }
+
     // ── 表情 ─────────────────────────────────────────────────────────────────
 
     /// face / mface / bface / sface 均视为表情
