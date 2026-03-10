@@ -60,6 +60,7 @@ pub fn pool_msg_to_chat(msg: &PoolMessage) -> ChatMessage {
         reply_to:    f.reply_to,
         at_targets:  f.at_targets,
         face_ids:    f.face_ids,
+        is_bot:      msg.is_bot,
     }
 }
 
@@ -71,10 +72,7 @@ pub fn parse_raw_messages(raw: &[Value], cutoff: Option<i64>) -> Vec<ChatMessage
     let mut messages = Vec::with_capacity(raw.len());
 
     for msg in raw {
-        // 跳过 Bot 自身发的消息
-        if msg.get("post_type").and_then(Value::as_str) == Some("message_sent") {
-            continue;
-        }
+        let is_bot = msg.get("post_type").and_then(Value::as_str) == Some("message_sent");
 
         let time = msg.get("time").and_then(Value::as_i64).unwrap_or(0);
 
@@ -125,6 +123,7 @@ pub fn parse_raw_messages(raw: &[Value], cutoff: Option<i64>) -> Vec<ChatMessage
             reply_to: f.reply_to,
             at_targets: f.at_targets,
             face_ids: f.face_ids,
+            is_bot,
         });
     }
 
