@@ -1,4 +1,5 @@
 use super::model::{ChatMessage, GapLevel, GapWarning};
+use crate::runtime::pool::MsgKind;
 
 pub fn detect_gap(messages: &[ChatMessage]) -> Option<GapWarning> {
     if messages.len() < 2 {
@@ -46,14 +47,23 @@ pub fn detect_gap(messages: &[ChatMessage]) -> Option<GapWarning> {
 pub fn format_for_llm(messages: &[ChatMessage]) -> String {
     let mut lines = Vec::with_capacity(messages.len());
     for msg in messages {
-        if msg.text.is_empty() {
-            continue;
-        }
+        let content = match (&msg.kind, msg.text.is_empty()) {
+            (MsgKind::Forward, _) => "[转发消息]".to_owned(),
+            (_, true) => continue,
+            (_, false) => msg.text.clone(),
+        };
+
         let time_str = crate::runtime::time::from_timestamp(msg.time)
             .map(|t| t.format("%H:%M").to_string())
             .unwrap_or_else(|| "??:??".to_string());
 
-        lines.push(format!("[{}] {}: {}", time_str, msg.nickname, msg.text));
+        let name = if msg.is_bot {
+            format!("[Bot]{}", msg.nickname)
+        } else {
+            msg.nickname.clone()
+        };
+
+        lines.push(format!("[{}] {}: {}", time_str, name, content));
     }
     lines.join("\n")
 }
