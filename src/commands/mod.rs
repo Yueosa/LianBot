@@ -6,6 +6,7 @@
 #[cfg(feature = "cmd-alive")] pub mod alive;
 #[cfg(feature = "cmd-world")] pub mod world;
 pub mod admin;
+pub mod fwdtest;
 
 mod core;
 pub use self::core::*;
@@ -34,6 +35,7 @@ pub fn http_client() -> &'static reqwest::Client {
 /// 向 App 构建器注册所有已启用 feature 的命令。
 pub fn register(app: &mut crate::kernel::app::App) {
     app.command(Arc::new(admin::AdminCommand));
+    app.command(Arc::new(fwdtest::FwdTestCommand));
     #[cfg(feature = "cmd-ping")]  app.command(Arc::new(ping::PingCommand));
     #[cfg(feature = "cmd-help")]  app.command(Arc::new(help::HelpCommand));
     #[cfg(feature = "cmd-acg")]   app.command(Arc::new(acg::AcgCommand));
