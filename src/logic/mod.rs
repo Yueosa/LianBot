@@ -1,3 +1,4 @@
+pub mod chat;
 pub mod config;
 #[cfg(feature = "svc-github")]
 pub mod github;
