@@ -131,6 +131,7 @@ mod tests {
             segments: vec![MessageSegment::text(text)],
             status: MsgStatus::Pending,
             process: None,
+            is_bot: false,
         }
     }
 
