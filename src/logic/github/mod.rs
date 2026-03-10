@@ -188,9 +188,48 @@ pub fn format_event(evt: &GitHubEvent) -> Option<String> {
             Some(format!("🚀 [{repo}] 发布新版本 {tag}：{name}\n{url}"))
         }
 
+        "star" => {
+            let action = p["action"].as_str().unwrap_or("?");
+            let count = p["repository"]["stargazers_count"].as_u64().unwrap_or(0);
+            match action {
+                "created" => Some(format!("⭐ [{repo}] {sender} starred（共 {count} stars）")),
+                "deleted" => Some(format!("💔 [{repo}] {sender} unstarred（共 {count} stars）")),
+                _ => None,
+            }
+        }
+
+        "fork" => {
+            let fork_name = p["forkee"]["full_name"].as_str().unwrap_or("?");
+            let url = p["forkee"]["html_url"].as_str().unwrap_or("");
+            Some(format!("🍴 [{repo}] {sender} fork → {fork_name}\n{url}"))
+        }
+
+        "issue_comment" => {
+            let action = p["action"].as_str().unwrap_or("?");
+            if action != "created" {
+                return None;
+            }
+            let number = p["issue"]["number"].as_u64().unwrap_or(0);
+            let title = p["issue"]["title"].as_str().unwrap_or("?");
+            let body = p["comment"]["body"].as_str().unwrap_or("");
+            let url = p["comment"]["html_url"].as_str().unwrap_or("");
+            let is_pr = p["issue"]["pull_request"].is_object();
+            let icon = if is_pr { "🔀" } else { "📋" };
+            let kind = if is_pr { "PR" } else { "Issue" };
+            let preview: String = body.lines().next().unwrap_or("").chars().take(80).collect();
+            Some(format!(
+                "💬 [{repo}] {sender} 评论了 {icon} {kind} #{number}：{title}\n{preview}\n{url}"
+            ))
+        }
+
         _ => {
-            info!("[github] 收到未处理事件: {} / {}", evt.event_type, repo);
-            None
+            let action = p["action"].as_str().unwrap_or("");
+            let hint = if action.is_empty() {
+                format!("📡 [{repo}] 收到 {} 事件（by {sender}）", evt.event_type)
+            } else {
+                format!("📡 [{repo}] 收到 {}/{action} 事件（by {sender}）", evt.event_type)
+            };
+            Some(hint)
         }
     }
 }
