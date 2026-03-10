@@ -59,6 +59,8 @@ if [[ -n "$_tok" ]]; then
 else
     ask_optional NAPCAT_TOKEN "Bearer Token" "未设置则留空"
 fi
+ask NAPCAT_TIMEOUT     "普通请求超时（秒）"   "$(toml_section_val "$RT" napcat timeout_secs '30')"
+ask NAPCAT_HIST_TIMEOUT "历史拉取超时（秒）"   "$(toml_section_val "$RT" napcat history_timeout_secs '120')"
 echo ""
 
 # ── [parser] ──────────────────────────────────────────────────────────────────
