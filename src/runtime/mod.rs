@@ -1,6 +1,7 @@
 pub mod api;
 pub mod config;
 pub mod dispatcher;
+pub mod llm;
 pub mod logger;
 pub mod time;
 pub mod parser;
