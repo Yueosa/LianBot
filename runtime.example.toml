@@ -30,6 +30,8 @@ initial_groups = [123456789, 987654321]
 url   = "http://127.0.0.1:3000"    # NapCat 监听地址
 token = ""                          # Bearer Token（NapCat 未设置时留空即可）
 # 也可通过 .env 环境变量覆盖：NAPCAT_URL / NAPCAT_TOKEN
+# timeout_secs         = 30    # 普通请求超时（秒）
+# history_timeout_secs = 120   # 历史消息/转发展开超时（秒）
 
 # ── 命令解析器 ─────────────────────────────────────────────────────────────────
 [parser]
