@@ -6,12 +6,8 @@
 [smy]
 # 截图宽度（像素），默认 1200
 # screenshot_width = 1200
-
-# LLM 配置（可选，不配置则 -a/--ai 功能不可用，纯统计模式仍可正常使用）
-# [smy.llm]
-# api_url = "https://api.deepseek.com/v1"
-# api_key = "sk-xxxxxxx"
-# model   = "deepseek-chat"
+#
+# LLM 配置已迁至 runtime.toml [llm] 段，详见 runtime.example.toml
 
 # ── GitHub Webhook ─────────────────────────────────────────────────────────────
 [github]

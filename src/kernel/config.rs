@@ -97,6 +97,13 @@ impl LayerConfig {
             .unwrap_or_default()
     }
 
+    /// 读取指定 section，section 缺失时返回 None。
+    pub fn section_opt<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+        self.raw
+            .get(key)
+            .and_then(|v| v.clone().try_into::<T>().ok())
+    }
+
     /// 用环境变量覆盖指定 section 下的某个字段。
     /// 若环境变量存在，则写入 `raw[section][field] = Value::String(val)`。
     /// section 不存在时自动创建。
