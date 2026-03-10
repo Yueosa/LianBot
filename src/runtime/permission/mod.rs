@@ -9,6 +9,9 @@ use serde::Deserialize;
 /// Bot 运行时身份与权限配置（runtime.toml [bot]）
 #[derive(Debug, Deserialize)]
 pub struct BotConfig {
+    /// Bot 自身的 QQ 号（用于检测 @Bot 等场景）
+    #[serde(default)]
+    pub bot_id: i64,
     /// Bot 主人的 QQ 号（唯一，最高权限，不受黑名单影响）
     #[serde(default)]
     pub owner: i64,
@@ -29,6 +32,7 @@ pub struct BotConfig {
 impl Default for BotConfig {
     fn default() -> Self {
         Self {
+            bot_id: 0,
             owner: 0,
             db_path: "permissions.db".to_string(),
             initial_groups: Vec::new(),
