@@ -69,6 +69,7 @@ pub enum MsgKind {
     At,     // 含 @某人（无 reply）
     Card,   // json segment（分享卡片）
     File,   // file segment（群文件）
+    Forward, // 合并转发
     Mixed,  // 多类型混合（如 text + image）
     Other,  // 未分类
 }
@@ -177,7 +178,7 @@ pub fn concat_text_segs(segments: &[MessageSegment]) -> Option<String> {
 
 /// 分类消息类型。
 ///
-/// 优先级：Reply > File > Card > Image+Text(Mixed) > Image > At > Face > Text > Other
+/// 优先级：Reply > Forward > File > Card > Image+Text(Mixed) > Image > At > Face > Text > Other
 /// - at / face 常伴随 text，不构成 Mixed
 /// - 只有 image + text 同时存在才是 Mixed
 pub fn classify_kind(segments: &[MessageSegment]) -> MsgKind {
@@ -187,7 +188,8 @@ pub fn classify_kind(segments: &[MessageSegment]) -> MsgKind {
     let mut has_at    = false;
 
     for seg in segments {
-        if seg.is_reply()        { return MsgKind::Reply; }
+        if seg.is_reply()         { return MsgKind::Reply; }
+        if seg.is_forward()       { return MsgKind::Forward; }
         if seg.seg_type == "file" { return MsgKind::File; }
         if seg.seg_type == "json" { return MsgKind::Card; }
         if seg.is_text()         { has_text  = true; }

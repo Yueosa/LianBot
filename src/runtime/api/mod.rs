@@ -7,9 +7,13 @@
 // 子模块：
 //   send_msg  — /send_msg 发消息接口
 //   history   — /get_group_msg_history 等查询接口
+//   forward   — 合并转发消息收发（get_forward_msg / send_forward_msg）
 
 mod send_msg;
 mod history;
+mod forward;
+
+pub use forward::ForwardNode;
 
 use anyhow::{Context, Result};
 use reqwest::Client;
