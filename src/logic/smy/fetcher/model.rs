@@ -11,14 +11,12 @@ pub struct ChatMessage {
     #[allow(dead_code)]
     pub msg_id: i64,
     /// 消息类型（供消息类型分布图使用）
-    #[allow(dead_code)]
     pub kind: MsgKind,
     pub image_count: u32,
     pub reply_to: Option<i64>,
     pub at_targets: Vec<i64>,
     pub face_ids: Vec<String>,
     /// 是否为 Bot 自身发送的消息
-    #[allow(dead_code)]
     pub is_bot: bool,
 }
 
