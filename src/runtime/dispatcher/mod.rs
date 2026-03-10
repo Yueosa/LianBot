@@ -270,16 +270,63 @@ impl Dispatcher {
         }
     }
 
-    // ── 普通消息处理（关键词 / AI 预留入口） ──────────────────────────────────
+    // ── 普通消息处理（@Bot AI 对话） ──────────────────────────────────────────
 
     async fn handle_plain(
         &self,
-        _scope: Scope,
-        _event: &MessageEvent,
+        scope: Scope,
+        event: &MessageEvent,
         _text: &str,
     ) -> anyhow::Result<()> {
-        // TODO: 关键词匹配、AI 自动对话
-        Ok(())
+        // 检测是否 @Bot
+        if self.bot_id == 0 {
+            return Ok(());
+        }
+        let is_at_bot = event.message.iter().any(|s| s.at_qq_id() == Some(self.bot_id));
+        if !is_at_bot {
+            return Ok(());
+        }
+
+        // 提取去掉 @段 的纯文本
+        let question: String = event.message.iter()
+            .filter(|s| !(s.is_at() && s.at_qq_id() == Some(self.bot_id)))
+            .filter_map(|s| s.as_text())
+            .collect::<Vec<_>>()
+            .join("")
+            .trim()
+            .to_string();
+
+        if question.is_empty() {
+            return Ok(());
+        }
+
+        // 用户昵称
+        let user_name = event.sender.as_ref()
+            .and_then(|s| {
+                s.card.as_deref()
+                    .filter(|c| !c.is_empty())
+                    .or(s.nickname.as_deref())
+            })
+            .unwrap_or("未知");
+
+        // Bot 昵称（如果 pool 里有 bot 的消息就能拿到，否则用默认）
+        let bot_name = "莲莲";
+
+        let pool = match &self.pool {
+            Some(p) => p,
+            None => {
+                let target = crate::runtime::api::MsgTarget::from(scope);
+                self.api.send_msg(target, "⚠️ 消息池不可用，无法提供上下文").await?;
+                return Ok(());
+            }
+        };
+
+        let target = crate::runtime::api::MsgTarget::from(scope);
+        crate::logic::chat::handle_chat(
+            &self.api, pool, scope, target,
+            self.bot_id, bot_name, self.owner,
+            user_name, event.user_id, &question,
+        ).await
     }
 
     // ── 依赖预检 ────────────────────────────────────────────────────────────────
