@@ -53,6 +53,8 @@ pub struct PoolMessage {
     pub text: Option<String>,
     /// 消息段——直接复用 typ::MessageSegment，不重新定义
     pub segments: Vec<MessageSegment>,
+    /// 是否为 Bot 自身发送的消息
+    pub is_bot: bool,
     /// 处理状态（新消息默认 Pending，dispatcher 在命令执行后更新）
     pub status: MsgStatus,
     /// 命令处理记录（仅当 status != Pending 时有值）
@@ -100,7 +102,7 @@ pub struct ProcessRecord {
 
 impl PoolMessage {
     /// 从实时推送的 MessageEvent 构造。
-    pub fn from_event(event: &MessageEvent, scope: Scope) -> Option<Self> {
+    pub fn from_event(event: &MessageEvent, scope: Scope, is_bot: bool) -> Option<Self> {
         let msg_id   = event.message_id.unwrap_or(0);
         let user_id  = event.user_id;
         let timestamp = event.time.unwrap_or_else(now_secs);
@@ -114,7 +116,7 @@ impl PoolMessage {
 
         Some(Self {
             msg_id, scope, user_id, nickname, timestamp,
-            kind, text, segments,
+            kind, text, segments, is_bot,
             status: MsgStatus::Pending,
             process: None,
         })
@@ -123,10 +125,7 @@ impl PoolMessage {
     /// 从 `get_group_msg_history` 返回的原始 JSON 构造。
     /// 用于冷启动 back-seeding。
     pub fn from_api_value(value: &Value, scope: Scope) -> Option<Self> {
-        // 跳过 Bot 自身发送的消息
-        if value.get("post_type").and_then(Value::as_str) == Some("message_sent") {
-            return None;
-        }
+        let is_bot = value.get("post_type").and_then(Value::as_str) == Some("message_sent");
 
         let msg_id    = value.get("message_id").and_then(Value::as_i64).unwrap_or(0);
         let user_id   = value.get("user_id").and_then(Value::as_i64)?;
@@ -148,7 +147,7 @@ impl PoolMessage {
 
         Some(Self {
             msg_id, scope, user_id, nickname, timestamp,
-            kind, text, segments,
+            kind, text, segments, is_bot,
             status: MsgStatus::Pending,
             process: None,
         })
