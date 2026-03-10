@@ -27,6 +27,7 @@ use crate::{
 //   4. 非命令消息交给 `handle_plain`（关键词 / 未来 AI 对话入口）
 
 pub struct Dispatcher {
+    bot_id: i64,
     owner: i64,
     cmd_prefix: String,
     api: Arc<ApiClient>,
@@ -38,6 +39,7 @@ pub struct Dispatcher {
 
 impl Dispatcher {
     pub fn new(
+        bot_id: i64,
         owner: i64,
         cmd_prefix: String,
         api: Arc<ApiClient>,
@@ -46,7 +48,7 @@ impl Dispatcher {
         pool: Option<Arc<Pool>>,
         access: Arc<AccessControl>,
     ) -> Self {
-        Self { owner, cmd_prefix, api, ws, registry, pool, access }
+        Self { bot_id, owner, cmd_prefix, api, ws, registry, pool, access }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
