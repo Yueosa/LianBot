@@ -30,15 +30,28 @@ pub struct NapcatConfig {
     pub url: String,
     /// Bearer Token（可选）
     pub token: Option<String>,
+    /// 普通请求超时秒数，默认 30s
+    #[serde(default = "NapcatConfig::default_timeout")]
+    pub timeout_secs: u64,
+    /// 历史消息/转发展开等慢请求超时秒数，默认 120s
+    #[serde(default = "NapcatConfig::default_history_timeout")]
+    pub history_timeout_secs: u64,
 }
 
 impl NapcatConfig {
     fn default_url() -> String { "http://127.0.0.1:3000".to_string() }
+    fn default_timeout() -> u64 { 30 }
+    fn default_history_timeout() -> u64 { 120 }
 }
 
 impl Default for NapcatConfig {
     fn default() -> Self {
-        Self { url: Self::default_url(), token: None }
+        Self {
+            url: Self::default_url(),
+            token: None,
+            timeout_secs: Self::default_timeout(),
+            history_timeout_secs: Self::default_history_timeout(),
+        }
     }
 }
 
@@ -95,12 +108,21 @@ pub struct ApiClient {
 impl ApiClient {
     /// 创建客户端。`base_url` 例如 `"http://127.0.0.1:3000"`
     pub fn new(base_url: impl Into<String>, token: Option<String>) -> Self {
+        Self::with_config(base_url, token, 30, 120)
+    }
+
+    pub fn with_config(
+        base_url: impl Into<String>,
+        token: Option<String>,
+        timeout_secs: u64,
+        history_timeout_secs: u64,
+    ) -> Self {
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(timeout_secs))
             .build()
             .expect("构建 HTTP 客户端失败");
         let client_slow = Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
+            .timeout(std::time::Duration::from_secs(history_timeout_secs))
             .build()
             .expect("构建 HTTP 慢请求客户端失败");
         Self {

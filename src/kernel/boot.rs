@@ -49,7 +49,12 @@ pub async fn run() -> anyhow::Result<()> {
 
     // ── 基础设施 ──────────────────────────────────────────────────────────────
     crate::runtime::llm::init();
-    let api = Arc::new(ApiClient::new(napcat.url.clone(), napcat.token.clone()));
+    let api = Arc::new(ApiClient::with_config(
+        napcat.url.clone(),
+        napcat.token.clone(),
+        napcat.timeout_secs,
+        napcat.history_timeout_secs,
+    ));
     let ws = WsManager::new();
     let pool = crate::runtime::pool::create_pool(&pool_cfg)
         .await
