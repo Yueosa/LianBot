@@ -47,6 +47,7 @@ pub async fn run() -> anyhow::Result<()> {
     info!("  权限 DB   : {}", bot_cfg.db_path);
 
     // ── 基础设施 ──────────────────────────────────────────────────────────────
+    crate::runtime::llm::init();
     let api = Arc::new(ApiClient::new(napcat.url.clone(), napcat.token.clone()));
     let ws = WsManager::new();
     let pool = crate::runtime::pool::create_pool(&pool_cfg)
