@@ -4,7 +4,7 @@ use std::time::Duration;
 use tracing::{info, warn};
 
 use super::BotService;
-use crate::runtime::{api::ApiClient, permission::AccessControl, pool::Pool};
+use crate::runtime::{api::{ApiClient, MsgTarget}, permission::AccessControl, pool::Pool};
 
 pub struct SchedulerService {
     api: Arc<ApiClient>,
@@ -123,7 +123,7 @@ async fn run_smy_for_group(
     ).await?;
 
     api
-        .send_image(group_id, &format!("base64://{base64_img}"))
+        .send_image_to(MsgTarget::Group(group_id), &format!("base64://{base64_img}"))
         .await?;
 
     Ok(())

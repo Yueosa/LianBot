@@ -7,7 +7,7 @@ use axum::extract::ws::{Message, WebSocket};
 use tokio::sync::broadcast;
 use tracing::{info, warn};
 
-use crate::runtime::api::ApiClient;
+use crate::runtime::api::{ApiClient, MsgTarget};
 
 // 广播频道容量（最多缓存 N 条未消费消息）
 const BROADCAST_CAPACITY: usize = 32;
@@ -110,7 +110,7 @@ impl WsManager {
                         .map(|i| &img_data[i + 8..])
                         .unwrap_or(img_data);
                     let file = format!("base64://{pure_b64}");
-                    if let Err(e) = api.send_image(group_id, &file).await {
+                    if let Err(e) = api.send_image_to(MsgTarget::Group(group_id), &file).await {
                         warn!("发送截图失败: {e}");
                     }
                 }
@@ -121,7 +121,7 @@ impl WsManager {
         if let Some(rest) = text.strip_prefix("stalk_text:") {
             if let Some((group_str, msg_text)) = rest.split_once(':') {
                 if let Ok(group_id) = group_str.parse::<i64>() {
-                    if let Err(e) = api.send_text(group_id, msg_text).await {
+                    if let Err(e) = api.send_msg(MsgTarget::Group(group_id), msg_text).await {
                         warn!("发送文字失败: {e}");
                     }
                 }
