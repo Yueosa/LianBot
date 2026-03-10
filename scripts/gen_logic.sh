@@ -169,7 +169,7 @@ CONTENT+="
 secret = \"${GH_SECRET:-}\""
 
 for sub in "${SUBS[@]}"; do
-    CONTENT+=$'\n\n'"[[github.subscriptions]]"$'\n'"$(echo -e "$sub")"
+    CONTENT+=$'\n\n'"[[github.subscriptions]]"$'\n'"$(printf '%s' "$sub")"
 done
 
 CONTENT+="
