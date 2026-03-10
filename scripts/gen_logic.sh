@@ -129,6 +129,16 @@ echo "  ${C_BOLD}[world]${C_NC}  60 秒看世界"
 ask WORLD_URL "API 地址" "$(toml_section_val "$LG" world api_url 'https://api.ecylt.com/v1/world_60s')"
 echo ""
 
+# ── [chat] ────────────────────────────────────────────────────────────────────
+echo "  ${C_BOLD}[chat]${C_NC}  AI 对话（@Bot 触发）"
+echo "  所有字段均可选，使用默认值可直接回车跳过"
+ask CHAT_CTX_SIZE   "上下文条数"         "$(toml_section_val "$LG" chat context_size '50')"
+ask CHAT_CTX_WINDOW "上下文时间窗口（秒）" "$(toml_section_val "$LG" chat context_window '7200')"
+ask CHAT_TEMP       "LLM temperature"   "$(toml_section_val "$LG" chat temperature '0.8')"
+ask CHAT_MAX_TOKENS "max_tokens"        "$(toml_section_val "$LG" chat max_tokens '2048')"
+echo "  人格设定（persona）请直接编辑 logic.toml [chat] 段修改"
+echo ""
+
 # ── 生成内容 ──────────────────────────────────────────────────────────────────
 
 CONTENT="# LianBot 业务逻辑配置 (logic 层)
@@ -155,7 +165,13 @@ timeout_secs = $ALIVE_TIMEOUT
 api_url = \"$ACG_URL\"
 
 [world]
-api_url = \"$WORLD_URL\""
+api_url = \"$WORLD_URL\"
+
+[chat]
+context_size   = $CHAT_CTX_SIZE
+context_window = $CHAT_CTX_WINDOW
+temperature    = $CHAT_TEMP
+max_tokens     = $CHAT_MAX_TOKENS"
 
 echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
 [[ -f "$LG" ]] && warn "logic.toml 已存在，将被覆盖。"

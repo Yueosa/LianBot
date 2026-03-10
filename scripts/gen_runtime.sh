@@ -21,6 +21,7 @@ echo ""
 
 # ── [bot] ─────────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[bot]${C_NC}  Bot 身份与权限"
+ask BOT_ID "Bot 自身 QQ 号" "$(toml_section_val "$RT" bot bot_id '0')"
 ask OWNER "Bot 主人 QQ 号" "$(toml_section_val "$RT" bot owner '0')"
 ask DB_PATH "权限数据库路径" "$(toml_section_val "$RT" bot db_path 'permissions.db')"
 
@@ -112,6 +113,7 @@ CONTENT="# LianBot 运行时配置 (runtime 层)
 timezone = $TIMEZONE
 
 [bot]
+bot_id         = $BOT_ID
 owner          = $OWNER
 db_path        = \"$DB_PATH\"
 initial_groups    = $GROUPS_TOML
