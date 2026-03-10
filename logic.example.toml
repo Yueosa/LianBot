@@ -31,6 +31,25 @@ secret = ""
 # [acg]
 # api_url = "https://www.loliapi.com/bg/"
 
+# ── AI 对话 (chat) ────────────────────────────────────────────────────────────
+# [chat]
+# 人格设定（支持多行）
+# persona = """
+# 你是小恋，一个17岁的猫娘少女，同时也是一个小魔女。
+# 说话偶尔带"喵"，语气温柔但会傲娇。
+# 你聪明、博学，对技术和日常话题都能给出有用的回答。
+# """
+#
+# context_size = 50        # 最多取几条 Pool 消息作为上下文
+# context_window = 7200    # 最远回溯几秒（默认 2h）
+# temperature = 0.8        # LLM 温度
+# max_tokens = 2048        # 单次回复 token 上限
+#
+# split_max_chars = 300    # 单段超过此长度则按句切割
+# merge_min_chars = 20     # 短于此长度与上一段合并
+# forward_threshold = 5    # 超过此段数用合并转发
+# send_delay_ms = 600      # 多条消息之间的发送间隔（毫秒）
+
 # ── 60秒看世界 (world) ────────────────────────────────────────────────────────
 # [world]
 # api_url = "https://api.ecylt.com/v1/world_60s"
