@@ -136,4 +136,16 @@ impl MessageSegment {
             data: serde_json::json!({"qq": qq.to_string()}),
         }
     }
+
+    /// 构造合并转发节点段（用于 send_forward_msg 的 message 数组）
+    pub fn node(user_id: i64, nickname: impl Into<String>, content: Vec<MessageSegment>) -> Self {
+        Self {
+            seg_type: "node".into(),
+            data: serde_json::json!({
+                "user_id": user_id.to_string(),
+                "nickname": nickname.into(),
+                "content": content,
+            }),
+        }
+    }
 }
