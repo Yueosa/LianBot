@@ -28,28 +28,52 @@ impl LlmClient {
         &self.config.model
     }
 
-    /// 发送 chat completion 请求，返回 assistant 回复的文本内容。
+    /// 发送 chat completion 请求，强制 JSON 输出格式。
     ///
+    /// 适用于需要结构化返回的场景（如 smy 分析）。
     /// `messages` 是 OpenAI 格式的消息数组，如 `[{"role":"user","content":"..."}]`。
-    /// `temperature` 和 `max_tokens` 由调用方按场景指定。
     pub async fn chat(
         &self,
         messages: &[Value],
         temperature: f64,
         max_tokens: u32,
     ) -> Result<String> {
+        self.chat_inner(messages, temperature, max_tokens, true).await
+    }
+
+    /// 发送 chat completion 请求，自由文本输出（不强制 JSON）。
+    ///
+    /// 适用于对话、角色扮演等自然语言场景。
+    pub async fn chat_text(
+        &self,
+        messages: &[Value],
+        temperature: f64,
+        max_tokens: u32,
+    ) -> Result<String> {
+        self.chat_inner(messages, temperature, max_tokens, false).await
+    }
+
+    async fn chat_inner(
+        &self,
+        messages: &[Value],
+        temperature: f64,
+        max_tokens: u32,
+        json_mode: bool,
+    ) -> Result<String> {
         let url = format!(
             "{}/chat/completions",
             self.config.api_url.trim_end_matches('/')
         );
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": self.config.model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "response_format": { "type": "json_object" },
         });
+        if json_mode {
+            body["response_format"] = serde_json::json!({ "type": "json_object" });
+        }
 
         let resp = self
             .client
