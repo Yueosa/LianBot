@@ -19,19 +19,6 @@ echo "  ${C_BOLD}[smy]${C_NC}  群聊日报插件"
 ask SMY_WIDTH "截图宽度（像素）" "$(toml_section_val "$LG" smy screenshot_width '1200')"
 echo ""
 
-ENABLE_LLM=0 LLM_URL="" LLM_KEY="" LLM_MODEL=""
-_llm_key=$(toml_section_val "$LG" "smy.llm" api_key "")
-_llm_hint="N"
-[[ -n "$_llm_key" ]] && _llm_hint="Y（已配置）"
-read -rp "  是否启用 AI 总结（smy.llm）？(y/N) [${_llm_hint}]: " _llm_confirm
-if [[ "${_llm_confirm,,}" == "y" ]] || [[ -z "$_llm_confirm" && -n "$_llm_key" ]]; then
-    ENABLE_LLM=1
-    ask LLM_URL   "OpenAI 兼容 API 地址" "$(toml_section_val "$LG" "smy.llm" api_url 'https://api.deepseek.com/v1')"
-    ask LLM_KEY   "API Key"               "$(toml_section_val "$LG" "smy.llm" api_key '')"
-    ask LLM_MODEL "模型名称"               "$(toml_section_val "$LG" "smy.llm" model  'deepseek-chat')"
-fi
-echo ""
-
 # ── [github] ──────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[github]${C_NC}  GitHub Webhook"
 _gs=$(toml_section_val "$LG" github secret "")
@@ -148,20 +135,6 @@ CONTENT="# LianBot 业务逻辑配置 (logic 层)
 
 [smy]
 screenshot_width = $SMY_WIDTH"
-
-if [[ $ENABLE_LLM -eq 1 ]]; then
-    CONTENT+="
-
-[smy.llm]
-api_url = \"$LLM_URL\"
-api_key = \"$LLM_KEY\"
-model   = \"$LLM_MODEL\""
-else
-    CONTENT+=$'\n'"# [smy.llm]  取消注释并填入以启用 AI 总结"
-    CONTENT+=$'\n'"# api_url = \"https://api.deepseek.com/v1\""
-    CONTENT+=$'\n'"# api_key = \"sk-xxx\""
-    CONTENT+=$'\n'"# model   = \"deepseek-chat\""
-fi
 
 CONTENT+="
 
