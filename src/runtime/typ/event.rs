@@ -15,6 +15,8 @@ use super::message::MessageSegment;
 #[serde(tag = "post_type", rename_all = "snake_case")]
 pub enum OneBotEvent {
     Message(MessageEvent),
+    /// Bot 自身发送的消息（NapCat 上报 post_type = "message_sent"）
+    MessageSent(MessageEvent),
     Notice(NoticeEvent),
     Request(RequestEvent),
     MetaEvent(MetaEvent),
