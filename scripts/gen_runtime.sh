@@ -123,8 +123,10 @@ group_blacklist   = $GBL_TOML
 private_blacklist = $PBL_TOML
 
 [napcat]
-url   = \"$NAPCAT_URL\"
-token = \"${NAPCAT_TOKEN:-}\"
+url                  = \"$NAPCAT_URL\"
+token                = \"${NAPCAT_TOKEN:-}\"
+timeout_secs         = $NAPCAT_TIMEOUT
+history_timeout_secs = $NAPCAT_HIST_TIMEOUT
 
 [parser]
 cmd_prefix = \"$CMD_PREFIX\"
