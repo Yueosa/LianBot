@@ -73,6 +73,18 @@ impl CommandContext {
         ]).await
     }
 
+    /// 向当前交互域发送合并转发消息。
+    /// `nodes` 由 `MessageSegment::node(...)` 构成。
+    pub async fn reply_forward(
+        &self,
+        nodes: Vec<MessageSegment>,
+        source: Option<&str>,
+        summary: Option<&str>,
+        prompt: Option<&str>,
+    ) -> Result<()> {
+        self.api.send_forward_msg(self.target(), nodes, source, summary, prompt).await
+    }
+
     // ── 参数便捷方法 ─────────────────────────────────────────────────────────
 
     /// 按多个别名查找参数值字符串。
