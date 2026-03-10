@@ -86,6 +86,8 @@ impl From<crate::runtime::permission::Scope> for MsgTarget {
 #[derive(Clone)]
 pub struct ApiClient {
     client: Client,
+    /// 单独给历史拉取等慢请求使用，超时更长
+    client_slow: Client,
     base_url: String,
     token: Option<String>,
 }
@@ -97,8 +99,13 @@ impl ApiClient {
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("构建 HTTP 客户端失败");
+        let client_slow = Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()
+            .expect("构建 HTTP 慢请求客户端失败");
         Self {
             client,
+            client_slow,
             base_url: base_url.into().trim_end_matches('/').to_string(),
             token,
         }
@@ -111,10 +118,28 @@ impl ApiClient {
         endpoint: &str,
         payload: &P,
     ) -> Result<serde_json::Value> {
+        self.post_with(&self.client, endpoint, payload).await
+    }
+
+    /// 使用慢请求 client（120s 超时）发送 POST，用于历史消息拉取等场景。
+    pub(crate) async fn post_slow<P: Serialize + ?Sized>(
+        &self,
+        endpoint: &str,
+        payload: &P,
+    ) -> Result<serde_json::Value> {
+        self.post_with(&self.client_slow, endpoint, payload).await
+    }
+
+    async fn post_with<P: Serialize + ?Sized>(
+        &self,
+        client: &Client,
+        endpoint: &str,
+        payload: &P,
+    ) -> Result<serde_json::Value> {
         let url = format!("{}/{}", self.base_url, endpoint.trim_start_matches('/'));
         debug!("API POST {url}");
 
-        let mut req = self.client.post(&url).json(payload);
+        let mut req = client.post(&url).json(payload);
         if let Some(token) = &self.token {
             req = req.header("Authorization", format!("Bearer {token}"));
         }
