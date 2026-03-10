@@ -10,35 +10,15 @@ use tracing::{debug, warn};
 
 use self::fetcher::ChatMessage;
 
-// ── LLM 配置 ──────────────────────────────────────────────────────────────────
-
-/// logic.toml `[smy.llm]` 段。
-#[derive(Debug, Deserialize, Clone)]
-pub struct LlmConfig {
-    /// OpenAI 兼容 API 地址
-    #[serde(default = "LlmConfig::default_url")]
-    pub api_url: String,
-    /// API Key
-    pub api_key: String,
-    /// 模型名称
-    #[serde(default = "LlmConfig::default_model")]
-    pub model: String,
-}
-
-impl LlmConfig {
-    fn default_url() -> String { "https://api.deepseek.com/v1".to_string() }
-    fn default_model() -> String { "deepseek-chat".to_string() }
-}
-
 /// smy 插件配置，从 `logic.toml` 的 `[smy]` 段加载。
 /// 所有字段均有默认值，`logic.toml` 不存在时也可正常运行。
+///
+/// LLM 配置已迁至 `runtime.toml [llm]`，通过 `runtime::llm::get()` 全局访问。
 #[derive(Debug, Deserialize)]
 pub struct SmyPluginConfig {
     /// 截图宽度（像素）
     #[serde(default = "SmyPluginConfig::default_screenshot_width")]
     pub screenshot_width: u32,
-    /// LLM 配置（可选，缺少时 -a/--ai 报错提示未配置）
-    pub llm: Option<LlmConfig>,
 }
 
 impl SmyPluginConfig {
@@ -49,7 +29,6 @@ impl Default for SmyPluginConfig {
     fn default() -> Self {
         Self {
             screenshot_width: SmyPluginConfig::default_screenshot_width(),
-            llm: None,
         }
     }
 }
@@ -58,11 +37,12 @@ impl Default for SmyPluginConfig {
 
 /// smy 核心管道：统计 → 可选 LLM → 渲染 → 截图，返回 base64 PNG。
 ///
+/// `with_ai` 为 true 时尝试获取全局 LlmClient 进行 AI 分析。
 /// 调用方（命令 / 定时任务）负责消息拉取和图片发送，
 /// 本函数只做纯计算 + 截图，不涉及 API 交互。
 pub async fn generate_report(
     messages: &[ChatMessage],
-    llm_config: Option<&LlmConfig>,
+    with_ai: bool,
     group_label: &str,
     screenshot_width: u32,
 ) -> Result<String> {
@@ -70,17 +50,22 @@ pub async fn generate_report(
     let stats = statistics::analyze(messages);
 
     // ── LLM 分析（可选） ──────────────────────────────────────────────────────
-    let llm_result = if let Some(cfg) = llm_config {
-        debug!("[smy] 请求 LLM 分析...");
-        match llm::analyze(messages, cfg).await {
-            Ok(r) => {
-                debug!("[smy] LLM 分析完成");
-                r
+    let llm_result = if with_ai {
+        if let Some(client) = crate::runtime::llm::get() {
+            debug!("[smy] 请求 LLM 分析...");
+            match llm::analyze(messages, client).await {
+                Ok(r) => {
+                    debug!("[smy] LLM 分析完成");
+                    r
+                }
+                Err(e) => {
+                    warn!("[smy] LLM 分析失败，使用空结果: {e:#}");
+                    llm::LlmResult::default()
+                }
             }
-            Err(e) => {
-                warn!("[smy] LLM 分析失败，使用空结果: {e:#}");
-                llm::LlmResult::default()
-            }
+        } else {
+            warn!("[smy] with_ai=true 但 LLM 未配置，跳过");
+            llm::LlmResult::default()
         }
     } else {
         llm::LlmResult::default()
