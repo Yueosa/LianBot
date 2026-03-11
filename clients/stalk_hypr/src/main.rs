@@ -291,12 +291,17 @@ async fn main() {
 
     let mut delay = 5u64;
     loop {
+        let start = std::time::Instant::now();
         match run_session(&uri).await {
             Ok(())  => info!("连接正常断开"),
             Err(e)  => warn!("连接出错: {e}"),
         }
+        // 连接存活超过 60s 说明是正常运行后断开，重置退避
+        if start.elapsed().as_secs() > 60 {
+            delay = 5;
+        }
         info!("{delay} 秒后重连...");
         sleep(Duration::from_secs(delay)).await;
-        delay = (delay * 2).min(60); // 指数退避，上限 60s
+        delay = (delay * 2).min(60);
     }
 }
