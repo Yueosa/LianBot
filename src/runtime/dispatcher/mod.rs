@@ -433,7 +433,15 @@ impl Dispatcher {
 
         match &result {
             Ok(()) => info!("[{cmd_name}] tid={tid} 完成 {duration_ms}ms"),
-            Err(e) => warn!("[{cmd_name}] tid={tid} 失败 {duration_ms}ms: {e:#}"),
+            Err(e) => {
+                warn!("[{cmd_name}] tid={tid} 失败 {duration_ms}ms: {e:#}");
+                // 统一向用户发送错误提示（尽力而为，失败不影响主流程）
+                let target = MsgTarget::from(scope);
+                let _ = self.api.send_msg(
+                    target,
+                    &format!("❌ 命令执行失败: {e}"),
+                ).await;
+            }
         }
 
         // 向消息池报告处理状态
