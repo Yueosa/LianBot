@@ -148,6 +148,7 @@ ask CHAT_CTX_SIZE   "上下文条数"         "$(toml_section_val "$LG" chat con
 ask CHAT_CTX_WINDOW "上下文时间窗口（秒）" "$(toml_section_val "$LG" chat context_window '7200')"
 ask CHAT_TEMP       "LLM temperature"   "$(toml_section_val "$LG" chat temperature '0.8')"
 ask CHAT_MAX_TOKENS "max_tokens"        "$(toml_section_val "$LG" chat max_tokens '2048')"
+ask CHAT_TOOLS      "启用 Tool-Call（true/false）" "$(toml_section_val "$LG" chat enable_tools 'false')"
 echo "  人格设定（persona）请直接编辑 logic.toml [chat] 段修改"
 echo ""
 
@@ -193,7 +194,8 @@ api_url = \"$WORLD_URL\"
 context_size   = $CHAT_CTX_SIZE
 context_window = $CHAT_CTX_WINDOW
 temperature    = $CHAT_TEMP
-max_tokens     = $CHAT_MAX_TOKENS"
+max_tokens     = $CHAT_MAX_TOKENS
+enable_tools   = $CHAT_TOOLS"
 
 echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
 [[ -f "$LG" ]] && warn "logic.toml 已存在，将被覆盖。"
