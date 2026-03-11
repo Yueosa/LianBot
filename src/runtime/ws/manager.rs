@@ -92,9 +92,26 @@ impl WsManager {
     // ── 客户端消息协议 ────────────────────────────────────────────────────────
     //
     // 格式（文本帧）：
-    //   stalk_result:<group_id>:<base64_image>   截图二进制（base64 编码）
-    //   stalk_text:<group_id>:<text>             截图附带的文字信息
-    //   heartbeat                                心跳（静默忽略）
+    //   stalk_result:<target>:<base64_image>   截图二进制（base64 编码）
+    //   stalk_text:<target>:<text>             截图附带的文字信息
+    //   heartbeat                              心跳（静默忽略）
+    //
+    // <target> 格式：
+    //   <group_id>          → 群聊
+    //   private:<user_id>   → 私聊
+
+    /// 从 "private:<uid>:..." 或 "<gid>:..." 中解析出发送目标和剩余内容。
+    fn parse_target_payload(rest: &str) -> Option<(MsgTarget, &str)> {
+        if let Some(after) = rest.strip_prefix("private:") {
+            let (uid_str, payload) = after.split_once(':')?;
+            let uid = uid_str.parse::<i64>().ok()?;
+            Some((MsgTarget::Private(uid), payload))
+        } else {
+            let (gid_str, payload) = rest.split_once(':')?;
+            let gid = gid_str.parse::<i64>().ok()?;
+            Some((MsgTarget::Group(gid), payload))
+        }
+    }
 
     async fn handle_client_message(&self, text: String, api: &ApiClient) {
         if text == "heartbeat" {
@@ -102,28 +119,24 @@ impl WsManager {
         }
 
         if let Some(rest) = text.strip_prefix("stalk_result:") {
-            if let Some((group_str, img_data)) = rest.split_once(':') {
-                if let Ok(group_id) = group_str.parse::<i64>() {
-                    // 兼容 data URL 格式 "data:image/jpeg;base64,<data>" 和裸 base64
-                    let pure_b64 = img_data
-                        .find(";base64,")
-                        .map(|i| &img_data[i + 8..])
-                        .unwrap_or(img_data);
-                    let file = format!("base64://{pure_b64}");
-                    if let Err(e) = api.send_image_to(MsgTarget::Group(group_id), &file).await {
-                        warn!("发送截图失败: {e}");
-                    }
+            if let Some((target, img_data)) = Self::parse_target_payload(rest) {
+                // 兼容 data URL 格式 "data:image/jpeg;base64,<data>" 和裸 base64
+                let pure_b64 = img_data
+                    .find(";base64,")
+                    .map(|i| &img_data[i + 8..])
+                    .unwrap_or(img_data);
+                let file = format!("base64://{pure_b64}");
+                if let Err(e) = api.send_image_to(target, &file).await {
+                    warn!("发送截图失败: {e}");
                 }
             }
             return;
         }
 
         if let Some(rest) = text.strip_prefix("stalk_text:") {
-            if let Some((group_str, msg_text)) = rest.split_once(':') {
-                if let Ok(group_id) = group_str.parse::<i64>() {
-                    if let Err(e) = api.send_msg(MsgTarget::Group(group_id), msg_text).await {
-                        warn!("发送文字失败: {e}");
-                    }
+            if let Some((target, msg_text)) = Self::parse_target_payload(rest) {
+                if let Err(e) = api.send_msg(target, msg_text).await {
+                    warn!("发送文字失败: {e}");
                 }
             }
             return;
