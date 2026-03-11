@@ -61,6 +61,22 @@ impl CommandRegistry {
         self.advanced_cmds.get(name)
     }
 
+    /// 收集所有声明了 `tool_description()` 的命令，返回 `(name, description)` 列表。
+    /// 用于构造 LLM 的 tool-call system prompt。
+    pub fn tool_definitions(&self) -> Vec<(&str, &str)> {
+        let mut seen = std::collections::HashSet::new();
+        let mut defs: Vec<(&str, &str)> = Vec::new();
+        for cmd in self.simple_cmds.values().chain(self.advanced_cmds.values()) {
+            if seen.insert(cmd.name()) {
+                if let Some(desc) = cmd.tool_description() {
+                    defs.push((cmd.name(), desc));
+                }
+            }
+        }
+        defs.sort_by_key(|(name, _)| *name);
+        defs
+    }
+
     /// 生成 /help 输出的完整命令列表文本。
     /// 按名称排序，别名重复条目自动去除，别名在名称旁展示。
     /// `prefix` 为简单命令的触发前缀（如 `"!!"`），会展示在帮助文本中。

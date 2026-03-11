@@ -67,6 +67,12 @@ pub trait Command: Send + Sync {
         false
     }
 
+    /// 返回该命令作为 LLM tool 时的自然语言描述。
+    /// 返回 `None` 表示不暴露给 LLM（默认）。
+    fn tool_description(&self) -> Option<&str> {
+        None
+    }
+
     /// 执行命令
     async fn execute(&self, ctx: CommandContext) -> anyhow::Result<()>;
 }

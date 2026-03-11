@@ -322,11 +322,70 @@ impl Dispatcher {
         };
 
         let target = crate::runtime::api::MsgTarget::from(scope);
-        crate::logic::chat::handle_chat(
+
+        // 收集 tool 定义（由 registry 中声明了 tool_description 的命令提供）
+        let tool_defs = self.registry.tool_definitions();
+
+        let outcome = crate::logic::chat::handle_chat(
             &self.api, pool, scope, target,
             self.bot_id, bot_name, self.owner,
             user_name, event.user_id, &question,
-        ).await
+            &tool_defs,
+        ).await?;
+
+        // 处理 tool-call
+        match outcome {
+            crate::logic::chat::ChatOutcome::Replied => Ok(()),
+            crate::logic::chat::ChatOutcome::ToolCall { command, message } => {
+                if let Some(msg) = &message {
+                    self.api.send_msg(target, msg).await?;
+                }
+                self.dispatch_tool_call(
+                    scope,
+                    event.message_id,
+                    self.resolve_user(event.user_id, scope),
+                    event.message.clone(),
+                    &command,
+                ).await
+            }
+        }
+    }
+
+    /// LLM tool-call 调用的命令路由。
+    /// 仅匹配声明了 `tool_description()` 的命令，权限检查和依赖预检与普通命令一致。
+    async fn dispatch_tool_call(
+        &self,
+        scope: Scope,
+        message_id: Option<i64>,
+        bot_user: BotUser,
+        segments: Vec<MessageSegment>,
+        command: &str,
+    ) -> anyhow::Result<()> {
+        let target = MsgTarget::from(scope);
+
+        // 先查简单命令，再查复杂命令
+        let cmd = self.registry.get_simple(command)
+            .or_else(|| self.registry.get_advanced(command));
+
+        let cmd = match cmd {
+            Some(c) if c.tool_description().is_some() => c,
+            _ => {
+                warn!("[tool-call] LLM 调用了未知或未注册为 tool 的命令: {command}");
+                return Ok(());
+            }
+        };
+
+        // 依赖预检
+        if let Some(msg) = self.check_dependencies(cmd.as_ref()).await {
+            return self.api.send_msg(target, &msg).await;
+        }
+        // 权限检查
+        if bot_user.role < cmd.required_role() {
+            return self.api.send_msg(target, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await;
+        }
+
+        let ctx = self.build_ctx(message_id, bot_user, segments, Default::default());
+        self.execute_and_mark(cmd, ctx, scope, message_id).await
     }
 
     // ── 依赖预检 ────────────────────────────────────────────────────────────────
