@@ -22,6 +22,7 @@ cd "$PROJECT_ROOT"
 #   "cmd-stalk:!!stalk 在线监控（自动拉入 core-ws）:true"
 #   "cmd-world:!!world 60秒看世界:true"
 #   "svc-github:GitHub Webhook 通知（拉入 hmac + sha2 + hex）:true"
+#   "svc-yiban:易班签到 Webhook 通知（拉入 hmac + sha2 + hex）:true"
 #   "core-db:SQLite 权限数据库（拉入 rusqlite）:true"
 #   "core-log-file:滚动日志文件（拉入 tracing-appender）:false"
 # )
@@ -37,6 +38,7 @@ cd "$PROJECT_ROOT"
 #   cmd-stalk  → core-ws
 #   cmd-smy    → dep:base64, dep:tempfile
 #   svc-github → dep:hmac, dep:sha2, dep:hex
+#   svc-yiban  → dep:hmac, dep:sha2, dep:hex
 #   core-db    → dep:rusqlite
 #   core-log-file → dep:tracing-appender
 

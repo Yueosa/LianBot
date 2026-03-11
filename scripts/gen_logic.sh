@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gen_logic.sh — 生成 logic.toml（业务逻辑层）
-# 覆盖字段：smy / smy.llm / github / github.subscriptions / alive / acg / world
+# 覆盖字段：smy / smy.llm / github / github.subscriptions / yiban / alive / acg / world
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 require_project_root
@@ -113,6 +113,18 @@ if [[ "${sub_action:-a}" != "k" ]] || [[ ${#SUBS[@]} -eq 0 ]]; then
 fi
 echo ""
 
+# ── [yiban] ───────────────────────────────────────────────────────────────────
+echo "  ${C_BOLD}[yiban]${C_NC}  易班签到 Webhook"
+_ys=$(toml_section_val "$LG" yiban secret "")
+if [[ -n "$_ys" ]]; then
+    ask YIBAN_SECRET "HMAC Secret" "$_ys"
+else
+    ask_optional YIBAN_SECRET "HMAC Secret" "留空跳过验签"
+fi
+ask YIBAN_GROUP "推送群号（0 禁用路由）" "$(toml_section_val "$LG" yiban group '0')"
+ask_optional YIBAN_AT "@ 的 QQ 号（逗号分隔）" "不 @"
+echo ""
+
 # ── [alive] ───────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[alive]${C_NC}  设备在线状态探测"
 ask ALIVE_URL     "探测 API 地址" "$(toml_section_val "$LG" alive api_url 'https://alive.example.com/api/status')"
@@ -154,6 +166,16 @@ secret = \"${GH_SECRET:-}\""
 for sub in "${SUBS[@]}"; do
     CONTENT+=$'\n\n'"[[github.subscriptions]]"$'\n'"$(printf '%s' "$sub")"
 done
+
+CONTENT+="
+
+[yiban]
+secret = \"${YIBAN_SECRET:-}\"
+group  = $YIBAN_GROUP"
+if [[ -n "$YIBAN_AT" ]]; then
+    yiban_at_toml=$(echo "$YIBAN_AT" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+    CONTENT+=$'\n'"at     = [$yiban_at_toml]"
+fi
 
 CONTENT+="
 

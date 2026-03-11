@@ -50,6 +50,18 @@ secret = ""
 # forward_threshold = 5    # 超过此段数用合并转发
 # send_delay_ms = 600      # 多条消息之间的发送间隔（毫秒）
 
+# ── 易班签到 Webhook (yiban) ──────────────────────────────────────────────────
+# [yiban]
+# HMAC-SHA256 签名密钥，与 YiBanSign config.py 中 webhook_secret 一致
+# 留空时跳过验签
+# secret = ""
+#
+# 推送到哪个群（为 0 时 /webhook/yiban 路由自动禁用）
+# group  = 0
+#
+# 通知时 @ 的 QQ 号列表（可为空）
+# at     = []
+
 # ── 60秒看世界 (world) ────────────────────────────────────────────────────────
 # [world]
 # api_url = "https://api.ecylt.com/v1/world_60s"
