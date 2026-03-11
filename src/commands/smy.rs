@@ -57,12 +57,15 @@ impl Command for SmyCommand {
 
         ctx.reply("📊 正在总结，请稍候...").await?;
 
-        let fetch_result = smy::fetcher::fetch(
+        let fetch_result = match smy::fetcher::fetch(
             &ctx.api,
             &ctx.pool,
             group_id,
             Duration::from_secs(time_window_secs as u64),
-        ).await?;
+        ).await {
+            Ok(r) => r,
+            Err(e) => return ctx.reply(&format!("❌ 拉取消息失败: {e}")).await,
+        };
         let messages = fetch_result.messages;
 
         if matches!(fetch_result.source, FetchSource::ApiExhausted) {

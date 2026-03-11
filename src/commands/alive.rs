@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::{debug, warn};
@@ -71,15 +71,18 @@ impl Command for AliveCommand {
             return ctx.reply("❌ alive 未配置 api_url，请在 logic.toml [alive] 中设置").await;
         }
         debug!("[alive] 请求设备状态, url={}", cfg.api_url);
-        let resp = http_client()
+        let resp = match http_client()
             .get(&cfg.api_url)
             .timeout(std::time::Duration::from_secs(cfg.timeout_secs))
             .send()
             .await
-            .context("请求 alive API 失败")?
-            .json::<AliveResponse>()
-            .await
-            .context("解析 alive API 响应失败")?;
+        {
+            Ok(r) => match r.json::<AliveResponse>().await {
+                Ok(v) => v,
+                Err(e) => return ctx.reply(&format!("❌ 解析 alive API 响应失败: {e}")).await,
+            },
+            Err(e) => return ctx.reply(&format!("❌ 请求 alive API 失败: {e}")).await,
+        };
 
         // 私密模式
         if resp.privacy {

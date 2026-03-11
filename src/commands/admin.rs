@@ -36,7 +36,9 @@ impl Command for AdminCommand {
                 match target {
                     Some(uid) => {
                         let target_scope = Scope::Private(uid);
-                        ctx.access.block_user(&target_scope, uid).await?;
+                        if let Err(e) = ctx.access.block_user(&target_scope, uid).await {
+                            return ctx.reply(&format!("❌ 拉黑失败: {e}")).await;
+                        }
                         info!("[admin] block user={uid}");
                         ctx.reply(&format!("✅ 已拉黑用户 {uid}（私聊）")).await
                     }
@@ -48,7 +50,9 @@ impl Command for AdminCommand {
                 match target {
                     Some(uid) => {
                         let target_scope = Scope::Private(uid);
-                        ctx.access.unblock_user(&target_scope, uid).await?;
+                        if let Err(e) = ctx.access.unblock_user(&target_scope, uid).await {
+                            return ctx.reply(&format!("❌ 解除拉黑失败: {e}")).await;
+                        }
                         info!("[admin] unblock user={uid}");
                         ctx.reply(&format!("✅ 已解除拉黑用户 {uid}")).await
                     }
@@ -60,7 +64,9 @@ impl Command for AdminCommand {
                     Scope::Group(gid) => gid,
                     Scope::Private(_) => return ctx.reply("❌ 该命令仅在群聊中可用").await,
                 };
-                ctx.access.enable_group(gid).await?;
+                if let Err(e) = ctx.access.enable_group(gid).await {
+                    return ctx.reply(&format!("❌ 启用群失败: {e}")).await;
+                }
                 info!("[admin] enable group={gid}");
                 ctx.reply(&format!("✅ 已启用群 {gid}")).await
             }
@@ -69,7 +75,9 @@ impl Command for AdminCommand {
                     Scope::Group(gid) => gid,
                     Scope::Private(_) => return ctx.reply("❌ 该命令仅在群聊中可用").await,
                 };
-                ctx.access.disable_group(gid).await?;
+                if let Err(e) = ctx.access.disable_group(gid).await {
+                    return ctx.reply(&format!("❌ 禁用群失败: {e}")).await;
+                }
                 info!("[admin] disable group={gid}");
                 ctx.reply(&format!("✅ 已禁用群 {gid}")).await
             }

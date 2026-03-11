@@ -48,7 +48,13 @@ impl Command for AcgCommand {
                 debug!("[acg] 落地 URL: {final_url}");
                 ctx.reply_text_image(&final_url, &final_url).await
             }
-            None => ctx.reply_image(url).await,
+            None => {
+                // 重定向失败或无重定向，尝试直接发送原 URL
+                if let Err(e) = ctx.reply_image(url).await {
+                    return ctx.reply(&format!("❌ 获取图片失败: {e}")).await;
+                }
+                Ok(())
+            }
         }
     }
 }

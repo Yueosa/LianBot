@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::{debug, warn};
@@ -40,14 +40,17 @@ impl Command for WorldCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<WorldPluginConfig>("world");
-        let resp = http_client()
+        let resp = match http_client()
             .get(&cfg.api_url)
             .send()
             .await
-            .context("请求 60s 看世界 API 失败")?
-            .json::<WorldResponse>()
-            .await
-            .context("解析 60s 看世界响应失败")?;
+        {
+            Ok(r) => match r.json::<WorldResponse>().await {
+                Ok(v) => v,
+                Err(e) => return ctx.reply(&format!("❌ 解析 60s 看世界响应失败: {e}")).await,
+            },
+            Err(e) => return ctx.reply(&format!("❌ 请求 60s 看世界 API 失败: {e}")).await,
+        };
 
         if resp.data.is_empty() {
             warn!("[world] API 返回空新闻列表");
