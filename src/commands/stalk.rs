@@ -12,6 +12,9 @@ impl Command for StalkCommand {
     fn help(&self) -> &str { "截取主人当前屏幕并发到群里（查设备状态请用 /alive）" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
     fn dependencies(&self) -> &[Dependency] { &[Dependency::Ws] }
+    fn tool_description(&self) -> Option<&str> {
+        Some("截取主人当前的电脑屏幕截图，看主人在做什么")
+    }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         if !ctx.ws.has_clients().await {

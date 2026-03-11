@@ -34,6 +34,9 @@ impl Command for WorldCommand {
     fn name(&self) -> &str { "world" }
     fn help(&self) -> &str { "60秒看世界：今日新闻速览" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
+    fn tool_description(&self) -> Option<&str> {
+        Some("获取今日新闻速览（60秒看世界）")
+    }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<WorldPluginConfig>("world");

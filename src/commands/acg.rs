@@ -36,6 +36,9 @@ impl Command for AcgCommand {
     fn name(&self) -> &str { "acg" }
     fn help(&self) -> &str { "随机返回一张二次元图片" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
+    fn tool_description(&self) -> Option<&str> {
+        Some("随机发一张二次元图片")
+    }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<AcgPluginConfig>("acg");

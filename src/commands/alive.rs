@@ -59,6 +59,9 @@ impl Command for AliveCommand {
     fn name(&self) -> &str { "alive" }
     fn help(&self) -> &str { "查看主人当前的设备在线状态" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
+    fn tool_description(&self) -> Option<&str> {
+        Some("查看主人的设备在线状态，了解主人当前在做什么、用什么设备")
+    }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<AlivePluginConfig>("alive");
