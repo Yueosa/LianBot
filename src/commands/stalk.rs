@@ -13,7 +13,7 @@ impl Command for StalkCommand {
     fn kind(&self) -> CommandKind { CommandKind::Simple }
     fn dependencies(&self) -> &[Dependency] { &[Dependency::Ws] }
     fn tool_description(&self) -> Option<&str> {
-        Some("截取主人当前的电脑屏幕截图，看主人在做什么")
+        Some("视奸主人屏幕：通过 WebSocket 向主人电脑发送截图请求，返回实时屏幕截图。适合想看主人屏幕上具体画面时调用，与 alive（查软件列表）不同")
     }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {

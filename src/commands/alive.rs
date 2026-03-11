@@ -60,7 +60,7 @@ impl Command for AliveCommand {
     fn help(&self) -> &str { "查看主人当前的设备在线状态" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
     fn tool_description(&self) -> Option<&str> {
-        Some("查看主人的设备在线状态，了解主人当前在做什么、用什么设备")
+        Some("查询主人各设备的在线状态和正在使用的软件名称。返回一列设备名及其当前运行的应用，适合想知道主人在用什么软件、是否在线时调用")
     }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {

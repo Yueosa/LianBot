@@ -35,7 +35,7 @@ impl Command for WorldCommand {
     fn help(&self) -> &str { "60秒看世界：今日新闻速览" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
     fn tool_description(&self) -> Option<&str> {
-        Some("获取今日新闻速览（60秒看世界）")
+        Some("获取今日新闻速览（60秒看世界）。请求新闻聚合 API 返回当天热点新闻列表，适合用户问今天有什么新闻、发生了什么事时调用")
     }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {

@@ -37,7 +37,7 @@ impl Command for AcgCommand {
     fn help(&self) -> &str { "随机返回一张二次元图片" }
     fn kind(&self) -> CommandKind { CommandKind::Simple }
     fn tool_description(&self) -> Option<&str> {
-        Some("随机发一张二次元图片")
+        Some("随机获取一张二次元/动漫图片并发送到群里。通过图片 API 302 重定向拿到随机图片 URL，适合用户想看图、要壁纸、或气氛需要来张图时调用")
     }
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
