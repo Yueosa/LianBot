@@ -55,6 +55,7 @@ default = [
     "cmd-world",
     "core-db",
     "svc-github",
+    "svc-yiban",
 ]
 
 # ── 各命令独立 feature ──────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ cmd-world = []                            # /world 60秒看世界
 
 # ── 服务 feature ────────────────────────────────────────────────────────────
 svc-github = ["dep:hmac", "dep:sha2", "dep:hex"]  # GitHub Webhook 验签 + 通知
+svc-yiban  = ["dep:hmac", "dep:sha2", "dep:hex"]  # 易班签到 Webhook 通知
 
 # ── 基础设施 feature ────────────────────────────────────────────────────────
 core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由

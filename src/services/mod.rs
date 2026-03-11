@@ -1,6 +1,8 @@
 #[cfg(feature = "svc-github")]
 pub mod github;
 pub mod scheduler;
+#[cfg(feature = "svc-yiban")]
+pub mod yiban;
 
 /// 所有后台服务实现此 trait。
 /// `run(self)` 消耗所有权，由调用方用 `tokio::spawn` 包装。
@@ -22,4 +24,7 @@ pub fn register(app: &mut crate::kernel::app::App) {
 
     #[cfg(feature = "svc-github")]
     github::register(app);
+
+    #[cfg(feature = "svc-yiban")]
+    yiban::register(app);
 }
