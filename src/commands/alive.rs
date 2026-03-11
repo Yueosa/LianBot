@@ -41,6 +41,8 @@ struct AliveResponse {
 #[derive(Debug, Deserialize)]
 struct Site {
     name: String,
+    #[serde(rename = "status-hint", default)]
+    status_hint: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,8 +93,11 @@ impl Command for AliveCommand {
 
         let mut lines: Vec<String> = Vec::new();
 
-        // 标题：site.name（或 note 作为补充）
+        // 标题 + 状态提示
         lines.push(resp.site.name.clone());
+        if !resp.site.status_hint.is_empty() {
+            lines.push(resp.site.status_hint.clone());
+        }
         if let Some(note) = &resp.note {
             if !note.is_empty() {
                 lines.push(String::new());
