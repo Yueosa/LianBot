@@ -69,11 +69,10 @@ impl CommandParser {
     /// `prefix` 为简单命令前缀（如 `"!!"`），`<>` 为复杂命令前缀（固定）。
     /// 返回的 name 为纯命令名（不含前缀）。
     pub fn parse(input: &str, prefix: &str) -> Option<ParsedCommand> {
-        let s = input.trim();
-        if s.starts_with(prefix) {
-            Self::parse_simple(s, prefix)
-        } else if s.starts_with('<') && s.contains('>') {
-            Self::parse_advanced(s)
+        if input.starts_with(prefix) {
+            Self::parse_simple(input, prefix)
+        } else if input.starts_with('<') && input.contains('>') {
+            Self::parse_advanced(input)
         } else {
             None
         }
@@ -82,20 +81,23 @@ impl CommandParser {
     /// 判断文本是否看起来像一条命令（快速前缀检查）
     #[allow(dead_code)]
     pub fn is_command(input: &str, prefix: &str) -> bool {
-        let s = input.trim();
-        s.starts_with(prefix) || (s.starts_with('<') && s.contains('>'))
+        input.starts_with(prefix) || (input.starts_with('<') && input.contains('>'))
     }
 
     // ── 内部：简单命令 ────────────────────────────────────────────────────────
-    // 格式：`{prefix}name [trailing...]`
-    // 返回的 name 不含前缀：`!!ping` → name = "ping"
+    // 格式：`{prefix}{name} [trailing...]`
+    // 前缀后必须紧跟命令名（非空白），名称取到第一个空格/换行为止。
     fn parse_simple(s: &str, prefix: &str) -> Option<ParsedCommand> {
         let rest = s.strip_prefix(prefix)?;
-        let mut tokens = rest.split_whitespace();
-        let name = tokens.next()?.to_string();
-        if name.is_empty() {
+        // 前缀后紧接的第一个字符不能是空白
+        let first = rest.chars().next()?;
+        if first.is_whitespace() {
             return None;
         }
+        // 仅按第一行做分词（换行符后的内容不参与命令解析）
+        let first_line = rest.split('\n').next().unwrap_or(rest);
+        let mut tokens = first_line.split_whitespace();
+        let name = tokens.next()?.to_string();
         let trailing: Vec<String> = tokens.map(|t| t.to_string()).collect();
         Some(ParsedCommand::Simple { name, trailing })
     }
@@ -285,6 +287,30 @@ mod tests {
         assert!(CommandParser::parse("普通消息", "!!").is_none());
         assert!(CommandParser::parse("", "!!").is_none());
         assert!(CommandParser::parse("/ping", "!!").is_none()); // wrong prefix
+    }
+
+    #[test]
+    fn test_reject_leading_whitespace() {
+        assert!(CommandParser::parse("   !!ping", "!!").is_none());
+        assert!(CommandParser::parse("\t!!ping", "!!").is_none());
+    }
+
+    #[test]
+    fn test_reject_space_between_prefix_and_name() {
+        assert!(CommandParser::parse("!!  ping", "!!").is_none());
+        assert!(CommandParser::parse("!! ping", "!!").is_none());
+    }
+
+    #[test]
+    fn test_reject_newline_between_prefix_and_name() {
+        assert!(CommandParser::parse("!!\nping", "!!").is_none());
+    }
+
+    #[test]
+    fn test_trailing_ignores_second_line() {
+        // 多行消息只解析第一行
+        let r = CommandParser::parse("!!admin enable\nsomething else", "!!").unwrap();
+        assert_eq!(r, ParsedCommand::Simple { name: "admin".into(), trailing: vec!["enable".into()] });
     }
 
     #[test]
