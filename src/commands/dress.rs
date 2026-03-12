@@ -103,9 +103,13 @@ impl Command for DressCommand {
             ("unknown".to_string(), item.path.clone())
         };
 
+        let encoded_path = path
+            .split('/')
+            .map(|seg| urlencoding::encode(seg))
+            .collect::<Vec<_>>()
+            .join("/");
         let raw_url = format!(
-            "https://raw.githubusercontent.com/{OWNER}/{REPO}/{BRANCH}/{}",
-            path
+            "https://raw.githubusercontent.com/{OWNER}/{REPO}/{BRANCH}/{encoded_path}"
         );
 
         debug!("[dress] author={author}, url={raw_url}");
