@@ -148,13 +148,13 @@ impl BotService for YiBanService {
 
 // ── 主动调用 LianSign HTTP API ────────────────────────────────────────────────
 
-/// 触发签到（全部账号或指定账号），返回触发结果消息
-pub async fn trigger_sign(cfg: &YiBanConfig, account: Option<&str>) -> String {
+/// 触发签到（全部用户或指定用户名），返回触发结果消息
+pub async fn trigger_sign(cfg: &YiBanConfig, name: Option<&str>) -> String {
     if cfg.api_url.is_empty() {
         return "未配置 api_url，无法调用签到服务".into();
     }
-    let url = match account {
-        Some(a) => format!("{}/sign/{}", cfg.api_url.trim_end_matches('/'), a),
+    let url = match name {
+        Some(n) => format!("{}/sign/{}", cfg.api_url.trim_end_matches('/'), n),
         None => format!("{}/sign", cfg.api_url.trim_end_matches('/')),
     };
     let client = reqwest::Client::new();

@@ -6,7 +6,7 @@ use crate::commands::{Command, CommandContext, CommandKind};
 use crate::logic::yiban::YiBanConfig;
 use crate::runtime::permission::Role;
 
-// ── !!sign [账号名] — 触发签到 ────────────────────────────────────────────────
+// ── sign [用户名] — 触发签到 ────────────────────────────────────────────────
 
 pub struct SignCommand;
 
@@ -17,8 +17,8 @@ impl Command for SignCommand {
     fn help(&self) -> &str {
         "触发易班签到（仅限 Owner）\n\
          用法：\n\
-         · sign            — 触发全部账号签到\n\
-         · sign <账号名>    — 触发指定账号签到"
+         · sign            — 触发全部用户签到\n\
+         · sign <用户名>    — 触发指定用户签到"
     }
 
     fn kind(&self) -> CommandKind { CommandKind::Simple }
@@ -30,8 +30,8 @@ impl Command for SignCommand {
     fn tool_description(&self) -> Option<&str> {
         Some(
             "触发易班自动签到。\
-             不带参数时触发全部账号；\
-             传入账号名时触发指定账号。\
+             不带参数时触发全部用户；\
+             传入用户名时触发指定用户。\
              仅限 Owner 使用。",
         )
     }
@@ -40,9 +40,9 @@ impl Command for SignCommand {
         let args = ctx.get(&["_args"]).unwrap_or("").trim().to_string();
         let cfg = crate::logic::config::section::<YiBanConfig>("yiban");
 
-        let account = if args.is_empty() { None } else { Some(args.as_str()) };
-        let result = crate::services::yiban::trigger_sign(&cfg, account).await;
-        info!("[sign] trigger account={:?}", account);
+        let name = if args.is_empty() { None } else { Some(args.as_str()) };
+        let result = crate::services::yiban::trigger_sign(&cfg, name).await;
+        info!("[sign] trigger name={:?}", name);
         ctx.reply(&result).await
     }
 }
