@@ -69,7 +69,7 @@ cmd-acg   = []
 cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
 cmd-smy   = ["dep:base64", "dep:tempfile"]  # 截图(base64) + 截图临时目录(tempfile)
 cmd-world = []                            # /world 60秒看世界
-cmd-dress = ["dep:rand", "dep:regex", "dep:urlencoding"]     # /dress 随机女装图片
+cmd-dress = ["dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]  # /dress 随机女装图片
 
 # ── 服务 feature ────────────────────────────────────────────────────────────
 svc-github = ["dep:hmac", "dep:sha2", "dep:hex"]  # GitHub Webhook 验签 + 通知
