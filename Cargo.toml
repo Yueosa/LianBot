@@ -70,7 +70,7 @@ cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路�
 cmd-smy   = ["dep:base64", "dep:tempfile"]  # 截图(base64) + 截图临时目录(tempfile)
 cmd-world = []                            # /world 60秒看世界
 cmd-dress = ["dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]  # /dress 随机女装图片
-cmd-sign  = []                            # 触发易班签到 / 查询状态（仅 Owner）
+cmd-sign  = ["svc-yiban"]                  # 触发易班签到（依赖 svc-yiban HTTP API）
 
 # ── 服务 feature ────────────────────────────────────────────────────────────
 svc-github = ["dep:hmac", "dep:sha2", "dep:hex"]  # GitHub Webhook 验签 + 通知
