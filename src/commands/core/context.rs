@@ -73,6 +73,11 @@ impl CommandContext {
         ]).await
     }
 
+    /// 向当前交互域发送任意消息段组合（text+image+text 等混合消息）。
+    pub async fn reply_segments(&self, segments: Vec<MessageSegment>) -> Result<()> {
+        self.api.send_segments(self.target(), segments).await
+    }
+
     /// 向当前交互域发送合并转发消息。
     /// `nodes` 由 `MessageSegment::node(...)` 构成。
     pub async fn reply_forward(
