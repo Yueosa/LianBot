@@ -123,6 +123,18 @@ else
 fi
 ask YIBAN_GROUP "推送群号（0 禁用路由）" "$(toml_section_val "$LG" yiban group '0')"
 ask_optional YIBAN_AT "@ 的 QQ 号（逗号分隔）" "不 @"
+_ya=$(toml_section_val "$LG" yiban api_url "")
+if [[ -n "$_ya" ]]; then
+    ask YIBAN_API_URL "LianSign HTTP 地址" "$_ya"
+else
+    ask_optional YIBAN_API_URL "LianSign HTTP 地址" "如 http://127.0.0.1:9090（sign 命令需要）"
+fi
+_yt=$(toml_section_val "$LG" yiban api_token "")
+if [[ -n "$_yt" ]]; then
+    ask YIBAN_API_TOKEN "LianSign Bearer Token" "$_yt"
+else
+    ask_optional YIBAN_API_TOKEN "LianSign Bearer Token" "与 LianSign server.token 一致"
+fi
 echo ""
 
 # ── [alive] ───────────────────────────────────────────────────────────────────
@@ -176,6 +188,12 @@ group  = $YIBAN_GROUP"
 if [[ -n "$YIBAN_AT" ]]; then
     yiban_at_toml=$(echo "$YIBAN_AT" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
     CONTENT+=$'\n'"at     = [$yiban_at_toml]"
+fi
+if [[ -n "${YIBAN_API_URL:-}" ]]; then
+    CONTENT+=$'\n'"api_url   = \"$YIBAN_API_URL\""
+fi
+if [[ -n "${YIBAN_API_TOKEN:-}" ]]; then
+    CONTENT+=$'\n'"api_token = \"$YIBAN_API_TOKEN\""
 fi
 
 CONTENT+="

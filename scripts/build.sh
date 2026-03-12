@@ -21,6 +21,8 @@ cd "$PROJECT_ROOT"
 #   "cmd-acg:!!acg 随机图片:true"
 #   "cmd-stalk:!!stalk 在线监控（自动拉入 core-ws）:true"
 #   "cmd-world:!!world 60秒看世界:true"
+#   "cmd-dress:!!dress 随机女装图片（拉入 rand + regex + urlencoding + base64）:true"
+#   "cmd-sign:!!sign 触发易班签到（自动拉入 svc-yiban）:true"
 #   "svc-github:GitHub Webhook 通知（拉入 hmac + sha2 + hex）:true"
 #   "svc-yiban:易班签到 Webhook 通知（拉入 hmac + sha2 + hex）:true"
 #   "core-db:SQLite 权限数据库（拉入 rusqlite）:true"
@@ -37,6 +39,8 @@ cd "$PROJECT_ROOT"
 # 依赖关系：
 #   cmd-stalk  → core-ws
 #   cmd-smy    → dep:base64, dep:tempfile
+#   cmd-dress  → dep:rand, dep:regex, dep:urlencoding, dep:base64
+#   cmd-sign   → svc-yiban
 #   svc-github → dep:hmac, dep:sha2, dep:hex
 #   svc-yiban  → dep:hmac, dep:sha2, dep:hex
 #   core-db    → dep:rusqlite

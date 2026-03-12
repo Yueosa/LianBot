@@ -6,7 +6,7 @@
 # 三层配置架构（v0.2.0+）：
 #   config.toml   — kernel 层，host / port
 #   runtime.toml  — 运行时，napcat / bot / pool / log / parser / time
-#   logic.toml    — 业务逻辑，smy / github / alive / acg / world
+#   logic.toml    — 业务逻辑，smy / github / yiban / alive / acg / world / chat / dress
 
 set -euo pipefail
 
@@ -30,7 +30,7 @@ main_menu() {
 
         echo "  config.toml   $cfg_s  (kernel: host/port)"
         echo "  runtime.toml  $rt_s  (runtime: napcat/bot/pool/log/parser/time)"
-        echo "  logic.toml    $lg_s  (logic: smy/github/alive/acg/world)"
+        echo "  logic.toml    $lg_s  (logic: smy/github/yiban/alive/acg/world/chat/dress)"
         echo ""
 
         # 服务状态
