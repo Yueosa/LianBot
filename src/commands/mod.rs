@@ -6,6 +6,7 @@
 #[cfg(feature = "cmd-alive")] pub mod alive;
 #[cfg(feature = "cmd-world")] pub mod world;
 #[cfg(feature = "cmd-dress")] pub mod dress;
+#[cfg(feature = "cmd-sign")] pub mod sign;
 pub mod admin;
 
 mod core;
@@ -43,4 +44,6 @@ pub fn register(app: &mut crate::kernel::app::App) {
     #[cfg(feature = "cmd-alive")] app.command(Arc::new(alive::AliveCommand));
     #[cfg(feature = "cmd-world")] app.command(Arc::new(world::WorldCommand));
     #[cfg(feature = "cmd-dress")] app.command(Arc::new(dress::DressCommand));
+    #[cfg(feature = "cmd-sign")]  app.command(Arc::new(sign::SignCommand));
+    #[cfg(feature = "cmd-sign")]  app.command(Arc::new(sign::SignStatusCommand));
 }
