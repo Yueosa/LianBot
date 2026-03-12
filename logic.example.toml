@@ -54,7 +54,7 @@ secret = ""
 
 # ── 易班签到 Webhook (yiban) ──────────────────────────────────────────────────
 # [yiban]
-# HMAC-SHA256 签名密钥，与 YiBanSign config.py 中 webhook_secret 一致
+# HMAC-SHA256 签名密钥，与 LianSign config.toml 中 webhook.secret 一致
 # 留空时跳过验签
 # secret = ""
 #

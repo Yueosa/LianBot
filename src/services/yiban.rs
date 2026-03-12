@@ -4,7 +4,7 @@
 //!   - `register()` 向 App 注册 `/webhook/yiban` 路由和后台推送服务
 //!   - `webhook_handler` 验证 HMAC 签名、解析 payload、发送到 channel
 //!   - `YiBanService` 消费 channel、格式化消息、群消息推送
-//!   - 提供 `trigger_sign` / `get_status` 供指令调用 YiBanSign HTTP API
+//!   - 提供 `trigger_sign` / `get_status` 供指令调用 LianSign HTTP API
 
 use std::sync::Arc;
 
@@ -146,7 +146,7 @@ impl BotService for YiBanService {
     }
 }
 
-// ── 主动调用 YiBanSign HTTP API ───────────────────────────────────────────────
+// ── 主动调用 LianSign HTTP API ────────────────────────────────────────────────
 
 /// 触发签到（全部账号或指定账号），返回触发结果消息
 pub async fn trigger_sign(cfg: &YiBanConfig, account: Option<&str>) -> String {

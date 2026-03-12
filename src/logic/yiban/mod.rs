@@ -1,6 +1,6 @@
 //! 易班签到 Webhook 业务逻辑
 //!
-//! 接收 YiBanSign 脚本 POST 的签到概要，格式化为群消息。
+//! 接收 LianSign 脚本 POST 的签到概要，格式化为群消息。
 //! 不依赖任何 runtime 模块，纯业务逻辑。
 
 use hmac::{Hmac, Mac};
@@ -12,7 +12,7 @@ use sha2::Sha256;
 /// logic.toml 中 `[yiban]` 段
 #[derive(Debug, Deserialize, Default)]
 pub struct YiBanConfig {
-    /// HMAC-SHA256 签名密钥，与 YiBanSign config.toml 中 webhook.secret 一致
+    /// HMAC-SHA256 签名密钥，与 LianSign config.toml 中 webhook.secret 一致
     #[serde(default)]
     pub secret: String,
     /// 推送到哪个群
@@ -21,17 +21,17 @@ pub struct YiBanConfig {
     /// 通知时 @ 的 QQ 号列表（可为空）
     #[serde(default)]
     pub at: Vec<i64>,
-    /// YiBanSign HTTP 服务地址，如 http://127.0.0.1:9090
+    /// LianSign HTTP 服务地址，如 http://127.0.0.1:9090
     #[serde(default)]
     pub api_url: String,
-    /// YiBanSign HTTP 服务的 Bearer token
+    /// LianSign HTTP 服务的 Bearer token
     #[serde(default)]
     pub api_token: String,
 }
 
 // ── Webhook 数据模型 ──────────────────────────────────────────────────────────
 
-/// YiBanSign 脚本 POST 来的签到概要
+/// LianSign 脚本 POST 来的签到概要
 #[derive(Debug, Deserialize)]
 pub struct YiBanReport {
     /// 签到开始时间
