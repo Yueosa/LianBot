@@ -12,7 +12,7 @@ use sha2::Sha256;
 /// logic.toml 中 `[yiban]` 段
 #[derive(Debug, Deserialize, Default)]
 pub struct YiBanConfig {
-    /// HMAC-SHA256 签名密钥，与 YiBanSign config.py 中 webhook_secret 一致
+    /// HMAC-SHA256 签名密钥，与 YiBanSign config.toml 中 webhook.secret 一致
     #[serde(default)]
     pub secret: String,
     /// 推送到哪个群
@@ -21,6 +21,12 @@ pub struct YiBanConfig {
     /// 通知时 @ 的 QQ 号列表（可为空）
     #[serde(default)]
     pub at: Vec<i64>,
+    /// YiBanSign HTTP 服务地址，如 http://127.0.0.1:9090
+    #[serde(default)]
+    pub api_url: String,
+    /// YiBanSign HTTP 服务的 Bearer token
+    #[serde(default)]
+    pub api_token: String,
 }
 
 // ── Webhook 数据模型 ──────────────────────────────────────────────────────────
