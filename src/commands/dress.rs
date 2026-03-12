@@ -1,5 +1,6 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use async_trait::async_trait;
+use base64::Engine;
 use rand::seq::SliceRandom;
 use regex::Regex;
 use serde::Deserialize;
@@ -35,6 +36,14 @@ struct TreeItem {
 fn is_image(path: &str) -> bool {
     let lower = path.to_lowercase();
     IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext))
+}
+
+/// 对路径各段做 percent-encode，保留 `/` 分隔符
+fn encode_path(path: &str) -> String {
+    path.split('/')
+        .map(|seg| urlencoding::encode(seg))
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 pub struct DressCommand;
@@ -103,20 +112,29 @@ impl Command for DressCommand {
             ("unknown".to_string(), item.path.clone())
         };
 
-        let encoded_path = path
-            .split('/')
-            .map(|seg| urlencoding::encode(seg))
-            .collect::<Vec<_>>()
-            .join("/");
         let raw_url = format!(
-            "https://raw.githubusercontent.com/{OWNER}/{REPO}/{BRANCH}/{encoded_path}"
+            "https://raw.githubusercontent.com/{OWNER}/{REPO}/{BRANCH}/{}",
+            encode_path(&path)
         );
 
         debug!("[dress] author={author}, url={raw_url}");
 
+        // 自己下载图片，转 base64 发送，避免 NapCat 无法处理特殊字符 URL
+        let img_bytes = match http_client().get(&raw_url).send().await {
+            Ok(r) if r.status().is_success() => match r.bytes().await {
+                Ok(b) => b,
+                Err(e) => return ctx.reply(&format!("❌ 图片下载失败: {e}")).await,
+            },
+            Ok(r) => return ctx.reply(&format!("❌ 图片下载失败: HTTP {}", r.status())).await,
+            Err(e) => return ctx.reply(&format!("❌ 图片下载失败: {e}")).await,
+        };
+
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&img_bytes);
+        let image_uri = format!("base64://{b64}");
+
         ctx.reply_segments(vec![
             MessageSegment::text(&format!("作者: {author}\n")),
-            MessageSegment::image(&raw_url),
+            MessageSegment::image(&image_uri),
             MessageSegment::text(&format!("\n源仓库: {REPO_URL}\n开源协议: {LICENSE}")),
         ])
         .await
