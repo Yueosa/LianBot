@@ -37,6 +37,7 @@ once_cell   = "1"
 futures     = "0.3"
 rand        = { version = "0.8", optional = true }
 regex       = { version = "1", optional = true }
+urlencoding = { version = "2", optional = true }
 
 # 加密 / 签名（GitHub Webhook HMAC-SHA256 验签，可选）
 hmac = { version = "0.12", optional = true }
@@ -68,7 +69,7 @@ cmd-acg   = []
 cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
 cmd-smy   = ["dep:base64", "dep:tempfile"]  # 截图(base64) + 截图临时目录(tempfile)
 cmd-world = []                            # /world 60秒看世界
-cmd-dress = ["dep:rand", "dep:regex"]     # /dress 随机女装图片
+cmd-dress = ["dep:rand", "dep:regex", "dep:urlencoding"]     # /dress 随机女装图片
 
 # ── 服务 feature ────────────────────────────────────────────────────────────
 svc-github = ["dep:hmac", "dep:sha2", "dep:hex"]  # GitHub Webhook 验签 + 通知
