@@ -1,9 +1,10 @@
-//! 易班签到 Webhook 通知服务
+//! 易班签到服务
 //!
 //! 组件职责：
 //!   - `register()` 向 App 注册 `/webhook/yiban` 路由和后台推送服务
 //!   - `webhook_handler` 验证 HMAC 签名、解析 payload、发送到 channel
 //!   - `YiBanService` 消费 channel、格式化消息、群消息推送
+//!   - 提供 `trigger_sign` / `get_status` 供指令调用 YiBanSign HTTP API
 
 use std::sync::Arc;
 
@@ -142,5 +143,73 @@ impl BotService for YiBanService {
 
         warn!("[{}] channel 已关闭，服务退出", self.name());
         Ok(())
+    }
+}
+
+// ── 主动调用 YiBanSign HTTP API ───────────────────────────────────────────────
+
+/// 触发签到（全部账号或指定账号），返回触发结果消息
+pub async fn trigger_sign(cfg: &YiBanConfig, account: Option<&str>) -> String {
+    if cfg.api_url.is_empty() {
+        return "未配置 api_url，无法调用签到服务".into();
+    }
+    let url = match account {
+        Some(a) => format!("{}/sign/{}", cfg.api_url.trim_end_matches('/'), a),
+        None => format!("{}/sign", cfg.api_url.trim_end_matches('/')),
+    };
+    let client = reqwest::Client::new();
+    let mut req = client.post(&url);
+    if !cfg.api_token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", cfg.api_token));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            if status.is_success() {
+                "签到已触发，稍后将收到结果通知".into()
+            } else {
+                format!("签到触发失败 (HTTP {}): {}", status.as_u16(), body)
+            }
+        }
+        Err(e) => format!("无法连接签到服务: {e}"),
+    }
+}
+
+/// 查询最近一次签到状态
+pub async fn get_status(cfg: &YiBanConfig) -> String {
+    if cfg.api_url.is_empty() {
+        return "未配置 api_url，无法查询签到服务".into();
+    }
+    let url = format!("{}/status", cfg.api_url.trim_end_matches('/'));
+    let client = reqwest::Client::new();
+    let mut req = client.get(&url);
+    if !cfg.api_token.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", cfg.api_token));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            let body = resp.text().await.unwrap_or_default();
+            match serde_json::from_str::<serde_json::Value>(&body) {
+                Ok(v) => {
+                    if let Some(data) = v.get("data") {
+                        if data.is_null() {
+                            return "暂无签到记录".into();
+                        }
+                        match serde_json::from_value::<YiBanReport>(data.clone()) {
+                            Ok(report) => format_report(&report),
+                            Err(_) => format!("解析签到数据失败: {body}"),
+                        }
+                    } else {
+                        v.get("msg")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or(&body)
+                            .to_string()
+                    }
+                }
+                Err(_) => body,
+            }
+        }
+        Err(e) => format!("无法连接签到服务: {e}"),
     }
 }
