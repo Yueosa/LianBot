@@ -41,11 +41,14 @@ pub struct YiBanReport {
 pub struct UserResult {
     /// 用户昵称
     pub name: String,
-    /// 状态：成功 / 登录失败 / 无任务 / 部分失败 / 已禁用
+    /// 状态：成功 / 登录失败 / 无任务 / 部分失败 / 已禁用 / 崩溃
     pub status: String,
     /// 处理的任务列表
     #[serde(default)]
     pub tasks: Vec<TaskResult>,
+    /// 错误详情（仅在失败时存在）
+    #[serde(default)]
+    pub error_msg: Option<String>,
 }
 
 /// 单个任务的提交结果
@@ -95,10 +98,13 @@ pub fn format_report(report: &YiBanReport) -> String {
             "已禁用" => "⏸",
             "登录失败" => "❌",
             "部分失败" => "⚠️",
+            "崩溃" => "💥",
             _ => "❓",
         };
         text.push_str(&format!("{icon} {}: {}\n", user.name, user.status));
-
+        if let Some(ref msg) = user.error_msg {
+            text.push_str(&format!("  └ {}\n", msg));
+        }
         for task in &user.tasks {
             let t_icon = if task.ok { "  ✓" } else { "  ✗" };
             text.push_str(&format!("{t_icon} {}\n", task.title));
