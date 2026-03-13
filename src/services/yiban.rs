@@ -158,7 +158,7 @@ impl BotService for YiBanService {
             let text = format_report(&report);
             let user_names: Vec<&str> = report.users.iter().map(|u| u.name.as_str()).collect();
 
-            // 按 targets 匹配，按 group 聚合 at 列表
+            // 按 targets 匹配，按 group 聚合 at 列表（HashMap 天然去重）
             let mut target_map: HashMap<i64, Vec<i64>> = HashMap::new();
             for target in &self.cfg.targets {
                 if target.matches_any(&user_names) {
@@ -170,17 +170,18 @@ impl BotService for YiBanService {
             }
 
             // 检查 pending origin（命令触发回源）
-            let origin = self.pending.lock().unwrap().take();
+            let origin = if self.cfg.reply_origin {
+                self.pending.lock().unwrap().take()
+            } else {
+                // 关闭回源时丢弃 pending
+                self.pending.lock().unwrap().take();
+                None
+            };
             if let Some(ref p) = origin {
                 if !p.expired() {
-                    match p.scope {
-                        Scope::Group(gid) => {
-                            // 确保 origin 群也会收到通知（不带额外 @）
-                            target_map.entry(gid).or_default();
-                        }
-                        Scope::Private(_) => {
-                            // 私聊触发的回源在下方单独处理
-                        }
+                    if let Scope::Group(gid) = p.scope {
+                        // 群回源直接合入 target_map，已存在则不重复
+                        target_map.entry(gid).or_default();
                     }
                 }
             }

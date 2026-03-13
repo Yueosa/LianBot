@@ -22,6 +22,13 @@ pub struct YiBanConfig {
     /// 推送目标列表（对齐 GitHub subscriptions 模式）
     #[serde(default)]
     pub targets: Vec<YiBanTarget>,
+    /// 命令触发后是否回源推送结果到触发来源，默认 true
+    #[serde(default = "YiBanConfig::default_reply_origin")]
+    pub reply_origin: bool,
+}
+
+impl YiBanConfig {
+    fn default_reply_origin() -> bool { true }
 }
 
 /// 单条推送目标规则
