@@ -133,6 +133,7 @@ if [[ -n "$_yt" ]]; then
 else
     ask_optional YIBAN_API_TOKEN "LianSign Bearer Token" "与 LianSign server.token 一致"
 fi
+ask YIBAN_REPLY_ORIGIN "命令触发后回源推送结果（true/false）" "$(toml_section_val "$LG" yiban reply_origin 'true')"
 echo ""
 
 # ── [[yiban.targets]] ────────────────────────────────────────────────────────
@@ -252,7 +253,8 @@ done
 CONTENT+="
 
 [yiban]
-secret = \"${YIBAN_SECRET:-}\""
+secret = \"${YIBAN_SECRET:-}\"
+reply_origin = $YIBAN_REPLY_ORIGIN"
 if [[ -n "${YIBAN_API_URL:-}" ]]; then
     CONTENT+=$'\n'"api_url   = \"$YIBAN_API_URL\""
 fi
