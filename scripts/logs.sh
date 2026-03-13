@@ -42,10 +42,12 @@ if [[ -n "$log_dir" ]]; then
     fi
 
     info "实时跟踪: $log_file  (Ctrl-C 退出)"
+    _total=$(wc -l < "$log_file" 2>/dev/null || echo 0)
+    dim "  文件总行数: ${_total}"
     echo ""
 
-    # 初始展示最近 30 行；若其中有「配置加载成功」则从该行开始
-    _tail_preview=$(tail -n 30 "$log_file" 2>/dev/null || true)
+    # 初始展示最近 50 行，过滤掉 pool push DEBUG 噪音（文件中保留完整日志）
+    _tail_preview=$(tail -n 50 "$log_file" 2>/dev/null | grep -v 'DEBUG.*\[pool\].*push' || true)
     _boot_line=$(printf '%s\n' "$_tail_preview" | grep -n '配置加载成功' | tail -1 | cut -d: -f1 || true)
     if [[ -n "$_boot_line" ]]; then
         printf '%s\n' "$_tail_preview" | tail -n +"$_boot_line"
