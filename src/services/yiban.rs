@@ -3,10 +3,12 @@
 //! 组件职责：
 //!   - `register()` 向 App 注册 `/webhook/yiban` 路由和后台推送服务
 //!   - `webhook_handler` 验证 HMAC 签名、解析 payload、发送到 channel
-//!   - `YiBanService` 消费 channel、格式化消息、群消息推送
+//!   - `YiBanService` 消费 channel → 按 targets 匹配 + pending 回源 → 群消息推送
 //!   - 提供 `trigger_sign` / `get_status` 供指令调用 LianSign HTTP API
+//!   - 提供 `bridge()` 供命令层设置 pending origin
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use axum::{
     Router,
@@ -19,27 +21,54 @@ use axum::{
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
-use crate::logic::yiban::{YiBanConfig, YiBanReport, format_report, verify_signature};
+use crate::logic::yiban::{YiBanConfig, YiBanReport, format_report};
 use crate::runtime::api::{ApiClient, MsgTarget};
-use crate::runtime::typ::MessageSegment;
+use crate::runtime::permission::Scope;
+use crate::runtime::webhook::{PendingOrigin, build_notification, verify_hmac_sha256};
 
 use super::BotService;
+
+// ── Bridge（命令层 ↔ 服务层通信） ─────────────────────────────────────────────
+
+static BRIDGE: OnceLock<YiBanBridge> = OnceLock::new();
+
+/// 命令层通过 `bridge()` 获取此对象，在触发签到前设置 pending origin。
+pub struct YiBanBridge {
+    pending: Arc<Mutex<Option<PendingOrigin>>>,
+}
+
+impl YiBanBridge {
+    /// 记录触发来源，Webhook 回调时会额外推送到此 scope。
+    pub fn set_origin(&self, scope: Scope) {
+        *self.pending.lock().unwrap() = Some(PendingOrigin::new(scope));
+    }
+}
+
+/// 获取 bridge 引用。若 yiban 服务未注册则返回 None。
+pub fn bridge() -> Option<&'static YiBanBridge> {
+    BRIDGE.get()
+}
 
 // ── 自注册入口 ────────────────────────────────────────────────────────────────
 
 /// 注册易班签到 Webhook 路由和后台推送服务。
-/// group 为 0 时跳过（路由不注册）。
+/// targets 为空时跳过（路由不注册）。
 pub fn register(app: &mut crate::kernel::app::App) {
     let cfg = crate::logic::config::section::<YiBanConfig>("yiban");
 
-    if cfg.group == 0 {
-        info!("[yiban] group 未配置，/webhook/yiban 路由已禁用");
+    if cfg.targets.is_empty() {
+        info!("[yiban] targets 未配置，/webhook/yiban 路由已禁用");
         return;
     }
 
+    let pending: Arc<Mutex<Option<PendingOrigin>>> = Arc::new(Mutex::new(None));
+
+    // 初始化 bridge（供命令层使用）
+    let _ = BRIDGE.set(YiBanBridge { pending: pending.clone() });
+
     let (tx, rx) = mpsc::channel::<YiBanReport>(16);
     let secret = cfg.secret.clone();
-    app.spawn(YiBanService::new(rx, app.api.clone(), cfg).run());
+    app.spawn(YiBanService::new(rx, app.api.clone(), cfg, pending).run());
 
     app.merge(
         Router::new()
@@ -61,12 +90,12 @@ async fn webhook_handler(
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
-    // 1. 验证 HMAC-SHA256 签名
+    // 1. 验证 HMAC-SHA256 签名（空 secret 时跳过）
     let sig = headers
         .get("X-YiBan-Signature")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if !verify_signature(&state.secret, &body, sig) {
+    if !verify_hmac_sha256(&state.secret, &body, sig, true) {
         warn!("[yiban] 签名验证失败，已拒绝请求");
         return StatusCode::UNAUTHORIZED;
     }
@@ -99,11 +128,17 @@ pub struct YiBanService {
     rx: mpsc::Receiver<YiBanReport>,
     api: Arc<ApiClient>,
     cfg: YiBanConfig,
+    pending: Arc<Mutex<Option<PendingOrigin>>>,
 }
 
 impl YiBanService {
-    pub fn new(rx: mpsc::Receiver<YiBanReport>, api: Arc<ApiClient>, cfg: YiBanConfig) -> Self {
-        Self { rx, api, cfg }
+    pub fn new(
+        rx: mpsc::Receiver<YiBanReport>,
+        api: Arc<ApiClient>,
+        cfg: YiBanConfig,
+        pending: Arc<Mutex<Option<PendingOrigin>>>,
+    ) -> Self {
+        Self { rx, api, cfg, pending }
     }
 }
 
@@ -113,31 +148,71 @@ impl BotService for YiBanService {
     }
 
     async fn run(mut self) -> anyhow::Result<()> {
-        info!("[{}] 已启动，推送目标群: {}", self.name(), self.cfg.group);
+        info!(
+            "[{}] 已启动，共 {} 条推送规则",
+            self.name(),
+            self.cfg.targets.len()
+        );
 
         while let Some(report) = self.rx.recv().await {
             let text = format_report(&report);
+            let user_names: Vec<&str> = report.users.iter().map(|u| u.name.as_str()).collect();
 
-            // 构造消息段：@ 段 + 换行 + 文本
-            let mut segments: Vec<MessageSegment> = self
-                .cfg
-                .at
-                .iter()
-                .map(|&qq| MessageSegment::at(qq))
-                .collect();
-            if !segments.is_empty() {
-                segments.push(MessageSegment::text("\n"));
+            // 按 targets 匹配，按 group 聚合 at 列表
+            let mut target_map: HashMap<i64, Vec<i64>> = HashMap::new();
+            for target in &self.cfg.targets {
+                if target.matches_any(&user_names) {
+                    target_map
+                        .entry(target.group)
+                        .or_default()
+                        .extend(&target.at);
+                }
             }
-            segments.push(MessageSegment::text(text.as_str()));
 
-            if let Err(e) = self
-                .api
-                .send_segments(MsgTarget::Group(self.cfg.group), segments)
-                .await
-            {
-                warn!("[yiban] 推送群 {} 失败: {e:#}", self.cfg.group);
-            } else {
-                info!("[yiban] 推送群 {} 成功", self.cfg.group);
+            // 检查 pending origin（命令触发回源）
+            let origin = self.pending.lock().unwrap().take();
+            if let Some(ref p) = origin {
+                if !p.expired() {
+                    match p.scope {
+                        Scope::Group(gid) => {
+                            // 确保 origin 群也会收到通知（不带额外 @）
+                            target_map.entry(gid).or_default();
+                        }
+                        Scope::Private(_) => {
+                            // 私聊触发的回源在下方单独处理
+                        }
+                    }
+                }
+            }
+
+            if target_map.is_empty() && origin.is_none() {
+                info!("[yiban] 无匹配推送目标，跳过");
+                continue;
+            }
+
+            // 推送到所有匹配群
+            for (group_id, at_list) in &target_map {
+                let segments = build_notification(&text, at_list);
+                if let Err(e) = self
+                    .api
+                    .send_segments(MsgTarget::Group(*group_id), segments)
+                    .await
+                {
+                    warn!("[yiban] 推送群 {group_id} 失败: {e:#}");
+                } else {
+                    info!("[yiban] 推送群 {group_id} 成功");
+                }
+            }
+
+            // 私聊回源（如果 origin 是私聊且未过期）
+            if let Some(ref p) = origin {
+                if !p.expired() {
+                    if let Scope::Private(uid) = p.scope {
+                        if let Err(e) = self.api.send_msg(MsgTarget::Private(uid), &text).await {
+                            warn!("[yiban] 回源私聊 {uid} 失败: {e:#}");
+                        }
+                    }
+                }
             }
         }
 

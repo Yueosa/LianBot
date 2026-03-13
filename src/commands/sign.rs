@@ -40,6 +40,11 @@ impl Command for SignCommand {
         let args = ctx.get(&["_args"]).unwrap_or("").trim().to_string();
         let cfg = crate::logic::config::section::<YiBanConfig>("yiban");
 
+        // 设置 pending origin，Webhook 回调时额外推送到触发来源
+        if let Some(bridge) = crate::services::yiban::bridge() {
+            bridge.set_origin(ctx.bot_user.scope);
+        }
+
         let name = if args.is_empty() { None } else { Some(args.as_str()) };
         let result = crate::services::yiban::trigger_sign(&cfg, name).await;
         info!("[sign] trigger name={:?}", name);
