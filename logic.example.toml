@@ -15,6 +15,12 @@
 # 留空时 /webhook/github 路由自动禁用
 secret = ""
 
+# push 事件最多展示几条 commit，默认 5
+# max_commits = 5
+
+# issue/PR 评论预览字符数，默认 80
+# comment_preview_len = 80
+
 # 订阅列表示例：
 # [[github.subscriptions]]
 # repo   = "你的用户名/仓库名"

@@ -15,9 +15,20 @@ pub struct GitHubConfig {
     /// Webhook secret，与 GitHub 仓库设置里填写的一致
     #[serde(default)]
     pub secret: String,
+    /// push 事件最多展示几条 commit，默认 5
+    #[serde(default = "GitHubConfig::default_max_commits")]
+    pub max_commits: usize,
+    /// issue/PR 评论预览字符数，默认 80
+    #[serde(default = "GitHubConfig::default_comment_preview_len")]
+    pub comment_preview_len: usize,
     /// 订阅列表
     #[serde(default)]
     pub subscriptions: Vec<Subscription>,
+}
+
+impl GitHubConfig {
+    fn default_max_commits() -> usize { 5 }
+    fn default_comment_preview_len() -> usize { 80 }
 }
 
 /// 单条订阅规则
@@ -70,10 +81,12 @@ pub struct GitHubEvent {
 
 /// 将 GitHub webhook 事件格式化为群消息文本。
 /// 返回 `None` 表示该事件不需要推送。
-pub fn format_event(evt: &GitHubEvent) -> Option<String> {
+pub fn format_event(evt: &GitHubEvent, cfg: &GitHubConfig) -> Option<String> {
     let repo = &evt.repo;
     let sender = &evt.sender;
     let p = &evt.payload;
+    let max_commits = cfg.max_commits;
+    let preview_len = cfg.comment_preview_len;
 
     match evt.event_type.as_str() {
         "push" => {
@@ -86,7 +99,7 @@ pub fn format_event(evt: &GitHubEvent) -> Option<String> {
                 .map(|a| a.as_slice())
                 .unwrap_or(&[])
                 .iter()
-                .take(3)
+                .take(max_commits)
                 .filter_map(|c| {
                     let msg = c["message"].as_str().unwrap_or("").lines().next()?;
                     let id = &c["id"].as_str().unwrap_or("?")[..7.min(c["id"].as_str().unwrap_or("").len())];
@@ -101,7 +114,7 @@ pub fn format_event(evt: &GitHubEvent) -> Option<String> {
                 text.push('\n');
                 text.push_str(&commits.join("\n"));
             }
-            if total > 3 {
+            if total > max_commits {
                 text.push_str(&format!("\n  ... 共 {total} 个提交"));
             }
             Some(text)
@@ -195,7 +208,7 @@ pub fn format_event(evt: &GitHubEvent) -> Option<String> {
             let is_pr = p["issue"]["pull_request"].is_object();
             let icon = if is_pr { "🔀" } else { "📋" };
             let kind = if is_pr { "PR" } else { "Issue" };
-            let preview: String = body.lines().next().unwrap_or("").chars().take(80).collect();
+            let preview: String = body.lines().next().unwrap_or("").chars().take(preview_len).collect();
             Some(format!(
                 "💬 [{repo}] {sender} 评论了 {icon} {kind} #{number}：{title}\n{preview}\n{url}"
             ))

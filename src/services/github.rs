@@ -133,7 +133,7 @@ impl BotService for GitHubService {
         );
 
         while let Some(evt) = self.rx.recv().await {
-            let Some(text) = format_event(&evt) else {
+            let Some(text) = format_event(&evt, &self.cfg) else {
                 continue;
             };
 
