@@ -121,8 +121,6 @@ if [[ -n "$_ys" ]]; then
 else
     ask_optional YIBAN_SECRET "HMAC Secret" "留空跳过验签"
 fi
-ask YIBAN_GROUP "推送群号（0 禁用路由）" "$(toml_section_val "$LG" yiban group '0')"
-ask_optional YIBAN_AT "@ 的 QQ 号（逗号分隔）" "不 @"
 _ya=$(toml_section_val "$LG" yiban api_url "")
 if [[ -n "$_ya" ]]; then
     ask YIBAN_API_URL "LianSign HTTP 地址" "$_ya"
@@ -134,6 +132,77 @@ if [[ -n "$_yt" ]]; then
     ask YIBAN_API_TOKEN "LianSign Bearer Token" "$_yt"
 else
     ask_optional YIBAN_API_TOKEN "LianSign Bearer Token" "与 LianSign server.token 一致"
+fi
+echo ""
+
+# ── [[yiban.targets]] ────────────────────────────────────────────────────────
+echo "  ${C_BOLD}[[yiban.targets]]${C_NC}  签到推送目标列表"
+
+# 读取已有 targets
+YIBAN_TARGETS=()
+if [[ -f "$LG" ]]; then
+    while IFS= read -r -d '' block; do
+        [[ -n "$block" ]] && YIBAN_TARGETS+=("$block")
+    done < <(awk '
+        /^\[\[yiban\.targets\]\]/ {
+            if (in_sub && block!="") printf "%s\0", block
+            in_sub=1; block=""; next
+        }
+        in_sub && /^\[/ {
+            if (block!="") printf "%s\0", block
+            in_sub=0; block=""
+        }
+        in_sub && !/^\s*$/ { block = block (block=="" ? "" : "\n") $0 }
+        END { if (in_sub && block!="") printf "%s\0", block }
+    ' "$LG")
+fi
+
+if [[ ${#YIBAN_TARGETS[@]} -gt 0 ]]; then
+    echo ""
+    info "已有 ${#YIBAN_TARGETS[@]} 条推送规则："
+    for i in "${!YIBAN_TARGETS[@]}"; do
+        _users=$(echo -e "${YIBAN_TARGETS[$i]}" | sed -n 's/.*users.*=.*\[\(.*\)\].*/\1/p' | head -1)
+        _grp=$(echo -e "${YIBAN_TARGETS[$i]}"  | sed -n 's/.*group.*=[ \t]*\([0-9]*\).*/\1/p' | head -1)
+        _at=$(echo -e "${YIBAN_TARGETS[$i]}"   | sed -n 's/.*at.*=.*\[\(.*\)\].*/\1/p' | head -1)
+        echo "    $((i+1)). users=[${_users}] → 群 ${_grp}  at=[${_at}]"
+    done
+    echo ""
+    echo "  操作：(k)保留已有  (c)清空重建  (a)追加新规则"
+    read -rp "  > " yiban_target_action
+    case "${yiban_target_action,,}" in
+        c) YIBAN_TARGETS=() ; info "已清空，从头添加" ;;
+        a) ;;
+        *) ;;  # 默认保留
+    esac
+fi
+
+if [[ "${yiban_target_action:-a}" != "k" ]] || [[ ${#YIBAN_TARGETS[@]} -eq 0 ]]; then
+    while true; do
+        echo ""
+        read -rp "  添加推送规则？(y/N): " _add_target
+        [[ "${_add_target,,}" == "y" ]] || break
+
+        _t_users="" _t_group="" _t_at=""
+        ask_optional _t_users "匹配用户名（逗号分隔）" "留空匹配全部"
+        ask _t_group "推送群号" "0"
+        ask_optional _t_at "@ 的 QQ 号（逗号分隔）" "不 @"
+
+        block=""
+        if [[ -n "$_t_users" ]]; then
+            users_toml=$(echo "$_t_users" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' \
+                         | sed 's/.*/"&"/' | tr '\n' ',' | sed 's/,$//')
+            block+="users = [$users_toml]"$'\n'
+        else
+            block+="users = []"$'\n'
+        fi
+        block+="group = $_t_group"
+        if [[ -n "$_t_at" ]]; then
+            at_toml=$(echo "$_t_at" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+            block+=$'\n'"at    = [$at_toml]"
+        fi
+        YIBAN_TARGETS+=("$block")
+        info "已添加（共 ${#YIBAN_TARGETS[@]} 条）"
+    done
 fi
 echo ""
 
@@ -183,18 +252,17 @@ done
 CONTENT+="
 
 [yiban]
-secret = \"${YIBAN_SECRET:-}\"
-group  = $YIBAN_GROUP"
-if [[ -n "$YIBAN_AT" ]]; then
-    yiban_at_toml=$(echo "$YIBAN_AT" | tr ',' '\n' | tr -d ' ' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
-    CONTENT+=$'\n'"at     = [$yiban_at_toml]"
-fi
+secret = \"${YIBAN_SECRET:-}\""
 if [[ -n "${YIBAN_API_URL:-}" ]]; then
     CONTENT+=$'\n'"api_url   = \"$YIBAN_API_URL\""
 fi
 if [[ -n "${YIBAN_API_TOKEN:-}" ]]; then
     CONTENT+=$'\n'"api_token = \"$YIBAN_API_TOKEN\""
 fi
+
+for target in "${YIBAN_TARGETS[@]}"; do
+    CONTENT+=$'\n\n'"[[yiban.targets]]"$'\n'"$(printf '%s' "$target")"
+done
 
 CONTENT+="
 

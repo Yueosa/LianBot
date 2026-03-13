@@ -83,13 +83,13 @@ if [[ -f "$_lg" ]]; then
     _gh_secret=$(toml_section_val "$_lg" github secret "")
     _gh_subs=$(grep -c '^\[\[github\.subscriptions\]\]' "$_lg" 2>/dev/null || echo 0)
     _alive=$(toml_section_val "$_lg" alive api_url "")
-    _yiban_group=$(toml_section_val "$_lg" yiban group "0")
+    _yiban_targets=$(grep -c '^\[\[yiban\.targets\]\]' "$_lg" 2>/dev/null || echo 0)
     _yiban_api=$(toml_section_val "$_lg" yiban api_url "")
 
     echo "    [smy]     width=${_smy_w}  llm=${_llm:-(禁用)}"
     echo "    [github]  secret=${_gh_secret:+(已设置)}${_gh_secret:-(空)}  subscriptions=${_gh_subs}条"
     echo "    [alive]   ${_alive:-(未配置)}"
-    echo "    [yiban]   group=${_yiban_group}  api=${_yiban_api:-(未配置)}"
+    echo "    [yiban]   targets=${_yiban_targets}条  api=${_yiban_api:-(未配置)}"
 else
     dim "    logic.toml 不存在"
 fi

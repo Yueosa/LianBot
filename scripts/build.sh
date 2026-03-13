@@ -41,8 +41,9 @@ cd "$PROJECT_ROOT"
 #   cmd-smy    → dep:base64, dep:tempfile
 #   cmd-dress  → dep:rand, dep:regex, dep:urlencoding, dep:base64
 #   cmd-sign   → svc-yiban
-#   svc-github → dep:hmac, dep:sha2, dep:hex
-#   svc-yiban  → dep:hmac, dep:sha2, dep:hex
+#   svc-github → core-webhook
+#   svc-yiban  → core-webhook
+#   core-webhook → dep:hmac, dep:sha2, dep:hex
 #   core-db    → dep:rusqlite
 #   core-log-file → dep:tracing-appender
 
