@@ -58,17 +58,17 @@ secret = ""
 # 留空时跳过验签
 # secret = ""
 #
-# 推送到哪个群（为 0 时 /webhook/yiban 路由自动禁用）
-# group  = 0
-#
-# 通知时 @ 的 QQ 号列表（可为空）
-# at     = []
-#
 # LianSign HTTP 服务地址（sign 命令需要），如 http://127.0.0.1:9090
 # api_url   = ""
 #
 # LianSign HTTP 服务的 Bearer token（与 LianSign config.toml server.token 一致）
 # api_token = ""
+#
+# 推送目标列表（targets 为空时 /webhook/yiban 路由自动禁用）：
+# [[yiban.targets]]
+# users = ["Yosa"]            # 匹配用户名（空数组 = 匹配全部用户）
+# group = 123456789           # 推送到哪个群
+# at    = [1303028790]        # 通知时 @ 的 QQ 号列表（可为空）
 
 # ── 60秒看世界 (world) ────────────────────────────────────────────────────────
 # [world]
