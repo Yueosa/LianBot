@@ -70,6 +70,9 @@ secret = ""
 # LianSign HTTP 服务的 Bearer token（与 LianSign config.toml server.token 一致）
 # api_token = ""
 #
+# 命令触发后回源推送结果到触发来源（群/私聊），默认 true
+# reply_origin = true
+#
 # 推送目标列表（targets 为空时 /webhook/yiban 路由自动禁用）：
 # [[yiban.targets]]
 # users = ["Yosa"]            # 匹配用户名（空数组 = 匹配全部用户）
