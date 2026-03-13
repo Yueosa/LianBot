@@ -73,10 +73,11 @@ cmd-dress = ["dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]  # /dress
 cmd-sign  = ["svc-yiban"]                  # 触发易班签到（依赖 svc-yiban HTTP API）
 
 # ── 服务 feature ────────────────────────────────────────────────────────────
-svc-github = ["dep:hmac", "dep:sha2", "dep:hex"]  # GitHub Webhook 验签 + 通知
-svc-yiban  = ["dep:hmac", "dep:sha2", "dep:hex"]  # 易班签到 Webhook 通知
+svc-github = ["core-webhook"]              # GitHub Webhook 通知
+svc-yiban  = ["core-webhook"]              # 易班签到 Webhook 通知
 
 # ── 基础设施 feature ────────────────────────────────────────────────────────
+core-webhook     = ["dep:hmac", "dep:sha2", "dep:hex"]  # HMAC-SHA256 统一验签
 core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由
 core-db          = ["dep:rusqlite"]        # 通用 SQLite 句柄（DB 层基础设施）
 core-log-file    = ["dep:tracing-appender"] # 每日滚动日志文件（需配置 log_dir）
