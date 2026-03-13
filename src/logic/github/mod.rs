@@ -1,11 +1,10 @@
 //! GitHub Webhook 业务逻辑
 //!
-//! 包含配置模型、订阅匹配、HMAC 验签、事件格式化。
+//! 包含配置模型、订阅匹配、事件格式化。
 //! 不依赖任何 runtime 模块，纯业务逻辑。
+//! HMAC 验签已迁移至 `runtime::webhook::verify_hmac_sha256`。
 
-use hmac::{Hmac, Mac};
 use serde::Deserialize;
-use sha2::Sha256;
 use tracing::info;
 
 // ── 配置 ──────────────────────────────────────────────────────────────────────
@@ -65,26 +64,6 @@ pub struct GitHubEvent {
     pub sender: String,
     /// 原始 JSON payload
     pub payload: serde_json::Value,
-}
-
-// ── HMAC 验签 ─────────────────────────────────────────────────────────────────
-
-/// 验证 GitHub 签名头 `X-Hub-Signature-256: sha256=<hex>`
-pub fn verify_signature(secret: &str, body: &[u8], signature_header: &str) -> bool {
-    let hex_part = match signature_header.strip_prefix("sha256=") {
-        Some(h) => h,
-        None => return false,
-    };
-    let sig_bytes = match hex::decode(hex_part) {
-        Ok(b) => b,
-        Err(_) => return false,
-    };
-    let mut mac = match Hmac::<Sha256>::new_from_slice(secret.as_bytes()) {
-        Ok(m) => m,
-        Err(_) => return false,
-    };
-    mac.update(body);
-    mac.verify_slice(&sig_bytes).is_ok()
 }
 
 // ── 消息格式化 ────────────────────────────────────────────────────────────────

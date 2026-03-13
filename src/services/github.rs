@@ -20,9 +20,9 @@ use axum::{
 use tokio::sync::mpsc;
 use tracing::{info, warn};
 
-use crate::logic::github::{GitHubConfig, GitHubEvent, format_event, verify_signature};
+use crate::logic::github::{GitHubConfig, GitHubEvent, format_event};
 use crate::runtime::api::{ApiClient, MsgTarget};
-use crate::runtime::typ::MessageSegment;
+use crate::runtime::webhook::{build_notification, verify_hmac_sha256};
 
 use super::BotService;
 
@@ -67,7 +67,7 @@ async fn webhook_handler(
         .get("X-Hub-Signature-256")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if !verify_signature(&state.secret, &body, sig) {
+    if !verify_hmac_sha256(&state.secret, &body, sig, false) {
         warn!("[github] 签名验证失败，已拒绝请求");
         return StatusCode::UNAUTHORIZED;
     }
@@ -153,15 +153,7 @@ impl BotService for GitHubService {
 
             info!("[github] 推送 {} / {} → {} 个群", evt.event_type, evt.repo, targets.len());
             for (group_id, at_list) in targets {
-                // 构造消息段：@ 段 + 换行 + 文本
-                let mut segments: Vec<MessageSegment> = at_list
-                    .iter()
-                    .map(|&qq| MessageSegment::at(qq))
-                    .collect();
-                if !segments.is_empty() {
-                    segments.push(MessageSegment::text("\n"));
-                }
-                segments.push(MessageSegment::text(text.as_str()));
+                let segments = build_notification(&text, &at_list);
 
                 if let Err(e) = self
                     .api
