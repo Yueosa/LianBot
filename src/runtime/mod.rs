@@ -11,5 +11,8 @@ pub mod registry;
 pub mod typ;
 pub mod ws;
 
+#[cfg(feature = "core-webhook")]
+pub mod webhook;
+
 #[cfg(feature = "core-db")]
 pub mod db;
