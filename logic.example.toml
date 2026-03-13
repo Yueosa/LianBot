@@ -73,6 +73,10 @@ secret = ""
 # 命令触发后回源推送结果到触发来源（群/私聊），默认 true
 # reply_origin = true
 #
+# 每日自动签到时间（0-23 的整点），不设置则禁用定时签到
+# 签到失败时会向 bot.owner 发送私聊通知
+# auto_sign_hour = 12
+#
 # 推送目标列表（targets 为空时 /webhook/yiban 路由自动禁用）：
 # [[yiban.targets]]
 # users = ["Yosa"]            # 匹配用户名（空数组 = 匹配全部用户）

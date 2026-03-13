@@ -134,6 +134,7 @@ else
     ask_optional YIBAN_API_TOKEN "LianSign Bearer Token" "与 LianSign server.token 一致"
 fi
 ask YIBAN_REPLY_ORIGIN "命令触发后回源推送结果（true/false）" "$(toml_section_val "$LG" yiban reply_origin 'true')"
+ask_optional YIBAN_AUTO_SIGN_HOUR "每日自动签到时间（0-23 整点，留空禁用）" "$(toml_section_val "$LG" yiban auto_sign_hour '')"
 echo ""
 
 # ── [[yiban.targets]] ────────────────────────────────────────────────────────
@@ -255,6 +256,9 @@ CONTENT+="
 [yiban]
 secret = \"${YIBAN_SECRET:-}\"
 reply_origin = $YIBAN_REPLY_ORIGIN"
+if [[ -n "${YIBAN_AUTO_SIGN_HOUR:-}" ]]; then
+    CONTENT+=$'\n'"auto_sign_hour = $YIBAN_AUTO_SIGN_HOUR"
+fi
 if [[ -n "${YIBAN_API_URL:-}" ]]; then
     CONTENT+=$'\n'"api_url   = \"$YIBAN_API_URL\""
 fi
