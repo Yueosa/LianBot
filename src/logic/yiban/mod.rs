@@ -25,6 +25,9 @@ pub struct YiBanConfig {
     /// 命令触发后是否回源推送结果到触发来源，默认 true
     #[serde(default = "YiBanConfig::default_reply_origin")]
     pub reply_origin: bool,
+    /// 每日自动签到时间（0-23 小时），None 时关闭定时签到
+    #[serde(default)]
+    pub auto_sign_hour: Option<u8>,
 }
 
 impl YiBanConfig {
