@@ -31,7 +31,7 @@ impl ApiClient {
             "message_seq": message_seq,
             "reverseOrder": false
         });
-        let resp = self.post_slow("/get_group_msg_history", &payload).await?;
+        let resp = self.post_with_timeout("/get_group_msg_history", &payload, Some(self.history_timeout())).await?;
         let messages = resp["data"]["messages"]
             .as_array()
             .cloned()

@@ -71,7 +71,7 @@ impl ApiClient {
 
         debug!("[forward] get_forward_msg id={id} depth={depth}");
         let payload = serde_json::json!({ "id": id });
-        let resp = self.post_slow("/get_forward_msg", &payload).await
+        let resp = self.post_with_timeout("/get_forward_msg", &payload, Some(self.history_timeout())).await
             .context("get_forward_msg: API 调用失败")?;
 
         let messages = resp
