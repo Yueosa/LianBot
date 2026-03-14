@@ -102,20 +102,18 @@ impl MemoryPool {
 
     /// 读取指定 scope 最近 n 条消息（时序: 旧 → 新）
     ///
-    /// internal-only：不保证时间连续性，不作为命令层对外语义使用
+    /// internal-only：不保证时间连续性，仅供测试使用
     #[doc(hidden)]
     pub async fn recent_internal(&self, scope: &Scope, n: usize) -> Vec<PoolMessage> {
         let guard = self.scopes.read().await;
         let Some(deque) = guard.get(scope) else { return vec![] };
 
-        deque.iter()
-            .rev()
-            .take(n)
-            .cloned()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect()
+        let len = deque.len();
+        if n >= len {
+            deque.iter().cloned().collect()
+        } else {
+            deque.iter().skip(len - n).cloned().collect()
+        }
     }
 
     /// 读取指定 scope 在 [since, until] 时间范围内的消息（秒级时间戳）
