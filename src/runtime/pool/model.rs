@@ -164,6 +164,10 @@ fn extract_nickname(sender: Option<&Sender>) -> String {
     }
 }
 
+/// 从消息段列表中提取并拼接所有文本内容。
+///
+/// 过滤出所有 text 类型的 segment 并拼接为单个字符串。
+/// 若无任何文本内容则返回 None。
 pub fn concat_text_segs(segments: &[MessageSegment]) -> Option<String> {
     let s: String = segments
         .iter()
