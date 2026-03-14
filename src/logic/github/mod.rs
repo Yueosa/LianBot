@@ -5,7 +5,6 @@
 //! HMAC 验签已迁移至 `runtime::webhook::verify_hmac_sha256`。
 
 use serde::Deserialize;
-use tracing::info;
 
 // ── 配置 ──────────────────────────────────────────────────────────────────────
 
