@@ -5,7 +5,6 @@ use crate::runtime::api::ApiClient;
 use crate::runtime::permission::Scope;
 
 use super::model::{PoolConfig, PoolMessage};
-use super::traits::MessagePool;
 use super::Pool;
 
 /// 拉取白名单群的历史消息填充消息池（冷启动 back-seeding）。

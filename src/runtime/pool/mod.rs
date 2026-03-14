@@ -1,11 +1,9 @@
 pub mod cache;
 mod model;
 mod seed;
-mod traits;
 
 pub use model::*;
 pub use seed::seed_from_history;
-pub use traits::MessagePool;
 
 // ── 类型别名 & 工厂函数 ────────────────────────────────────────────────────────
 

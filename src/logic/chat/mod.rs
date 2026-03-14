@@ -11,7 +11,7 @@ use crate::runtime::{
     api::{ApiClient, MsgTarget},
     llm,
     permission::Scope,
-    pool::{MessagePool, Pool, PoolMessage},
+    pool::{Pool, PoolMessage},
     time,
     typ::MessageSegment,
 };

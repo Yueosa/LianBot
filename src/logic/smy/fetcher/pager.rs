@@ -8,7 +8,7 @@ use tracing::{debug, warn};
 use crate::runtime::{
     api::ApiClient,
     permission::Scope,
-    pool::{MessagePool, Pool, PoolMessage},
+    pool::{Pool, PoolMessage},
 };
 
 use super::format::detect_gap;

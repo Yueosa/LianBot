@@ -1,12 +1,11 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use tokio::sync::RwLock;
 use tracing::trace;
 
 use crate::runtime::permission::Scope;
-use super::{MessagePool, MsgStatus, PoolConfig, PoolMessage, ProcessRecord};
+use super::{MsgStatus, PoolConfig, PoolMessage, ProcessRecord};
 
 // ── MemoryPool ────────────────────────────────────────────────────────────────
 
@@ -35,11 +34,9 @@ impl MemoryPool {
             evict_after_secs: cfg.evict_after_secs,
         })
     }
-}
 
-#[async_trait]
-impl MessagePool for MemoryPool {
-    async fn push(&self, msg: PoolMessage) {
+    /// 写入一条消息（容量/时间淘汰自动处理）
+    pub async fn push(&self, msg: PoolMessage) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
@@ -106,7 +103,11 @@ impl MessagePool for MemoryPool {
         trace!("[pool] {scope:?} push, depth={}", deque.len());
     }
 
-    async fn recent_internal(&self, scope: &Scope, n: usize) -> Vec<PoolMessage> {
+    /// 读取指定 scope 最近 n 条消息（时序: 旧 → 新）
+    ///
+    /// internal-only：不保证时间连续性，不作为命令层对外语义使用
+    #[doc(hidden)]
+    pub async fn recent_internal(&self, scope: &Scope, n: usize) -> Vec<PoolMessage> {
         let guard = self.scopes.read().await;
         let Some(deque) = guard.get(scope) else { return vec![] };
 
@@ -120,7 +121,8 @@ impl MessagePool for MemoryPool {
             .collect()
     }
 
-    async fn range(&self, scope: &Scope, since: i64, until: i64) -> Vec<PoolMessage> {
+    /// 读取指定 scope 在 [since, until] 时间范围内的消息（秒级时间戳）
+    pub async fn range(&self, scope: &Scope, since: i64, until: i64) -> Vec<PoolMessage> {
         let guard = self.scopes.read().await;
         let Some(deque) = guard.get(scope) else { return vec![] };
 
@@ -130,12 +132,19 @@ impl MessagePool for MemoryPool {
             .collect()
     }
 
-    async fn oldest_timestamp(&self, scope: &Scope) -> Option<i64> {
+    /// 返回指定 scope 在 pool 中最早一条消息的时间戳（秒级）
+    ///
+    /// 用于判断 pool 是否覆盖了某个时间窗口：若 oldest <= cutoff，则覆盖完整。
+    /// 无任何消息时返回 None。
+    pub async fn oldest_timestamp(&self, scope: &Scope) -> Option<i64> {
         let guard = self.scopes.read().await;
         guard.get(scope)?.front().map(|m| m.timestamp)
     }
 
-    async fn mark(&self, msg_id: i64, scope: &Scope, status: MsgStatus, record: ProcessRecord) {
+    /// 标记消息处理完成（dispatcher 在 cmd.execute() 之后调用）
+    ///
+    /// 在对应 scope 的队列中通过索引查找 msg_id 并更新状态（O(1) 查找）
+    pub async fn mark(&self, msg_id: i64, scope: &Scope, status: MsgStatus, record: ProcessRecord) {
         let mut guard = self.scopes.write().await;
         let index_guard = self.msg_id_index.read().await;
 

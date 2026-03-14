@@ -11,7 +11,7 @@ use crate::{
         permission::{AccessControl, BotUser, Role, Scope},
         api::{ApiClient, MsgTarget},
         parser::{CommandParser, ParsedCommand, ParamValue},
-        pool::{MessagePool, MsgStatus, Pool, PoolMessage, ProcessRecord},
+        pool::{MsgStatus, Pool, PoolMessage, ProcessRecord},
         registry::CommandRegistry,
         typ::{MessageEvent, MessageSegment, OneBotEvent},
         ws::WsManager,
