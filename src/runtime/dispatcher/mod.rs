@@ -105,7 +105,13 @@ impl Dispatcher {
             }
         }
 
-        // 3. 写入消息池（通过网关就忠实记录，与用户黑名单无关）
+        // 3. 写入消息池
+        // 设计说明：
+        //   - 群网关：控制是否记录整个群的消息（群级别开关）
+        //   - 用户网关：控制用户是否能与机器人交互（用户级别开关，包括群聊@机器人、私聊等所有交互场景）
+        //   - 消息池策略：通过群网关的消息如实记录，不受用户黑名单影响
+        //     原因：群聊中被拉黑用户的消息仍是群上下文的一部分，对 AI 对话、日报生成等功能很重要
+        //     用户黑名单仅阻止该用户触发命令执行，不影响消息记录
         if let Some(pool) = &self.pool {
             if let Some(pool_msg) = PoolMessage::from_event(&event, scope, false) {
                 pool.push(pool_msg).await;
@@ -115,7 +121,11 @@ impl Dispatcher {
         // 4. 构造 BotUser
         let bot_user = self.resolve_user(event.user_id, scope);
 
-        // 5. 用户门控（黑名单检查，Owner 永远通过）
+        // 5. 用户门控（用户黑名单检查）
+        // 用户网关管辖所有用户与机器人的交互场景：
+        //   - 群聊中 @机器人 或触发命令
+        //   - 私聊机器人
+        // Owner 永远绕过黑名单检查
         if !is_owner && self.access.is_user_blocked(event.user_id, &scope) {
             return Ok(());
         }
