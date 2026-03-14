@@ -16,7 +16,7 @@ static RT_CONFIG: OnceCell<LayerConfig> = OnceCell::new();
 pub fn init() -> Result<(), AppError> {
     let mut layer = LayerConfig::load("runtime.toml")?;
 
-    // .env 環境變量覆蓋 napcat 段
+    // .env 环境变量覆盖 napcat 段
     layer.env_override("napcat", "url", "NAPCAT_URL");
     layer.env_override("napcat", "token", "NAPCAT_TOKEN");
 
