@@ -34,6 +34,11 @@ impl WsManager {
         })
     }
 
+    /// WebSocket 功能是否启用（编译时/启动时确定）
+    pub fn is_enabled(&self) -> bool {
+        true
+    }
+
     /// 是否有客户端在线
     pub async fn has_clients(&self) -> bool {
         self.conn_count.load(Ordering::Relaxed) > 0

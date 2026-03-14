@@ -1,8 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::commands::{Command, CommandKind};
+use crate::runtime::pool::Pool;
+use crate::runtime::ws::WsManager;
 
 // ── 命令注册表 ─────────────────────────────────────────────────────────────────
 //
@@ -27,7 +29,26 @@ impl CommandRegistry {
 
     /// 注册一条命令（根据 `cmd.kind()` 元数据分类）。
     /// 同时注册别名。
-    pub fn register(&mut self, cmd: Arc<dyn Command>) {
+    ///
+    /// 在注册时检查命令的依赖是否满足，不满足的命令会被跳过并记录警告。
+    pub fn register(
+        &mut self,
+        cmd: Arc<dyn Command>,
+        pool: &Option<Arc<Pool>>,
+        ws: &Arc<WsManager>,
+    ) {
+        // 依赖检查
+        for dep in cmd.dependencies() {
+            if !dep.is_available(pool, ws) {
+                warn!(
+                    "[registry] 跳过命令 {} - 缺少依赖: {}",
+                    cmd.name(),
+                    dep.description()
+                );
+                return;
+            }
+        }
+
         let name = cmd.name().to_string();
         let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
         let kind_tag = match cmd.kind() {

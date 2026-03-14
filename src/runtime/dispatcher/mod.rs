@@ -7,7 +7,7 @@ use anyhow::Result;
 use tracing::{debug, info, info_span, warn, Instrument};
 
 use crate::{
-    commands::{gen_trace_id, Command, CommandContext, Dependency},
+    commands::{gen_trace_id, Command, CommandContext},
     runtime::{
         permission::{AccessControl, BotUser, Role, Scope},
         api::{ApiClient, MsgTarget},
@@ -354,11 +354,6 @@ impl CommandHandler {
                     ctx.api.send_msg(target, &help_text).await?;
                     return Ok(HandlerResult::Handled(None));
                 }
-                // 依赖预检
-                if let Some(msg) = check_dependencies(cmd.as_ref(), ctx.pool, ctx.ws).await {
-                    ctx.api.send_msg(target, &msg).await?;
-                    return Ok(HandlerResult::Handled(None));
-                }
                 // 权限检查
                 if ctx.msg.bot_user.role < cmd.required_role() {
                     ctx.api.send_msg(target, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await?;
@@ -412,11 +407,6 @@ impl CommandHandler {
                 // 帮助请求
                 if let Some(help_text) = help::try_help(cmd.as_ref(), |f| params.contains_key(f)) {
                     ctx.api.send_msg(target, &help_text).await?;
-                    return Ok(HandlerResult::Handled(None));
-                }
-                // 依赖预检
-                if let Some(msg) = check_dependencies(cmd.as_ref(), ctx.pool, ctx.ws).await {
-                    ctx.api.send_msg(target, &msg).await?;
                     return Ok(HandlerResult::Handled(None));
                 }
                 // 权限检查
@@ -537,11 +527,6 @@ impl AtBotHandler {
             }
         };
 
-        // 依赖预检
-        if let Some(msg) = check_dependencies(cmd.as_ref(), ctx.pool, ctx.ws).await {
-            ctx.api.send_msg(target, &msg).await?;
-            return Ok(HandlerResult::Handled(None));
-        }
         // 权限检查
         if ctx.msg.bot_user.role < cmd.required_role() {
             ctx.api.send_msg(target, "⛔ 权限不足，该命令仅限 Bot 管理员使用").await?;
@@ -555,30 +540,6 @@ impl AtBotHandler {
 }
 
 // ── Helper Functions ──────────────────────────────────────────────────────────
-
-async fn check_dependencies(
-    cmd: &dyn Command,
-    pool: &Option<Arc<Pool>>,
-    ws: &Arc<WsManager>,
-) -> Option<String> {
-    for dep in cmd.dependencies() {
-        let available = match dep {
-            Dependency::Pool   => pool.is_some(),
-            Dependency::Ws     => ws.has_clients().await,
-            Dependency::Config => true,
-        };
-        if !available {
-            let desc = match dep {
-                Dependency::Pool   => "消息池",
-                Dependency::Ws     => "WebSocket 连接",
-                Dependency::Config => "配置",
-            };
-            return Some(format!("⚠️ {} 需要{desc}，当前不可用", cmd.name()));
-        }
-    }
-    None
-}
-
 fn build_command_ctx(
     ctx: HandlerContext<'_>,
     params: HashMap<String, ParamValue>,

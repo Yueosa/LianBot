@@ -26,6 +26,30 @@ pub enum Dependency {
     Pool,
 }
 
+impl Dependency {
+    /// 检查依赖是否在启动时可用（用于命令注册时过滤）
+    pub fn is_available(
+        &self,
+        pool: &Option<std::sync::Arc<crate::runtime::pool::Pool>>,
+        ws: &std::sync::Arc<crate::runtime::ws::WsManager>,
+    ) -> bool {
+        match self {
+            Dependency::Pool => pool.is_some(),
+            Dependency::Ws => ws.is_enabled(),
+            Dependency::Config => true,
+        }
+    }
+
+    /// 获取依赖的描述文本
+    pub fn description(&self) -> &'static str {
+        match self {
+            Dependency::Pool => "消息池",
+            Dependency::Ws => "WebSocket 连接",
+            Dependency::Config => "配置",
+        }
+    }
+}
+
 // ── Command Trait ─────────────────────────────────────────────────────────────
 
 /// 所有命令实现此 trait。
