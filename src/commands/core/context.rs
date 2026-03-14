@@ -15,7 +15,8 @@ use crate::runtime::{
 pub struct CommandContext {
     /// 本次命令执行的追踪标识（8 字符 hex），用于关联并发日志
     pub trace_id: String,
-    /// 触发消息的 message_id（用于回复等操作，部分事件可能无此字段）
+    /// 触发消息的 message_id（预留字段，用于未来可能的消息引用功能如撤回、回复等）
+    /// 注：当前版本暂未使用，但保留以便后续扩展
     pub message_id: Option<i64>,
     /// 发送者的虚拟用户对象（包含 user_id、scope、role）
     pub bot_user: BotUser,
