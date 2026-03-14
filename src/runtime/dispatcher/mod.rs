@@ -223,8 +223,9 @@ impl Dispatcher {
         //     原因：群聊中被拉黑用户的消息仍是群上下文的一部分，对 AI 对话、日报生成等功能很重要
         //     用户黑名单仅阻止该用户触发命令执行，不影响消息记录
         if let Some(pool) = &self.pool {
-            if let Some(pool_msg) = PoolMessage::from_event(&event, scope, false) {
-                pool.push(pool_msg).await;
+            match PoolMessage::from_event(&event, scope, false) {
+                Some(pool_msg) => pool.push(pool_msg).await,
+                None => warn!("[dispatcher] PoolMessage::from_event 返回 None，可能存在协议兼容性问题: msg_id={:?}", event.message_id),
             }
         }
 
@@ -289,8 +290,9 @@ impl Dispatcher {
         }
 
         if let Some(pool) = &self.pool {
-            if let Some(pool_msg) = PoolMessage::from_event(&event, scope, true) {
-                pool.push(pool_msg).await;
+            match PoolMessage::from_event(&event, scope, true) {
+                Some(pool_msg) => pool.push(pool_msg).await,
+                None => warn!("[dispatcher] Bot 消息 PoolMessage::from_event 返回 None: msg_id={:?}", event.message_id),
             }
         }
     }
