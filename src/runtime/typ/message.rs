@@ -96,6 +96,12 @@ impl MessageSegment {
     pub fn is_forward(&self) -> bool { self.seg_type == "forward" }
 
     /// 提取合并转发的 resId（用于调用 get_forward_msg）
+    ///
+    /// **预留功能**：配合 `ApiClient::get_forward_msg` 使用，用于解析合并转发内容。
+    ///
+    /// **协议限制**：OneBot v11 协议的 forward segment 不包含 resId 字段，
+    /// 此方法当前无法从接收到的消息事件中提取有效值。需等待协议扩展或 NapCat 提供替代方案。
+    #[allow(dead_code)]
     pub fn forward_id(&self) -> Option<&str> {
         if !self.is_forward() { return None; }
         self.data.get("id").and_then(|v| v.as_str())

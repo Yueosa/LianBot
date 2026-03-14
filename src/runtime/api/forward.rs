@@ -19,6 +19,11 @@ use super::{ApiClient, MsgTarget};
 use crate::runtime::typ::MessageSegment;
 
 /// 合并转发中的单条消息节点（支持嵌套）。
+///
+/// **预留功能**：用于解析和理解收到的合并转发消息。
+/// 当前仅实现了发送合并转发（`send_forward_msg`），接收解析功能（`get_forward_msg`）
+/// 已实现但暂未使用，将在机器人需要阅读合并转发内容时启用。
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ForwardNode {
     pub sender_id: i64,
@@ -31,17 +36,28 @@ pub struct ForwardNode {
 }
 
 /// 递归深度上限，防止无限嵌套
+#[allow(dead_code)]
 const MAX_DEPTH: u8 = 5;
 
 impl ApiClient {
     /// 获取合并转发消息内容，**递归**展开嵌套转发。
     ///
+    /// **预留功能**：用于解析收到的合并转发消息，支持递归展开嵌套结构。
+    /// 将在机器人需要理解合并转发内容时启用（如 AI 对话上下文、日报生成等场景）。
+    ///
+    /// **协议限制**：OneBot v11 协议的 forward segment 不包含 resId 字段，
+    /// 但 NapCat 需要 resId 来解析多层嵌套的合并转发。因此当前实现只能解析一层，
+    /// 无法从接收到的消息事件中直接提取 resId 进行递归展开。
+    /// 此限制需等待协议扩展或 NapCat 提供替代方案。
+    ///
     /// `id` 为 forward segment 中的 id 字段（resId）。
     /// 返回顶层节点列表，每个 `ForwardNode` 的 `nested` 字段包含递归子节点。
+    #[allow(dead_code)]
     pub async fn get_forward_msg(&self, id: &str) -> Result<Vec<ForwardNode>> {
         self.get_forward_msg_inner(id, 0).await
     }
 
+    #[allow(dead_code)]
     fn get_forward_msg_inner<'a>(
         &'a self,
         id: &'a str,
