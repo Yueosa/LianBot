@@ -48,6 +48,7 @@ async fn seed_one_group(
     let mut seeded = 0usize;
     let mut page_seq: Option<i64> = None;
 
+    // 最多翻 20 页（60000 条消息），防止异常情况下无限循环导致内存爆炸
     for _ in 0..20 {
         let raw = api
             .get_group_msg_history_paged(group_id, 3000, page_seq)
@@ -80,6 +81,7 @@ async fn seed_one_group(
         }
 
         // 取最早消息的 message_seq 作为下一页起点
+        // 优先使用 message_seq（NapCat 新版本），回退到 message_id（旧版本兼容）
         let next_seq = raw
             .first()
             .and_then(|m| m.get("message_seq").and_then(Value::as_i64))
