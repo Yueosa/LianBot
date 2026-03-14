@@ -369,16 +369,8 @@ impl CommandHandler {
                     let record = execute_command(cmd, cmd_ctx).await?;
                     Ok(HandlerResult::Handled(Some(record)))
                 } else if !trailing.is_empty() {
-                    let unknown: Vec<_> = trailing.iter().filter(|t| t.starts_with('-')).collect();
-                    let detail = if !unknown.is_empty() {
-                        format!("❌ 未知参数: {}（输入 {}{} -h 查看用法）",
-                            unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "),
-                            ctx.cmd_prefix, name)
-                    } else {
-                        format!("❌ {}{} 是简单命令，不接受额外参数（输入 {}{} -h 查看用法）",
-                            ctx.cmd_prefix, name, ctx.cmd_prefix, name)
-                    };
-                    ctx.api.send_msg(target, &detail).await?;
+                    let error_msg = build_trailing_error_msg(&trailing, ctx.cmd_prefix, &name);
+                    ctx.api.send_msg(target, &error_msg).await?;
                     Ok(HandlerResult::Handled(None))
                 } else {
                     let cmd_ctx = build_command_ctx(ctx, Default::default());
@@ -540,6 +532,26 @@ impl AtBotHandler {
 }
 
 // ── Helper Functions ──────────────────────────────────────────────────────────
+
+/// 构造简单命令的 trailing 参数错误提示。
+/// 区分"未知参数"（以 - 开头）和"不接受参数"两种情况。
+fn build_trailing_error_msg(trailing: &[String], cmd_prefix: &str, cmd_name: &str) -> String {
+    let unknown: Vec<_> = trailing.iter().filter(|t| t.starts_with('-')).collect();
+    if !unknown.is_empty() {
+        format!(
+            "❌ 未知参数: {}（输入 {}{} -h 查看用法）",
+            unknown.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", "),
+            cmd_prefix,
+            cmd_name
+        )
+    } else {
+        format!(
+            "❌ {}{} 是简单命令，不接受额外参数（输入 {}{} -h 查看用法）",
+            cmd_prefix, cmd_name, cmd_prefix, cmd_name
+        )
+    }
+}
+
 fn build_command_ctx(
     ctx: HandlerContext<'_>,
     params: HashMap<String, ParamValue>,
