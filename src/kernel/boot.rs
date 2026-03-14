@@ -26,6 +26,7 @@ use crate::runtime::{
 
 pub async fn run() -> anyhow::Result<()> {
     // ── 三层配置加载 ──────────────────────────────────────────────────────────
+    // 顺序不可变：kernel 提供基础配置 → runtime 依赖 kernel 配置 → logic 依赖 runtime 配置
     crate::kernel::config::init()?;
     crate::runtime::config::init()?;
     crate::runtime::time::init();
