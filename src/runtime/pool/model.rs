@@ -1,5 +1,3 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -105,7 +103,7 @@ impl PoolMessage {
     pub fn from_event(event: &MessageEvent, scope: Scope, is_bot: bool) -> Option<Self> {
         let msg_id   = event.message_id.unwrap_or(0);
         let user_id  = event.user_id;
-        let timestamp = event.time.unwrap_or_else(now_secs);
+        let timestamp = event.time.unwrap_or_else(|| crate::runtime::time::unix_timestamp());
         let nickname = extract_nickname(event.sender.as_ref());
 
         // 直接复用 typ::MessageSegment，不做任何转换
@@ -129,7 +127,7 @@ impl PoolMessage {
 
         let msg_id    = value.get("message_id").and_then(Value::as_i64).unwrap_or(0);
         let user_id   = value.get("user_id").and_then(Value::as_i64)?;
-        let timestamp = value.get("time").and_then(Value::as_i64).unwrap_or_else(now_secs);
+        let timestamp = value.get("time").and_then(Value::as_i64).unwrap_or_else(|| crate::runtime::time::unix_timestamp());
 
         let sender = value.get("sender");
         let card = sender.and_then(|s| s.get("card")).and_then(Value::as_str).unwrap_or("");
@@ -203,11 +201,4 @@ pub fn classify_kind(segments: &[MessageSegment]) -> MsgKind {
     if has_face && !has_text { return MsgKind::Face; }
     if has_text              { return MsgKind::Text; }
     MsgKind::Other
-}
-
-pub(super) fn now_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }

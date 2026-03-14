@@ -63,3 +63,14 @@ pub fn hour_of_day(ts: i64) -> u32 {
 pub fn utc_offset() -> ::time::UtcOffset {
     ::time::UtcOffset::from_hms(offset_hours() as i8, 0, 0).expect("无效时区偏移")
 }
+
+/// 获取当前 Unix 时间戳（秒）。
+///
+/// 系统时间异常时返回 0（1970-01-01），这可能导致消息被立即淘汰等问题。
+/// TODO: 考虑改为 panic 或返回 Result，避免静默失败。
+pub fn unix_timestamp() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}

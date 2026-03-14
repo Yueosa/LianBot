@@ -18,7 +18,6 @@ mod inner {
     use std::collections::{HashMap, HashSet};
     use std::path::Path;
     use std::sync::{Arc, RwLock};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     use anyhow::Context as _;
     use tracing::info;
@@ -332,10 +331,7 @@ mod inner {
     }
 
     fn unix_now() -> i64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0)
+        crate::runtime::time::unix_timestamp()
     }
 
     fn scope_parts(scope: &Scope) -> (&'static str, u8, i64) {

@@ -37,10 +37,7 @@ impl MemoryPool {
 
     /// 写入一条消息（容量/时间淘汰自动处理）
     pub async fn push(&self, msg: PoolMessage) {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let now = crate::runtime::time::unix_timestamp();
         let cutoff = now.saturating_sub(self.evict_after_secs);
 
         let scope = msg.scope;
@@ -234,10 +231,7 @@ mod tests {
     #[tokio::test]
     async fn test_time_eviction() {
         let p = pool(100, 10);
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
+        let now = crate::runtime::time::unix_timestamp();
         p.push(make_msg(g(1), 100, now - 20, "old")).await;
         p.push(make_msg(g(1), 100, now, "new")).await;
         let r = p.recent_internal(&g(1), 10).await;

@@ -17,10 +17,7 @@ pub async fn seed_from_history(api: &ApiClient, pool: &Pool, groups: Vec<i64>) {
     }
 
     let cfg: PoolConfig = crate::runtime::config::section("pool");
-    let cutoff = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+    let cutoff = crate::runtime::time::unix_timestamp()
         .saturating_sub(cfg.evict_after_secs);
 
     tracing::info!("[pool-seed] 启动预热开始：{} 个群, cutoff={cutoff}", groups.len());
