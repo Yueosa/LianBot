@@ -203,16 +203,14 @@ pub async fn handle_chat(
     };
 
     // 从 Pool 取上下文
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+    let now = crate::runtime::time::unix_timestamp();
     let since = now - cfg.context_window;
 
     let mut messages = pool.range(&scope, since, now).await;
     // 截断到 context_size
     if messages.len() > cfg.context_size {
-        messages = messages.split_off(messages.len() - cfg.context_size);
+        let drain_count = messages.len() - cfg.context_size;
+        messages.drain(..drain_count);
     }
 
     let recent_text = format_pool_messages(&messages);
