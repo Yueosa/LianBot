@@ -88,7 +88,7 @@ pub async fn run() -> anyhow::Result<()> {
     }
 
     // ── 构建 App（各层自注册命令 / 路由 / 后台服务） ──────────────────────────
-    let mut app = App::new(api.clone(), ws.clone(), Some(pool.clone()), access.clone());
+    let mut app = App::new(api.clone(), Some(pool.clone()), access.clone());
 
     crate::commands::register(&mut app);
     crate::services::register(&mut app);

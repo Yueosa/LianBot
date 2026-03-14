@@ -15,7 +15,6 @@ use crate::runtime::{
     permission::AccessControl,
     pool::Pool,
     registry::CommandRegistry,
-    ws::WsManager,
 };
 
 pub struct App {
@@ -25,7 +24,11 @@ pub struct App {
 
     // ── 共享基础设施（注册函数可读取） ──────────────────────────────────────────
     pub api: Arc<ApiClient>,
-    pub ws: Arc<WsManager>,
+    // 注意：WsManager 不在此处提供，因为：
+    //   1. 命令注册阶段不需要访问 ws（仅注册元数据）
+    //   2. 命令执行时通过 CommandContext 访问 ws（由 Dispatcher 提供）
+    //   3. WebSocket 路由独立设置，不通过 App 传递
+    // 如果未来命令注册确实需要访问 ws，可以在此添加 `pub ws: Arc<WsManager>` 字段
     pub pool: Option<Arc<Pool>>,
     pub access: Arc<AccessControl>,
 }
@@ -33,7 +36,6 @@ pub struct App {
 impl App {
     pub fn new(
         api: Arc<ApiClient>,
-        ws: Arc<WsManager>,
         pool: Option<Arc<Pool>>,
         access: Arc<AccessControl>,
     ) -> Self {
@@ -42,7 +44,6 @@ impl App {
             router: Router::new(),
             tasks: Vec::new(),
             api,
-            ws,
             pool,
             access,
         }
