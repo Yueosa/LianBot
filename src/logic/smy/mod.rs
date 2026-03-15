@@ -1,5 +1,6 @@
 pub mod fetcher;
 pub mod statistics;
+#[cfg(feature = "runtime-llm")]
 pub mod llm;
 pub mod renderer;
 pub mod screenshot;
@@ -9,6 +10,9 @@ use serde::Deserialize;
 use tracing::{debug, warn};
 
 use self::fetcher::ChatMessage;
+
+#[cfg(feature = "runtime-llm")]
+pub use self::llm::{LlmResult, Topic, UserTitle, Quote, Relationship};
 
 /// smy 插件配置，从 `logic.toml` 的 `[smy]` 段加载。
 /// 所有字段均有默认值，`logic.toml` 不存在时也可正常运行。
@@ -33,6 +37,53 @@ impl Default for SmyPluginConfig {
     }
 }
 
+// ── LLM 结果占位符（无 runtime-llm 时使用） ──────────────────────────────────
+
+#[cfg(not(feature = "runtime-llm"))]
+#[derive(Debug, Clone, Default)]
+pub struct LlmResult {
+    pub topics: Vec<Topic>,
+    pub user_titles: Vec<UserTitle>,
+    pub golden_quotes: Vec<Quote>,
+    pub relationships: Vec<Relationship>,
+}
+
+#[cfg(not(feature = "runtime-llm"))]
+#[derive(Debug, Clone)]
+pub struct Topic {
+    pub topic: String,
+    pub contributors: Vec<String>,
+    pub detail: String,
+}
+
+#[cfg(not(feature = "runtime-llm"))]
+#[derive(Debug, Clone)]
+pub struct UserTitle {
+    pub name: String,
+    pub title: String,
+    pub mbti: String,
+    pub habit: String,
+    pub reason: String,
+}
+
+#[cfg(not(feature = "runtime-llm"))]
+#[derive(Debug, Clone)]
+pub struct Quote {
+    pub content: String,
+    pub sender: String,
+    pub reason: String,
+}
+
+#[cfg(not(feature = "runtime-llm"))]
+#[derive(Debug, Clone)]
+pub struct Relationship {
+    pub rel_type: String,
+    pub members: Vec<String>,
+    pub label: String,
+    pub vibe: String,
+    pub evidence: Vec<String>,
+}
+
 // ── 公共管道 ──────────────────────────────────────────────────────────────────
 
 /// smy 核心管道：统计 → 可选 LLM → 渲染 → 截图，返回 base64 PNG。
@@ -50,6 +101,7 @@ pub async fn generate_report(
     let stats = statistics::analyze(messages);
 
     // ── LLM 分析（可选） ──────────────────────────────────────────────────────
+    #[cfg(feature = "runtime-llm")]
     let llm_result = if with_ai {
         if let Some(client) = crate::runtime::llm::get() {
             debug!("[smy] 请求 LLM 分析...");
@@ -69,6 +121,14 @@ pub async fn generate_report(
         }
     } else {
         llm::LlmResult::default()
+    };
+
+    #[cfg(not(feature = "runtime-llm"))]
+    let llm_result = {
+        if with_ai {
+            warn!("[smy] with_ai=true 但 runtime-llm 未编译，跳过");
+        }
+        LlmResult::default()
     };
 
     // ── 渲染 HTML ─────────────────────────────────────────────────────────────

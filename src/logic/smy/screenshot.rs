@@ -4,7 +4,11 @@ use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use tracing::{debug, warn};
 
+#[cfg(feature = "runtime-llm")]
 use super::llm::LlmResult;
+
+#[cfg(not(feature = "runtime-llm"))]
+use super::LlmResult;
 
 const MIN_SCREENSHOT_HEIGHT: u32 = 600;
 const MAX_SCREENSHOT_HEIGHT: u32 = 20_000;

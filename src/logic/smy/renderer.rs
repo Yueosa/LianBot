@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::fetcher::ChatMessage;
-use super::llm::LlmResult;
 use super::statistics::Statistics;
+use super::{LlmResult, Topic, UserTitle, Quote, Relationship};
 
 // ── HTML 报告渲染 ─────────────────────────────────────────────────────────────
 //
@@ -689,7 +689,7 @@ body {{
 // ── 子模块渲染 ────────────────────────────────────────────────────────────────
 
 fn render_relationships(
-    relationships: &[super::llm::Relationship],
+    relationships: &[Relationship],
     name_to_uid: &HashMap<String, i64>,
 ) -> String {
     relationships
@@ -815,7 +815,7 @@ fn render_hourly_chart(hourly: &[u32; 24]) -> String {
     html
 }
 
-fn render_topics(topics: &[super::llm::Topic]) -> String {
+fn render_topics(topics: &[Topic]) -> String {
     topics
         .iter()
         .enumerate()
@@ -836,7 +836,7 @@ fn render_topics(topics: &[super::llm::Topic]) -> String {
         .join("\n")
 }
 
-fn render_user_titles(titles: &[super::llm::UserTitle], name_to_uid: &HashMap<String, i64>) -> String {
+fn render_user_titles(titles: &[UserTitle], name_to_uid: &HashMap<String, i64>) -> String {
     titles
         .iter()
         .map(|u| {
@@ -858,7 +858,7 @@ fn render_user_titles(titles: &[super::llm::UserTitle], name_to_uid: &HashMap<St
         .join("\n")
 }
 
-fn render_quotes(quotes: &[super::llm::Quote]) -> String {
+fn render_quotes(quotes: &[Quote]) -> String {
     quotes
         .iter()
         .map(|q| {

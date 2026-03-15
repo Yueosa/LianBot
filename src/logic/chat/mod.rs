@@ -187,7 +187,7 @@ fn format_pool_messages(messages: &[PoolMessage]) -> String {
 /// `user_name` 是提问者的昵称。
 pub async fn handle_chat(
     api: &ApiClient,
-    pool: &Arc<Pool>,
+    pool: &Option<Arc<Pool>>,
     scope: Scope,
     target: MsgTarget,
     bot_id: i64,
@@ -217,11 +217,18 @@ pub async fn handle_chat(
             }
         };
 
-        // 从 Pool 取上下文
+        // 从 Pool 或 API 取上下文
         let now = crate::runtime::time::unix_timestamp();
         let since = now - cfg.context_window;
 
-        let mut messages = pool.range(&scope, since, now).await;
+        let mut messages = if let Some(pool) = pool {
+            // 优先从 pool 获取（微秒级）
+            pool.range(&scope, since, now).await
+        } else {
+            // 降级到 API 获取（毫秒级）
+            fetch_messages_from_api(api, scope, since, now).await?
+        };
+
         // 截断到 context_size
         if messages.len() > cfg.context_size {
             let drain_count = messages.len() - cfg.context_size;
@@ -319,4 +326,84 @@ async fn send_chat_reply(
     }
 
     Ok(ChatOutcome::Replied)
+}
+
+/// 从 API 获取历史消息并转换为 PoolMessage 格式。
+/// 用于在无 pool 时降级获取上下文。
+async fn fetch_messages_from_api(
+    api: &ApiClient,
+    scope: Scope,
+    since: i64,
+    now: i64,
+) -> Result<Vec<PoolMessage>> {
+    let group_id = match scope {
+        Scope::Group(gid) => gid,
+        _ => anyhow::bail!("chat 模块仅支持群聊场景"),
+    };
+
+    // 分页获取历史消息
+    let mut all_messages = Vec::new();
+    let mut page_seq: Option<i64> = None;
+
+    for _ in 0..10 {  // 最多 10 页，避免无限循环
+        let page = api
+            .get_group_msg_history_paged(group_id, 1000, page_seq)
+            .await?;
+
+        if page.is_empty() {
+            break;
+        }
+
+        // 检查是否已经到达时间窗口起点
+        let page_earliest = page.first()
+            .and_then(|m| m.get("time"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+
+        for msg_value in &page {
+            let ts = msg_value.get("time").and_then(|v| v.as_i64()).unwrap_or(0);
+            if ts < since {
+                continue;  // 跳过太早的消息
+            }
+            if ts > now {
+                continue;  // 跳过未来消息（理论上不会出现）
+            }
+
+            if let Some(pool_msg) = PoolMessage::from_api_value(msg_value, scope) {
+                all_messages.push(pool_msg);
+            }
+        }
+
+        // 如果已经到达时间窗口起点，停止分页
+        if page_earliest <= since {
+            break;
+        }
+
+        // 准备下一页
+        if page.len() < 1000 {
+            break;  // 最后一页
+        }
+
+        let next_seq = page
+            .first()
+            .and_then(|m| m.get("message_seq").and_then(|v| v.as_i64()))
+            .or_else(|| page.first().and_then(|m| m.get("message_id").and_then(|v| v.as_i64())));
+
+        if next_seq.is_none() || next_seq == page_seq {
+            break;
+        }
+        page_seq = next_seq;
+    }
+
+    // 按时间戳排序
+    all_messages.sort_by_key(|m| m.timestamp);
+
+    debug!(
+        "[chat] API 降级获取: {} 条消息 (since={}, now={})",
+        all_messages.len(),
+        since,
+        now
+    );
+
+    Ok(all_messages)
 }
