@@ -3,7 +3,6 @@ pub mod client;
 use std::sync::OnceLock;
 
 use serde::Deserialize;
-use tracing::info;
 
 pub use client::LlmClient;
 
@@ -16,10 +15,7 @@ pub fn init() {
         .section_opt("llm");
 
     if let Some(cfg) = cfg {
-        info!("[llm] 已配置: {} / {}", cfg.api_url, cfg.model);
         LLM_CLIENT.get_or_init(|| LlmClient::new(cfg));
-    } else {
-        info!("[llm] 未配置 [llm] 段，LLM 功能不可用");
     }
 }
 

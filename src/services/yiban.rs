@@ -153,12 +153,6 @@ impl BotService for YiBanService {
     }
 
     async fn run(mut self) -> anyhow::Result<()> {
-        info!(
-            "[{}] 已启动，共 {} 条推送规则",
-            self.name(),
-            self.cfg.targets.len()
-        );
-
         while let Some(report) = self.rx.recv().await {
             let text = format_report(&report);
             let user_names: Vec<&str> = report.users.iter().map(|u| u.name.as_str()).collect();

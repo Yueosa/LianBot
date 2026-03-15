@@ -42,23 +42,37 @@ pub mod db;
 
 // ── Runtime 层模块初始化 ──────────────────────────────────────────────────────
 
+use std::collections::HashMap;
+
+/// Runtime 初始化摘要
+#[derive(Default)]
+pub struct RuntimeInitSummary {
+    /// 已初始化的模块列表
+    pub modules: Vec<String>,
+    /// 模块详细信息（key: 模块名, value: 详细描述）
+    pub details: HashMap<String, String>,
+}
+
 /// Runtime 层模块初始化函数。
 /// 根据启用的 features 初始化对应的 runtime 模块，并注册到 App。
-pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
+pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<RuntimeInitSummary> {
     use std::sync::Arc;
-    use tracing::info;
+
+    let mut summary = RuntimeInitSummary::default();
 
     // ── 配置加载 ──────────────────────────────────────────────────────────
     #[cfg(feature = "runtime-config")]
     {
         config::init()?;
-        info!("[runtime] config 已初始化");
+        summary.modules.push("config".to_string());
     }
 
     #[cfg(feature = "runtime-time")]
     {
         time::init();
-        info!("[runtime] time 已初始化");
+        let offset = time::offset_hours();
+        summary.modules.push("time".to_string());
+        summary.details.insert("time".to_string(), format!("UTC{:+}", offset));
     }
 
     // ── 日志系统 ──────────────────────────────────────────────────────────
@@ -66,14 +80,19 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
     {
         let log_cfg: logger::LogConfig = config::section("log");
         let _log_guard = logger::init(&log_cfg);
-        info!("[runtime] logger 已初始化");
+        summary.modules.push("logger".to_string());
     }
 
     // ── LLM 客户端 ────────────────────────────────────────────────────────
     #[cfg(feature = "runtime-llm")]
     {
         llm::init();
-        info!("[runtime] llm 已初始化");
+        summary.modules.push("llm".to_string());
+        #[cfg(feature = "runtime-config")]
+        {
+            let llm_cfg: llm::LlmConfig = config::section("llm");
+            summary.details.insert("llm".to_string(), llm_cfg.model.clone());
+        }
     }
 
     // ── API 客户端 ────────────────────────────────────────────────────────
@@ -87,7 +106,8 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
             napcat.history_timeout_secs,
         ));
         app.set_api(api);
-        info!("[runtime] api 已初始化: {}", napcat.url);
+        summary.modules.push("api".to_string());
+        summary.details.insert("api".to_string(), napcat.url.clone());
     }
 
     // ── WebSocket 管理器 ──────────────────────────────────────────────────
@@ -95,7 +115,7 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
     {
         let ws = ws::WsManager::new();
         app.set_ws(ws);
-        info!("[runtime] ws 已初始化");
+        summary.modules.push("ws".to_string());
     }
 
     // ── 权限控制 ──────────────────────────────────────────────────────────
@@ -118,8 +138,10 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
             &bot_cfg.private_blacklist,
         );
 
+        let group_count = access.enabled_groups().len();
         app.set_access(access);
-        info!("[runtime] permission 已初始化");
+        summary.modules.push("permission".to_string());
+        summary.details.insert("permission".to_string(), format!("{} 个群", group_count));
     }
 
     // ── 消息池 ────────────────────────────────────────────────────────────
@@ -128,7 +150,8 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
         let pool_cfg: pool::PoolConfig = config::section("pool");
         let pool = pool::create_pool(&pool_cfg).await?;
         app.set_pool(pool);
-        info!("[runtime] pool 已初始化");
+        summary.modules.push("pool".to_string());
+        summary.details.insert("pool".to_string(), "预热中...".to_string());
     }
 
     // ── 消息池预热 ────────────────────────────────────────────────────────
@@ -141,9 +164,8 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<()> {
             tokio::spawn(async move {
                 pool::seed_from_history(&api_clone, &pool_clone, groups).await;
             });
-            info!("[runtime] pool 预热已启动");
         }
     }
 
-    Ok(())
+    Ok(summary)
 }

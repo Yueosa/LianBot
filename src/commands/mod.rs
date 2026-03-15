@@ -33,17 +33,78 @@ pub fn http_client() -> &'static reqwest::Client {
 
 // ── 命令自注册 ────────────────────────────────────────────────────────────────
 
+/// 命令注册摘要
+#[derive(Default)]
+pub struct CommandsSummary {
+    /// 已注册的命令数量
+    pub count: usize,
+    /// 命令名称列表
+    pub names: Vec<String>,
+}
+
 /// 向 App 构建器注册所有已启用 feature 的命令。
-pub fn register(app: &mut crate::kernel::app::App) {
+pub fn register(app: &mut crate::kernel::app::App) -> CommandsSummary {
+    let mut summary = CommandsSummary::default();
+
     app.command(Arc::new(admin::AdminCommand));
-    #[cfg(feature = "cmd-ping")]  app.command(Arc::new(ping::PingCommand));
-    #[cfg(feature = "cmd-help")]  app.command(Arc::new(help::HelpCommand));
-    #[cfg(feature = "cmd-acg")]   app.command(Arc::new(acg::AcgCommand));
-    #[cfg(feature = "cmd-stalk")] app.command(Arc::new(stalk::StalkCommand));
-    #[cfg(feature = "cmd-smy")]   app.command(Arc::new(smy::SmyCommand));
-    #[cfg(feature = "cmd-alive")] app.command(Arc::new(alive::AliveCommand));
-    #[cfg(feature = "cmd-world")] app.command(Arc::new(world::WorldCommand));
-    #[cfg(feature = "cmd-dress")] app.command(Arc::new(dress::DressCommand));
-    #[cfg(feature = "cmd-sign")]  app.command(Arc::new(sign::SignCommand));
-    #[cfg(feature = "cmd-sign")]  app.command(Arc::new(sign::SignStatusCommand));
+    summary.names.push("admin".to_string());
+
+    #[cfg(feature = "cmd-ping")]
+    {
+        app.command(Arc::new(ping::PingCommand));
+        summary.names.push("ping".to_string());
+    }
+
+    #[cfg(feature = "cmd-help")]
+    {
+        app.command(Arc::new(help::HelpCommand));
+        summary.names.push("help".to_string());
+    }
+
+    #[cfg(feature = "cmd-acg")]
+    {
+        app.command(Arc::new(acg::AcgCommand));
+        summary.names.push("acg".to_string());
+    }
+
+    #[cfg(feature = "cmd-stalk")]
+    {
+        app.command(Arc::new(stalk::StalkCommand));
+        summary.names.push("stalk".to_string());
+    }
+
+    #[cfg(feature = "cmd-smy")]
+    {
+        app.command(Arc::new(smy::SmyCommand));
+        summary.names.push("smy".to_string());
+    }
+
+    #[cfg(feature = "cmd-alive")]
+    {
+        app.command(Arc::new(alive::AliveCommand));
+        summary.names.push("alive".to_string());
+    }
+
+    #[cfg(feature = "cmd-world")]
+    {
+        app.command(Arc::new(world::WorldCommand));
+        summary.names.push("world".to_string());
+    }
+
+    #[cfg(feature = "cmd-dress")]
+    {
+        app.command(Arc::new(dress::DressCommand));
+        summary.names.push("dress".to_string());
+    }
+
+    #[cfg(feature = "cmd-sign")]
+    {
+        app.command(Arc::new(sign::SignCommand));
+        summary.names.push("sign".to_string());
+        app.command(Arc::new(sign::SignStatusCommand));
+        summary.names.push("sign-status".to_string());
+    }
+
+    summary.count = summary.names.len();
+    summary
 }

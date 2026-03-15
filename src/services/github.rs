@@ -130,12 +130,6 @@ impl BotService for GitHubService {
     }
 
     async fn run(mut self) -> anyhow::Result<()> {
-        info!(
-            "[{}] 已启动，共 {} 条订阅规则",
-            self.name(),
-            self.cfg.subscriptions.len()
-        );
-
         while let Some(evt) = self.rx.recv().await {
             let Some(text) = format_event(&evt, &self.cfg) else {
                 continue;

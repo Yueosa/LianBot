@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::commands::{Command, CommandKind};
 use crate::runtime::pool::Pool;
@@ -54,15 +54,6 @@ impl CommandRegistry {
 
         let name = cmd.name().to_string();
         let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let kind_tag = match cmd.kind() {
-            CommandKind::Simple   => "simple",
-            CommandKind::Advanced => "advanced",
-        };
-        if aliases.is_empty() {
-            info!("[registry] +{kind_tag} {name}");
-        } else {
-            info!("[registry] +{kind_tag} {name} (alias: {})", aliases.join(", "));
-        }
 
         let table = match cmd.kind() {
             CommandKind::Simple   => &mut self.simple_cmds,
@@ -95,15 +86,6 @@ impl CommandRegistry {
 
         let name = cmd.name().to_string();
         let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let kind_tag = match cmd.kind() {
-            CommandKind::Simple   => "simple",
-            CommandKind::Advanced => "advanced",
-        };
-        if aliases.is_empty() {
-            info!("[registry] +{kind_tag} {name}");
-        } else {
-            info!("[registry] +{kind_tag} {name} (alias: {})", aliases.join(", "));
-        }
 
         let table = match cmd.kind() {
             CommandKind::Simple   => &mut self.simple_cmds,

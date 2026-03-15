@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use tracing::info;
-
 use super::BotService;
 use crate::runtime::{api::ApiClient, permission::AccessControl, pool::Pool};
 
@@ -45,8 +43,6 @@ impl BotService for SchedulerService {
     }
 
     async fn run(self) -> anyhow::Result<()> {
-        info!("[{}] 已启动", self.name());
-
         // ── 任务 1：smy 日报（午夜触发） ─────────────────────────────────────
         #[cfg(feature = "cmd-smy")]
         {
