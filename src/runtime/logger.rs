@@ -6,6 +6,13 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
+#[cfg(feature = "core-log-file")]
+use std::io::Write;
+#[cfg(feature = "core-log-file")]
+use std::path::PathBuf;
+#[cfg(feature = "core-log-file")]
+use std::sync::Mutex;
+
 // ── 日志配置 ──────────────────────────────────────────────────────────────────
 
 /// runtime.toml `[log]` 段。
@@ -105,7 +112,11 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
                     }
                     Ok(()) => {
                         let _ = fs::remove_file(&probe);
-                        let file_appender = tracing_appender::rolling::daily(dir, "lianbot.log");
+
+                        // 注意：tracing_appender::rolling::daily() 使用 UTC 时间来决定日期，
+                        // 无法使用我们配置的时区（UTC+8）。因此使用自定义滚动器，
+                        // 它调用 runtime::time::now() 来获取配置时区的当前日期。
+                        let file_appender = ConfiguredRollingAppender::new(dir, "lianbot.log");
                         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
                         let file_layer = fmt::layer().with_writer(non_blocking).with_ansi(false).with_timer(configured_timer());
                         tracing_subscriber::registry()
@@ -126,4 +137,79 @@ pub fn init(cfg: &LogConfig) -> Option<LogGuard> {
         .with(stdout_layer)
         .init();
     None
+}
+
+// ── 使用配置时区的日志滚动器 ──────────────────────────────────────────────────
+
+/// 自定义日志滚动器，使用 runtime::time::now() 获取配置时区的日期。
+///
+/// tracing_appender::rolling::daily() 使用 UTC 时间，无法使用我们配置的时区。
+/// 这个实现在每次写入时检查日期，如果日期变化则滚动到新文件。
+#[cfg(feature = "core-log-file")]
+struct ConfiguredRollingAppender {
+    dir: PathBuf,
+    prefix: String,
+    current_file: Mutex<Option<(String, std::fs::File)>>,
+}
+
+#[cfg(feature = "core-log-file")]
+impl ConfiguredRollingAppender {
+    fn new(dir: impl Into<PathBuf>, prefix: impl Into<String>) -> Self {
+        Self {
+            dir: dir.into(),
+            prefix: prefix.into(),
+            current_file: Mutex::new(None),
+        }
+    }
+
+    /// 获取配置时区的当前日期（YYYY-MM-DD 格式）
+    fn current_date() -> String {
+        use chrono::Datelike;
+        let now = crate::runtime::time::now();
+        format!("{:04}-{:02}-{:02}", now.year(), now.month(), now.day())
+    }
+
+    fn get_writer(&self) -> std::io::Result<std::sync::MutexGuard<'_, Option<(String, std::fs::File)>>> {
+        let mut guard = self.current_file.lock().unwrap();
+        let today = Self::current_date();
+
+        // 检查是否需要滚动（日期变化或首次写入）
+        let needs_rotation = match &*guard {
+            None => true,
+            Some((date, _)) => date != &today,
+        };
+
+        if needs_rotation {
+            let filename = format!("{}.{}", self.prefix, today);
+            let path = self.dir.join(&filename);
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)?;
+            *guard = Some((today, file));
+        }
+
+        Ok(guard)
+    }
+}
+
+#[cfg(feature = "core-log-file")]
+impl Write for ConfiguredRollingAppender {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let mut guard = self.get_writer()?;
+        if let Some((_, file)) = &mut *guard {
+            file.write(buf)
+        } else {
+            Ok(0)
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let mut guard = self.current_file.lock().unwrap();
+        if let Some((_, file)) = &mut *guard {
+            file.flush()
+        } else {
+            Ok(())
+        }
+    }
 }
