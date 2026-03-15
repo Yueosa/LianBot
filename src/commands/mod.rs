@@ -101,8 +101,6 @@ pub fn register(app: &mut crate::kernel::app::App) -> CommandsSummary {
     {
         app.command(Arc::new(sign::SignCommand));
         summary.names.push("sign".to_string());
-        app.command(Arc::new(sign::SignStatusCommand));
-        summary.names.push("sign-status".to_string());
     }
 
     summary.count = summary.names.len();
