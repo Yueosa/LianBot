@@ -46,8 +46,8 @@ if [[ -n "$log_dir" ]]; then
     dim "  文件总行数: ${_total}"
     echo ""
 
-    # 初始展示最近 50 行
-    _tail_preview=$(tail -n 50 "$log_file" 2>/dev/null || true)
+    # 初始展示最近 100 行
+    _tail_preview=$(tail -n 100 "$log_file" 2>/dev/null || true)
     _boot_line=$(printf '%s\n' "$_tail_preview" | grep -n '配置加载成功' | tail -1 | cut -d: -f1 || true)
     if [[ -n "$_boot_line" ]]; then
         printf '%s\n' "$_tail_preview" | tail -n +"$_boot_line"
