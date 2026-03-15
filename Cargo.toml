@@ -51,17 +51,8 @@ tempfile    = { version = "3", optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 
 [features]
-# TODO: default feature 和 feature 分组需要未来审计和优化
-# 默认启用基础功能（临时方案）
-default = [
-    # Runtime 基础设施
-    "runtime-api", "runtime-typ", "runtime-dispatcher",
-    "runtime-parser", "runtime-registry", "runtime-permission",
-    "runtime-pool", "runtime-logger", "runtime-time",
-
-    # 基础命令
-    "cmd-ping", "cmd-help", "cmd-alive",
-]
+# 默认最小 kernel 层编译
+default = []
 
 # ── Runtime 层 features ─────────────────────────────────────────────────────
 
@@ -120,20 +111,15 @@ core-db          = ["dep:rusqlite"]        # 通用 SQLite 句柄（DB 层基础
 core-log-file    = ["dep:tracing-appender"] # 每日滚动日志文件（需配置 log_dir）
 
 # ── Feature 分组（便捷组合）─────────────────────────────────────────────────
-# TODO: 未来需要审计和优化这些分组
-full     = [
-    "default", "runtime-llm", "runtime-ws", "core-db",
-    "cmd-smy", "cmd-acg", "cmd-stalk", "cmd-world", "cmd-dress", "cmd-sign",
-    "svc-github", "svc-yiban"
-]
-minimal  = []  # 仅 kernel 层
-business = ["runtime-dispatcher", "runtime-pool", "runtime-llm", "cmd-smy", "cmd-stalk", "logic-smy", "logic-chat"]
-admin    = ["runtime-dispatcher", "cmd-alive", "core-db"]
+minimal  = []  # 与 default 相同，仅 kernel 层
 
 [dev-dependencies]
 tempfile = "3"
 
 [profile.release]
-opt-level      = 2
-codegen-units  = 4
-lto            = false
+# 极致运行性能优化配置
+opt-level      = 3           # 最高优化级别
+codegen-units  = 1           # 单个代码生成单元，最大化内联和优化
+lto            = "fat"       # 完整链接时优化
+strip          = true        # 剥离符号表，减小二进制体积
+panic          = "abort"     # panic 时直接终止，减小二进制体积
