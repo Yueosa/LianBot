@@ -98,10 +98,11 @@ pub async fn run() -> anyhow::Result<()> {
     #[cfg(feature = "core-ws")]
     {
         let ws = app.ws.clone().expect("runtime-ws 未初始化（core-ws 依赖 runtime-ws）");
+        let api = app.api.clone().expect("runtime-api 未初始化（core-ws 依赖 runtime-api）");
         app.merge(
             Router::new()
                 .route("/wstalk", get(ws_handler))
-                .with_state(WsState { ws }),
+                .with_state(WsState { ws, api }),
         );
     }
 
