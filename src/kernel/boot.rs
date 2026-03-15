@@ -64,6 +64,17 @@ pub async fn run() -> anyhow::Result<()> {
 
     // ── Runtime 层初始化 ──────────────────────────────────────────────────
     info!("┌─ Runtime 模块初始化");
+
+    // 输出已在 boot.rs 中初始化的模块
+    #[cfg(all(feature = "runtime-time", feature = "runtime-config"))]
+    {
+        let offset = crate::runtime::time::offset_hours();
+        info!("│  ✓ time (UTC{:+})", offset);
+    }
+
+    #[cfg(all(feature = "runtime-logger", feature = "runtime-config"))]
+    info!("│  ✓ logger");
+
     let mut app = App::new();
     let runtime_summary = crate::runtime::init(&mut app).await?;
 
@@ -73,7 +84,13 @@ pub async fn run() -> anyhow::Result<()> {
             .unwrap_or_default();
         info!("│  ✓ {}{}", module, detail);
     }
-    info!("└─ ✓ Runtime 初始化完成 ({} 个模块)", runtime_summary.modules.len());
+
+    // 计算总模块数（包括在 boot.rs 中初始化的 time 和 logger）
+    let total_modules = runtime_summary.modules.len()
+        + if cfg!(all(feature = "runtime-time", feature = "runtime-config")) { 1 } else { 0 }
+        + if cfg!(all(feature = "runtime-logger", feature = "runtime-config")) { 1 } else { 0 };
+
+    info!("└─ ✓ Runtime 初始化完成 ({} 个模块)", total_modules);
 
     // ── Commands 层注册 ───────────────────────────────────────────────────
     #[cfg(feature = "runtime-dispatcher")]
