@@ -115,7 +115,7 @@ svc-yiban  = ["logic-yiban"]               # 易班签到 Webhook 通知
 
 # ── 基础设施 features ───────────────────────────────────────────────────────
 core-webhook     = ["dep:hmac", "dep:sha2", "dep:hex"]  # HMAC-SHA256 统一验签
-core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由
+core-ws          = ["runtime-ws"]         # 暴露 GET /wstalk WebSocket 路由（依赖 WsManager）
 core-db          = ["dep:rusqlite"]        # 通用 SQLite 句柄（DB 层基础设施）
 core-log-file    = ["dep:tracing-appender"] # 每日滚动日志文件（需配置 log_dir）
 

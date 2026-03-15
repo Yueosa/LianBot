@@ -15,9 +15,11 @@ use crate::{
         pool::{MsgStatus, Pool, PoolMessage, ProcessRecord},
         registry::CommandRegistry,
         typ::{MessageEvent, MessageSegment, OneBotEvent},
-        ws::WsManager,
     },
 };
+
+#[cfg(feature = "runtime-ws")]
+use crate::runtime::ws::WsManager;
 
 // ── Handler Chain 架构 ────────────────────────────────────────────────────────
 
@@ -44,7 +46,8 @@ pub struct MessageContext {
 pub struct HandlerContext<'a> {
     pub msg: &'a mut MessageContext,
     pub api: &'a Arc<ApiClient>,
-    pub ws: &'a Arc<WsManager>,
+    #[cfg(feature = "runtime-ws")]
+    pub ws: &'a Option<Arc<WsManager>>,
     pub registry: &'a Arc<CommandRegistry>,
     pub pool: &'a Option<Arc<Pool>>,
     pub access: &'a Arc<AccessControl>,
@@ -86,7 +89,8 @@ pub struct Dispatcher {
     owner: i64,
     cmd_prefix: String,
     api: Arc<ApiClient>,
-    ws: Arc<WsManager>,
+    #[cfg(feature = "runtime-ws")]
+    ws: Option<Arc<WsManager>>,
     registry: Arc<CommandRegistry>,
     pool: Option<Arc<Pool>>,
     access: Arc<AccessControl>,
@@ -94,12 +98,13 @@ pub struct Dispatcher {
 }
 
 impl Dispatcher {
+    #[cfg(feature = "runtime-ws")]
     pub fn new(
         bot_id: i64,
         owner: i64,
         cmd_prefix: String,
         api: Arc<ApiClient>,
-        ws: Arc<WsManager>,
+        ws: Option<Arc<WsManager>>,
         registry: Arc<CommandRegistry>,
         pool: Option<Arc<Pool>>,
         access: Arc<AccessControl>,
@@ -109,6 +114,23 @@ impl Dispatcher {
             Box::new(AtBotHandler),
         ];
         Self { bot_id, owner, cmd_prefix, api, ws, registry, pool, access, handlers }
+    }
+
+    #[cfg(not(feature = "runtime-ws"))]
+    pub fn new(
+        bot_id: i64,
+        owner: i64,
+        cmd_prefix: String,
+        api: Arc<ApiClient>,
+        registry: Arc<CommandRegistry>,
+        pool: Option<Arc<Pool>>,
+        access: Arc<AccessControl>,
+    ) -> Self {
+        let handlers: Vec<Box<dyn MessageHandler>> = vec![
+            Box::new(CommandHandler),
+            Box::new(AtBotHandler),
+        ];
+        Self { bot_id, owner, cmd_prefix, api, registry, pool, access, handlers }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
@@ -161,6 +183,7 @@ impl Dispatcher {
             let handler_ctx = HandlerContext {
                 msg: &mut msg_ctx,
                 api: &self.api,
+                #[cfg(feature = "runtime-ws")]
                 ws: &self.ws,
                 registry: &self.registry,
                 pool: &self.pool,
@@ -565,6 +588,7 @@ fn build_command_ctx(
         segments: ctx.msg.segments.clone(),
         params,
         api: ctx.api.clone(),
+        #[cfg(feature = "runtime-ws")]
         ws: ctx.ws.clone(),
         cmd_prefix: ctx.cmd_prefix.to_string(),
         registry: ctx.registry.clone(),

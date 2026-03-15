@@ -21,6 +21,7 @@ pub enum Dependency {
     /// 需要 `logic.toml` 中的配置段（如 LLM）
     Config,
     /// 需要 `WsManager`（WebSocket 客户端已连接）
+    #[cfg(feature = "runtime-ws")]
     Ws,
     /// 需要消息池
     Pool,
@@ -31,11 +32,13 @@ impl Dependency {
     pub fn is_available(
         &self,
         pool: &Option<std::sync::Arc<crate::runtime::pool::Pool>>,
-        ws: &std::sync::Arc<crate::runtime::ws::WsManager>,
+        #[cfg(feature = "runtime-ws")]
+        ws: &Option<std::sync::Arc<crate::runtime::ws::WsManager>>,
     ) -> bool {
         match self {
             Dependency::Pool => pool.is_some(),
-            Dependency::Ws => ws.is_enabled(),
+            #[cfg(feature = "runtime-ws")]
+            Dependency::Ws => ws.as_ref().map(|w| w.is_enabled()).unwrap_or(false),
             Dependency::Config => true,
         }
     }
@@ -44,6 +47,7 @@ impl Dependency {
     pub fn description(&self) -> &'static str {
         match self {
             Dependency::Pool => "消息池",
+            #[cfg(feature = "runtime-ws")]
             Dependency::Ws => "WebSocket 连接",
             Dependency::Config => "配置",
         }

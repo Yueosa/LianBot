@@ -4,6 +4,8 @@ use tracing::{info, warn};
 
 use crate::commands::{Command, CommandKind};
 use crate::runtime::pool::Pool;
+
+#[cfg(feature = "runtime-ws")]
 use crate::runtime::ws::WsManager;
 
 // ── 命令注册表 ─────────────────────────────────────────────────────────────────
@@ -31,15 +33,57 @@ impl CommandRegistry {
     /// 同时注册别名。
     ///
     /// 在注册时检查命令的依赖是否满足，不满足的命令会被跳过并记录警告。
+    #[cfg(feature = "runtime-ws")]
     pub fn register(
         &mut self,
         cmd: Arc<dyn Command>,
         pool: &Option<Arc<Pool>>,
-        ws: &Arc<WsManager>,
+        ws: &Option<Arc<WsManager>>,
     ) {
         // 依赖检查
         for dep in cmd.dependencies() {
             if !dep.is_available(pool, ws) {
+                warn!(
+                    "[registry] 跳过命令 {} - 缺少依赖: {}",
+                    cmd.name(),
+                    dep.description()
+                );
+                return;
+            }
+        }
+
+        let name = cmd.name().to_string();
+        let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let kind_tag = match cmd.kind() {
+            CommandKind::Simple   => "simple",
+            CommandKind::Advanced => "advanced",
+        };
+        if aliases.is_empty() {
+            info!("[registry] +{kind_tag} {name}");
+        } else {
+            info!("[registry] +{kind_tag} {name} (alias: {})", aliases.join(", "));
+        }
+
+        let table = match cmd.kind() {
+            CommandKind::Simple   => &mut self.simple_cmds,
+            CommandKind::Advanced => &mut self.advanced_cmds,
+        };
+
+        table.insert(name, cmd.clone());
+        for alias in aliases {
+            table.insert(alias, cmd.clone());
+        }
+    }
+
+    #[cfg(not(feature = "runtime-ws"))]
+    pub fn register(
+        &mut self,
+        cmd: Arc<dyn Command>,
+        pool: &Option<Arc<Pool>>,
+    ) {
+        // 依赖检查
+        for dep in cmd.dependencies() {
+            if !dep.is_available(pool) {
                 warn!(
                     "[registry] 跳过命令 {} - 缺少依赖: {}",
                     cmd.name(),

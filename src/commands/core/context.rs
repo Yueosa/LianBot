@@ -9,8 +9,10 @@ use crate::runtime::{
     pool::Pool,
     registry::CommandRegistry,
     typ::MessageSegment,
-    ws::WsManager,
 };
+
+#[cfg(feature = "runtime-ws")]
+use crate::runtime::ws::WsManager;
 
 pub struct CommandContext {
     /// 本次命令执行的追踪标识（8 字符 hex），用于关联并发日志
@@ -27,7 +29,8 @@ pub struct CommandContext {
     /// OneBot API 客户端（Arc 共享）
     pub api: Arc<ApiClient>,
     /// WebSocket 连接管理器（Arc 共享）
-    pub ws: Arc<WsManager>,
+    #[cfg(feature = "runtime-ws")]
+    pub ws: Option<Arc<WsManager>>,
     /// 命令前缀（从 runtime 配置提取）
     pub cmd_prefix: String,
     /// 命令注册表（供 /help 等命令枚举全部命令）

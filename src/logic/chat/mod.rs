@@ -1,23 +1,30 @@
-mod splitter;
-pub mod tools;
-
 use std::sync::Arc;
 
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use serde::Deserialize;
-use tracing::{debug, warn};
 
 use crate::runtime::{
     api::{ApiClient, MsgTarget},
-    llm,
     permission::Scope,
     pool::{Pool, PoolMessage},
     time,
     typ::MessageSegment,
 };
 
-use splitter::split_reply;
+#[cfg(feature = "runtime-llm")]
+use anyhow::Context as _;
+#[cfg(feature = "runtime-llm")]
+use tracing::{debug, warn};
+#[cfg(feature = "runtime-llm")]
+use crate::runtime::llm;
+
+mod splitter;
+pub mod tools;
+
+#[cfg(feature = "runtime-llm")]
 use tools::{ParsedResponse, build_tools_prompt, parse_response};
+
+use splitter::split_reply;
 
 /// `handle_chat` 的返回结果。
 pub enum ChatOutcome {
@@ -193,82 +200,91 @@ pub async fn handle_chat(
 ) -> Result<ChatOutcome> {
     let cfg: ChatConfig = crate::logic::config::section("chat");
 
-    // 获取 LLM 客户端
-    let client = match llm::get() {
-        Some(c) => c,
-        None => {
-            api.send_msg(target, "⚠️ AI 对话未配置（runtime.toml [llm] 段缺失）").await?;
-            return Ok(ChatOutcome::Replied);
-        }
-    };
-
-    // 从 Pool 取上下文
-    let now = crate::runtime::time::unix_timestamp();
-    let since = now - cfg.context_window;
-
-    let mut messages = pool.range(&scope, since, now).await;
-    // 截断到 context_size
-    if messages.len() > cfg.context_size {
-        let drain_count = messages.len() - cfg.context_size;
-        messages.drain(..drain_count);
-    }
-
-    let recent_text = format_pool_messages(&messages);
-    debug!(
-        "[chat] scope={scope:?}, 上下文 {} 条 / {}B, 问题: {}",
-        messages.len(),
-        recent_text.len(),
-        &question[..question.len().min(80)]
-    );
-
-    // 构造 prompt
-    let use_tools = cfg.enable_tools && !tool_defs.is_empty();
-    let tools_prompt = if use_tools {
-        build_tools_prompt(tool_defs)
-    } else {
-        String::new()
-    };
-    let system = build_system_prompt(&cfg, bot_name, owner_id, &recent_text, &tools_prompt);
-    let user_content = format!("{user_name}（QQ: {user_id}）对你说：{question}");
-
-    let llm_messages = vec![
-        serde_json::json!({"role": "system", "content": system}),
-        serde_json::json!({"role": "user", "content": user_content}),
-    ];
-
-    // 调用 LLM（tool-call 模式用 json_mode）
-    let reply = if use_tools {
-        client
-            .chat(&llm_messages, cfg.temperature, cfg.max_tokens)
-            .await
-            .context("AI 对话 LLM 调用失败")?
-    } else {
-        client
-            .chat_text(&llm_messages, cfg.temperature, cfg.max_tokens)
-            .await
-            .context("AI 对话 LLM 调用失败")?
-    };
-
-    if reply.trim().is_empty() {
-        warn!("[chat] LLM 返回空回复");
-        api.send_msg(target, "……喵？（小恋暂时想不到该说什么）").await?;
+    #[cfg(not(feature = "runtime-llm"))]
+    {
+        api.send_msg(target, "⚠️ AI 对话功能未编译（需要 runtime-llm feature）").await?;
         return Ok(ChatOutcome::Replied);
     }
 
-    // 解析 tool-call
-    if use_tools {
-        match parse_response(&reply) {
-            ParsedResponse::ToolCall { command, message } => {
-                return Ok(ChatOutcome::ToolCall { command, message });
+    #[cfg(feature = "runtime-llm")]
+    {
+        // 获取 LLM 客户端
+        let client = match llm::get() {
+            Some(c) => c,
+            None => {
+                api.send_msg(target, "⚠️ AI 对话未配置（runtime.toml [llm] 段缺失）").await?;
+                return Ok(ChatOutcome::Replied);
             }
-            ParsedResponse::Chat(text) => {
-                // 继续下方的分段发送流程
-                return send_chat_reply(api, target, bot_id, bot_name, &cfg, &text).await;
+        };
+
+        // 从 Pool 取上下文
+        let now = crate::runtime::time::unix_timestamp();
+        let since = now - cfg.context_window;
+
+        let mut messages = pool.range(&scope, since, now).await;
+        // 截断到 context_size
+        if messages.len() > cfg.context_size {
+            let drain_count = messages.len() - cfg.context_size;
+            messages.drain(..drain_count);
+        }
+
+        let recent_text = format_pool_messages(&messages);
+        debug!(
+            "[chat] scope={scope:?}, 上下文 {} 条 / {}B, 问题: {}",
+            messages.len(),
+            recent_text.len(),
+            &question[..question.len().min(80)]
+        );
+
+        // 构造 prompt
+        let use_tools = cfg.enable_tools && !tool_defs.is_empty();
+        let tools_prompt = if use_tools {
+            build_tools_prompt(tool_defs)
+        } else {
+            String::new()
+        };
+        let system = build_system_prompt(&cfg, bot_name, owner_id, &recent_text, &tools_prompt);
+        let user_content = format!("{user_name}（QQ: {user_id}）对你说：{question}");
+
+        let llm_messages = vec![
+            serde_json::json!({"role": "system", "content": system}),
+            serde_json::json!({"role": "user", "content": user_content}),
+        ];
+
+        // 调用 LLM（tool-call 模式用 json_mode）
+        let reply = if use_tools {
+            client
+                .chat(&llm_messages, cfg.temperature, cfg.max_tokens)
+                .await
+                .context("AI 对话 LLM 调用失败")?
+        } else {
+            client
+                .chat_text(&llm_messages, cfg.temperature, cfg.max_tokens)
+                .await
+                .context("AI 对话 LLM 调用失败")?
+        };
+
+        if reply.trim().is_empty() {
+            warn!("[chat] LLM 返回空回复");
+            api.send_msg(target, "……喵？（小恋暂时想不到该说什么）").await?;
+            return Ok(ChatOutcome::Replied);
+        }
+
+        // 解析 tool-call
+        if use_tools {
+            match parse_response(&reply) {
+                ParsedResponse::ToolCall { command, message } => {
+                    return Ok(ChatOutcome::ToolCall { command, message });
+                }
+                ParsedResponse::Chat(text) => {
+                    // 继续下方的分段发送流程
+                    return send_chat_reply(api, target, bot_id, bot_name, &cfg, &text).await;
+                }
             }
         }
-    }
 
-    send_chat_reply(api, target, bot_id, bot_name, &cfg, &reply).await
+        send_chat_reply(api, target, bot_id, bot_name, &cfg, &reply).await
+    }
 }
 
 /// 将回复文本分段发送给用户。

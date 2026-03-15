@@ -15,8 +15,10 @@ use crate::runtime::{
     permission::AccessControl,
     pool::Pool,
     registry::CommandRegistry,
-    ws::WsManager,
 };
+
+#[cfg(feature = "runtime-ws")]
+use crate::runtime::ws::WsManager;
 
 pub struct App {
     registry: CommandRegistry,
@@ -25,15 +27,17 @@ pub struct App {
 
     // ── 共享基础设施（注册函数可读取） ──────────────────────────────────────────
     pub api: Arc<ApiClient>,
-    pub ws: Arc<WsManager>,
+    #[cfg(feature = "runtime-ws")]
+    pub ws: Option<Arc<WsManager>>,
     pub pool: Option<Arc<Pool>>,
     pub access: Arc<AccessControl>,
 }
 
 impl App {
+    #[cfg(feature = "runtime-ws")]
     pub fn new(
         api: Arc<ApiClient>,
-        ws: Arc<WsManager>,
+        ws: Option<Arc<WsManager>>,
         pool: Option<Arc<Pool>>,
         access: Arc<AccessControl>,
     ) -> Self {
@@ -48,10 +52,32 @@ impl App {
         }
     }
 
+    #[cfg(not(feature = "runtime-ws"))]
+    pub fn new(
+        api: Arc<ApiClient>,
+        pool: Option<Arc<Pool>>,
+        access: Arc<AccessControl>,
+    ) -> Self {
+        Self {
+            registry: CommandRegistry::new(),
+            router: Router::new(),
+            tasks: Vec::new(),
+            api,
+            pool,
+            access,
+        }
+    }
+
     /// 注册一条命令到内部 registry。
     /// 在注册时检查依赖，不满足的命令会被跳过。
+    #[cfg(feature = "runtime-ws")]
     pub fn command(&mut self, cmd: Arc<dyn Command>) {
         self.registry.register(cmd, &self.pool, &self.ws);
+    }
+
+    #[cfg(not(feature = "runtime-ws"))]
+    pub fn command(&mut self, cmd: Arc<dyn Command>) {
+        self.registry.register(cmd, &self.pool);
     }
 
     /// 合并一个已绑定 State 的子路由（调用方先 `.with_state(...)` 再 merge）。
