@@ -66,7 +66,7 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<RuntimeIn
         summary.modules.push("config".to_string());
     }
 
-    #[cfg(feature = "runtime-time")]
+    #[cfg(all(feature = "runtime-time", feature = "runtime-config"))]
     {
         time::init();
         let offset = time::offset_hours();
@@ -83,15 +83,12 @@ pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<RuntimeIn
     }
 
     // ── LLM 客户端 ────────────────────────────────────────────────────────
-    #[cfg(feature = "runtime-llm")]
+    #[cfg(all(feature = "runtime-llm", feature = "runtime-config"))]
     {
         llm::init();
         summary.modules.push("llm".to_string());
-        #[cfg(feature = "runtime-config")]
-        {
-            let llm_cfg: llm::LlmConfig = config::section("llm");
-            summary.details.insert("llm".to_string(), llm_cfg.model.clone());
-        }
+        let llm_cfg: llm::LlmConfig = config::section("llm");
+        summary.details.insert("llm".to_string(), llm_cfg.model.clone());
     }
 
     // ── API 客户端 ────────────────────────────────────────────────────────
