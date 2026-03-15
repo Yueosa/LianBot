@@ -51,36 +51,84 @@ tempfile    = { version = "3", optional = true }
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 
 [features]
-# 默认启用全部命令
+# TODO: default feature 和 feature 分组需要未来审计和优化
+# 默认启用基础功能（临时方案）
 default = [
+    # Runtime 基础设施
+    "runtime-api", "runtime-typ", "runtime-dispatcher",
+    "runtime-parser", "runtime-registry", "runtime-permission",
+    "runtime-pool", "runtime-logger", "runtime-time",
+
+    # 基础命令
     "cmd-ping", "cmd-help", "cmd-alive",
-    "cmd-smy", "cmd-acg", "cmd-stalk",
-    "cmd-world", "cmd-dress", "cmd-sign",
-    "core-db",
-    "svc-github",
-    "svc-yiban",
 ]
 
-# ── 各命令独立 feature ──────────────────────────────────────────────────────
-cmd-ping  = []
-cmd-help  = []
-cmd-alive = []
-cmd-acg   = []
-cmd-stalk = ["core-ws"]                   # stalk 依赖 /wstalk WebSocket 路由
-cmd-smy   = ["dep:base64", "dep:tempfile"]  # 截图(base64) + 截图临时目录(tempfile)
-cmd-world = []                            # /world 60秒看世界
-cmd-dress = ["dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]  # /dress 随机女装图片
-cmd-sign  = ["svc-yiban"]                  # 触发易班签到（依赖 svc-yiban HTTP API）
+# ── Runtime 层 features ─────────────────────────────────────────────────────
 
-# ── 服务 feature ────────────────────────────────────────────────────────────
-svc-github = ["core-webhook"]              # GitHub Webhook 通知
-svc-yiban  = ["core-webhook"]              # 易班签到 Webhook 通知
+# Runtime 第 1 层：基础设施
+runtime-config     = []                                    # 配置加载（按需依赖）
+runtime-time       = ["runtime-config"]                    # 时间工具
+runtime-typ        = []                                    # OneBot 协议类型定义
+runtime-logger     = ["runtime-time"]                      # 日志系统
 
-# ── 基础设施 feature ────────────────────────────────────────────────────────
+# Runtime 第 2 层：核心模块
+runtime-api        = ["runtime-config"]                    # HTTP 客户端
+runtime-llm        = ["runtime-config"]                    # LLM 客户端
+runtime-ws         = []                                    # WebSocket 管理
+
+# Runtime 第 3 层：高级功能
+runtime-parser     = []                                    # 命令解析
+runtime-registry   = []                                    # 命令注册表
+runtime-permission = []                                    # 权限控制（可选依赖 core-db）
+runtime-pool       = ["runtime-typ", "runtime-time", "runtime-config"]  # 消息池
+runtime-dispatcher = [
+    "runtime-parser",
+    "runtime-registry",
+    "runtime-permission",
+    "runtime-api",
+    "runtime-typ",
+]  # 命令分发
+
+# ── Logic 层 features ───────────────────────────────────────────────────────
+logic-smy    = ["runtime-api", "runtime-typ"]              # 日报生成（可选 pool/llm）
+logic-chat   = [
+    "runtime-api", "runtime-typ", "runtime-pool",
+    "runtime-llm", "runtime-permission"
+]  # AI 对话
+logic-yiban  = ["runtime-api", "runtime-typ", "core-webhook"]  # 易班签到
+logic-github = ["runtime-api", "runtime-typ", "core-webhook"]  # GitHub 通知
+
+# ── Commands 层 features ────────────────────────────────────────────────────
+cmd-ping   = ["runtime-dispatcher"]
+cmd-help   = ["runtime-dispatcher"]
+cmd-alive  = ["runtime-dispatcher"]
+cmd-acg    = ["runtime-dispatcher"]
+cmd-world  = ["runtime-dispatcher"]
+cmd-stalk  = ["runtime-dispatcher", "runtime-ws", "core-ws"]
+cmd-smy    = ["runtime-dispatcher", "logic-smy", "dep:base64", "dep:tempfile"]
+cmd-dress  = ["runtime-dispatcher", "dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]
+cmd-sign   = ["runtime-dispatcher", "logic-yiban"]
+
+# ── Services 层 features ────────────────────────────────────────────────────
+svc-github = ["logic-github"]              # GitHub Webhook 通知
+svc-yiban  = ["logic-yiban"]               # 易班签到 Webhook 通知
+
+# ── 基础设施 features ───────────────────────────────────────────────────────
 core-webhook     = ["dep:hmac", "dep:sha2", "dep:hex"]  # HMAC-SHA256 统一验签
 core-ws          = []                     # 暴露 GET /wstalk WebSocket 路由
 core-db          = ["dep:rusqlite"]        # 通用 SQLite 句柄（DB 层基础设施）
 core-log-file    = ["dep:tracing-appender"] # 每日滚动日志文件（需配置 log_dir）
+
+# ── Feature 分组（便捷组合）─────────────────────────────────────────────────
+# TODO: 未来需要审计和优化这些分组
+full     = [
+    "default", "runtime-llm", "runtime-ws", "core-db",
+    "cmd-smy", "cmd-acg", "cmd-stalk", "cmd-world", "cmd-dress", "cmd-sign",
+    "svc-github", "svc-yiban"
+]
+minimal  = []  # 仅 kernel 层
+business = ["runtime-dispatcher", "runtime-pool", "runtime-llm", "cmd-smy", "cmd-stalk", "logic-smy", "logic-chat"]
+admin    = ["runtime-dispatcher", "cmd-alive", "core-db"]
 
 [dev-dependencies]
 tempfile = "3"
