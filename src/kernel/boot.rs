@@ -5,6 +5,7 @@ use axum::{extract::WebSocketUpgrade, routing::get};
 #[cfg(feature = "runtime-dispatcher")]
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
 
+use std::sync::Arc;
 use tracing::info;
 
 use crate::kernel::app::App;

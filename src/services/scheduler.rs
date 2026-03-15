@@ -5,6 +5,7 @@ use std::time::Duration;
 #[cfg(feature = "cmd-smy")]
 use tracing::{info, warn};
 
+use std::sync::Arc;
 
 #[cfg(feature = "runtime-api")]
 use crate::runtime::api::ApiClient;
@@ -17,6 +18,9 @@ use crate::runtime::permission::AccessControl;
 
 #[cfg(feature = "runtime-pool")]
 use crate::runtime::pool::Pool;
+
+#[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
+use super::BotService;
 
 #[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
 pub struct SchedulerService {
