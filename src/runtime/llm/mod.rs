@@ -34,6 +34,7 @@ pub struct LlmConfig {
     #[serde(default = "LlmConfig::default_url")]
     pub api_url: String,
     /// API Key
+    #[serde(default = "LlmConfig::default_api_key")]
     pub api_key: String,
     /// 默认模型名称
     #[serde(default = "LlmConfig::default_model")]
@@ -45,6 +46,18 @@ pub struct LlmConfig {
 
 impl LlmConfig {
     fn default_url() -> String { "https://api.deepseek.com/v1".to_string() }
+    fn default_api_key() -> String { String::new() }
     fn default_model() -> String { "deepseek-chat".to_string() }
     fn default_timeout() -> u64 { 120 }
+}
+
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            api_url: Self::default_url(),
+            api_key: Self::default_api_key(),
+            model: Self::default_model(),
+            timeout_secs: Self::default_timeout(),
+        }
+    }
 }

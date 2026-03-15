@@ -47,6 +47,7 @@ pub struct CommandContext {
     pub registry: Arc<CommandRegistry>,
     /// 消息池（per-scope 内存缓冲，可选）
     #[allow(dead_code)]
+    #[cfg(feature = "runtime-pool")]
     pub pool: Option<Arc<Pool>>,
     /// 准入控制（block/unblock、enable/disable 等管理操作）
     pub access: Arc<AccessControl>,

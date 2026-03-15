@@ -26,22 +26,53 @@ pub enum Dependency {
     #[cfg(feature = "runtime-ws")]
     Ws,
     /// 需要消息池
+    #[cfg(feature = "runtime-pool")]
     #[allow(dead_code)]
     Pool,
 }
 
 impl Dependency {
     /// 检查依赖是否在启动时可用（用于命令注册时过滤）
+    #[cfg(all(feature = "runtime-pool", feature = "runtime-ws"))]
     pub fn is_available(
         &self,
         pool: &Option<std::sync::Arc<crate::runtime::pool::Pool>>,
-        #[cfg(feature = "runtime-ws")]
         ws: &Option<std::sync::Arc<crate::runtime::ws::WsManager>>,
     ) -> bool {
         match self {
             Dependency::Pool => pool.is_some(),
-            #[cfg(feature = "runtime-ws")]
             Dependency::Ws => ws.as_ref().map(|w| w.is_enabled()).unwrap_or(false),
+            Dependency::Config => true,
+        }
+    }
+
+    #[cfg(all(feature = "runtime-pool", not(feature = "runtime-ws")))]
+    pub fn is_available(
+        &self,
+        pool: &Option<std::sync::Arc<crate::runtime::pool::Pool>>,
+    ) -> bool {
+        match self {
+            Dependency::Pool => pool.is_some(),
+            Dependency::Config => true,
+        }
+    }
+
+    #[cfg(all(not(feature = "runtime-pool"), feature = "runtime-ws"))]
+    pub fn is_available(
+        &self,
+        ws: &Option<std::sync::Arc<crate::runtime::ws::WsManager>>,
+    ) -> bool {
+        match self {
+            Dependency::Ws => ws.as_ref().map(|w| w.is_enabled()).unwrap_or(false),
+            Dependency::Config => true,
+        }
+    }
+
+    #[cfg(all(not(feature = "runtime-pool"), not(feature = "runtime-ws")))]
+    pub fn is_available(
+        &self,
+    ) -> bool {
+        match self {
             Dependency::Config => true,
         }
     }
@@ -49,6 +80,7 @@ impl Dependency {
     /// 获取依赖的描述文本
     pub fn description(&self) -> &'static str {
         match self {
+            #[cfg(feature = "runtime-pool")]
             Dependency::Pool => "消息池",
             #[cfg(feature = "runtime-ws")]
             Dependency::Ws => "WebSocket 连接",

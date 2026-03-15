@@ -12,14 +12,21 @@ use crate::{
         permission::{AccessControl, BotUser, Role, Scope},
         api::{ApiClient, MsgTarget},
         parser::ParamValue,
-        pool::{MsgStatus, Pool, PoolMessage, ProcessRecord},
         registry::CommandRegistry,
         typ::{MessageEvent, MessageSegment, OneBotEvent},
     },
 };
 
+#[cfg(feature = "runtime-pool")]
+use crate::runtime::pool::{MsgStatus, Pool, PoolMessage, ProcessRecord};
+
 #[cfg(feature = "runtime-ws")]
 use crate::runtime::ws::WsManager;
+
+// ── ProcessRecord 占位符（无 runtime-pool 时使用） ──────────────────────────
+#[cfg(not(feature = "runtime-pool"))]
+#[derive(Debug, Clone)]
+pub struct ProcessRecord;
 
 // ── Handler Chain 架构 ────────────────────────────────────────────────────────
 
@@ -51,6 +58,7 @@ pub struct HandlerContext<'a> {
     #[cfg(feature = "runtime-ws")]
     pub ws: &'a Option<Arc<WsManager>>,
     pub registry: &'a Arc<CommandRegistry>,
+    #[cfg(feature = "runtime-pool")]
     pub pool: &'a Option<Arc<Pool>>,
     pub access: &'a Arc<AccessControl>,
     pub bot_id: i64,
@@ -62,7 +70,10 @@ pub struct HandlerContext<'a> {
 /// Handler 处理结果
 pub enum HandlerResult {
     /// 已处理，停止后续 handler
+    #[cfg(feature = "runtime-pool")]
     Handled(Option<ProcessRecord>),
+    #[cfg(not(feature = "runtime-pool"))]
+    Handled,
     /// 未处理，继续下一个 handler
     Continue,
     /// 跳过（如权限不足），停止后续 handler
@@ -95,13 +106,14 @@ pub struct Dispatcher {
     #[cfg(feature = "runtime-ws")]
     ws: Option<Arc<WsManager>>,
     registry: Arc<CommandRegistry>,
+    #[cfg(feature = "runtime-pool")]
     pool: Option<Arc<Pool>>,
     access: Arc<AccessControl>,
     handlers: Vec<Box<dyn MessageHandler>>,
 }
 
 impl Dispatcher {
-    #[cfg(feature = "runtime-ws")]
+    #[cfg(all(feature = "runtime-ws", feature = "runtime-pool"))]
     pub fn new(
         bot_id: i64,
         owner: i64,
@@ -119,7 +131,7 @@ impl Dispatcher {
         Self { bot_id, owner, cmd_prefix, api, ws, registry, pool, access, handlers }
     }
 
-    #[cfg(not(feature = "runtime-ws"))]
+    #[cfg(all(not(feature = "runtime-ws"), feature = "runtime-pool"))]
     pub fn new(
         bot_id: i64,
         owner: i64,
@@ -134,6 +146,39 @@ impl Dispatcher {
             Box::new(AtBotHandler),
         ];
         Self { bot_id, owner, cmd_prefix, api, registry, pool, access, handlers }
+    }
+
+    #[cfg(all(feature = "runtime-ws", not(feature = "runtime-pool")))]
+    pub fn new(
+        bot_id: i64,
+        owner: i64,
+        cmd_prefix: String,
+        api: Arc<ApiClient>,
+        ws: Option<Arc<WsManager>>,
+        registry: Arc<CommandRegistry>,
+        access: Arc<AccessControl>,
+    ) -> Self {
+        let handlers: Vec<Box<dyn MessageHandler>> = vec![
+            Box::new(CommandHandler),
+            Box::new(AtBotHandler),
+        ];
+        Self { bot_id, owner, cmd_prefix, api, ws, registry, access, handlers }
+    }
+
+    #[cfg(all(not(feature = "runtime-ws"), not(feature = "runtime-pool")))]
+    pub fn new(
+        bot_id: i64,
+        owner: i64,
+        cmd_prefix: String,
+        api: Arc<ApiClient>,
+        registry: Arc<CommandRegistry>,
+        access: Arc<AccessControl>,
+    ) -> Self {
+        let handlers: Vec<Box<dyn MessageHandler>> = vec![
+            Box::new(CommandHandler),
+            Box::new(AtBotHandler),
+        ];
+        Self { bot_id, owner, cmd_prefix, api, registry, access, handlers }
     }
 
     // ── 顶层分发 ──────────────────────────────────────────────────────────────
@@ -189,6 +234,7 @@ impl Dispatcher {
                 #[cfg(feature = "runtime-ws")]
                 ws: &self.ws,
                 registry: &self.registry,
+                #[cfg(feature = "runtime-pool")]
                 pool: &self.pool,
                 access: &self.access,
                 bot_id: self.bot_id,
@@ -197,11 +243,16 @@ impl Dispatcher {
             };
 
             match handler.handle(handler_ctx).await? {
+                #[cfg(feature = "runtime-pool")]
                 HandlerResult::Handled(record) => {
                     // 标记消息池
                     if let (Some(pool), Some(mid), Some(rec)) = (&self.pool, message_id, record) {
                         pool.mark(mid, &scope, MsgStatus::Done, rec).await;
                     }
+                    return Ok(());
+                }
+                #[cfg(not(feature = "runtime-pool"))]
+                HandlerResult::Handled => {
                     return Ok(());
                 }
                 HandlerResult::Skip => {
@@ -248,6 +299,7 @@ impl Dispatcher {
         //   - 消息池策略：通过群网关的消息如实记录，不受用户黑名单影响
         //     原因：群聊中被拉黑用户的消息仍是群上下文的一部分，对 AI 对话、日报生成等功能很重要
         //     用户黑名单仅阻止该用户触发命令执行，不影响消息记录
+        #[cfg(feature = "runtime-pool")]
         if let Some(pool) = &self.pool {
             match PoolMessage::from_event(&event, scope, false) {
                 Some(pool_msg) => pool.push(pool_msg).await,
@@ -315,6 +367,7 @@ impl Dispatcher {
             }
         }
 
+        #[cfg(feature = "runtime-pool")]
         if let Some(pool) = &self.pool {
             match PoolMessage::from_event(&event, scope, true) {
                 Some(pool_msg) => pool.push(pool_msg).await,
@@ -380,7 +433,10 @@ impl CommandHandler {
                 // 帮助请求
                 if let Some(help_text) = help::try_help(cmd.as_ref(), |f| trailing.iter().any(|t| t == f)) {
                     ctx.api.send_msg(target, &help_text).await?;
+                    #[cfg(feature = "runtime-pool")]
                     return Ok(HandlerResult::Handled(None));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
                 }
                 // 权限检查
                 if ctx.msg.bot_user.role < cmd.required_role() {
@@ -395,22 +451,34 @@ impl CommandHandler {
                     }
                     let cmd_ctx = build_command_ctx(ctx, params);
                     let record = execute_command(cmd, cmd_ctx).await?;
-                    Ok(HandlerResult::Handled(Some(record)))
+                    #[cfg(feature = "runtime-pool")]
+                    return Ok(HandlerResult::Handled(Some(record)));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
                 } else if !trailing.is_empty() {
                     let error_msg = build_trailing_error_msg(&trailing, ctx.cmd_prefix, &name);
                     ctx.api.send_msg(target, &error_msg).await?;
-                    Ok(HandlerResult::Handled(None))
+                    #[cfg(feature = "runtime-pool")]
+                    return Ok(HandlerResult::Handled(None));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
                 } else {
                     let cmd_ctx = build_command_ctx(ctx, Default::default());
                     let record = execute_command(cmd, cmd_ctx).await?;
-                    Ok(HandlerResult::Handled(Some(record)))
+                    #[cfg(feature = "runtime-pool")]
+                    return Ok(HandlerResult::Handled(Some(record)));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
                 }
             }
             None => {
                 debug!("未知简单命令: {name}");
                 ctx.api.send_msg(target, &format!("❓ 未知命令: {}{}，输入 {}help 查看命令列表",
                     ctx.cmd_prefix, name, ctx.cmd_prefix)).await?;
-                Ok(HandlerResult::Handled(None))
+                #[cfg(feature = "runtime-pool")]
+                return Ok(HandlerResult::Handled(None));
+                #[cfg(not(feature = "runtime-pool"))]
+                return Ok(HandlerResult::Handled);
             }
         }
     }
@@ -427,7 +495,10 @@ impl CommandHandler {
                 // 帮助请求
                 if let Some(help_text) = help::try_help(cmd.as_ref(), |f| params.contains_key(f)) {
                     ctx.api.send_msg(target, &help_text).await?;
+                    #[cfg(feature = "runtime-pool")]
                     return Ok(HandlerResult::Handled(None));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
                 }
                 // 权限检查
                 if ctx.msg.bot_user.role < cmd.required_role() {
@@ -438,17 +509,26 @@ impl CommandHandler {
                 if let Err(detail) = validation::validate_params(&params, cmd.declared_params()) {
                     let text = format!("❌ {detail}\n输入 <{}> --help 查看用法", cmd.name());
                     ctx.api.send_msg(target, &text).await?;
+                    #[cfg(feature = "runtime-pool")]
                     return Ok(HandlerResult::Handled(None));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
                 }
                 let cmd_ctx = build_command_ctx(ctx, params);
                 let record = execute_command(cmd, cmd_ctx).await?;
-                Ok(HandlerResult::Handled(Some(record)))
+                #[cfg(feature = "runtime-pool")]
+                return Ok(HandlerResult::Handled(Some(record)));
+                #[cfg(not(feature = "runtime-pool"))]
+                return Ok(HandlerResult::Handled);
             }
             None => {
                 debug!("未知复杂命令: {name}");
                 ctx.api.send_msg(target, &format!("❓ 未知命令: <{name}>，输入 {}help 查看命令列表",
                     ctx.cmd_prefix)).await?;
-                Ok(HandlerResult::Handled(None))
+                #[cfg(feature = "runtime-pool")]
+                return Ok(HandlerResult::Handled(None));
+                #[cfg(not(feature = "runtime-pool"))]
+                return Ok(HandlerResult::Handled);
             }
         }
     }
@@ -489,17 +569,20 @@ impl MessageHandler for AtBotHandler {
         }
 
         // Bot 昵称（如果 pool 里有 bot 的消息就能拿到，否则用默认）
-        let _bot_name = "小恋";
+        let bot_name = "小恋";
 
         let target = MsgTarget::from(ctx.msg.scope);
 
         // 收集 tool 定义（由 registry 中声明了 tool_description 的命令提供）
-        let _tool_defs = ctx.registry.tool_definitions();
+        let tool_defs = ctx.registry.tool_definitions();
 
         #[cfg(feature = "logic-chat")]
         {
             let outcome = crate::logic::chat::handle_chat(
-                ctx.api, &ctx.pool, ctx.msg.scope, target,
+                ctx.api,
+                #[cfg(feature = "runtime-pool")]
+                &ctx.pool,
+                ctx.msg.scope, target,
                 ctx.bot_id, bot_name, ctx.owner_id,
                 &ctx.msg.user_name, ctx.msg.user_id, &question,
                 &tool_defs,
@@ -507,7 +590,12 @@ impl MessageHandler for AtBotHandler {
 
             // 处理 tool-call
             match outcome {
-                crate::logic::chat::ChatOutcome::Replied => Ok(HandlerResult::Handled(None)),
+                crate::logic::chat::ChatOutcome::Replied => {
+                    #[cfg(feature = "runtime-pool")]
+                    return Ok(HandlerResult::Handled(None));
+                    #[cfg(not(feature = "runtime-pool"))]
+                    return Ok(HandlerResult::Handled);
+                }
                 crate::logic::chat::ChatOutcome::ToolCall { command, message } => {
                     if let Some(msg) = &message {
                         ctx.api.send_msg(target, msg).await?;
@@ -520,7 +608,10 @@ impl MessageHandler for AtBotHandler {
         #[cfg(not(feature = "logic-chat"))]
         {
             ctx.api.send_msg(target, "⚠️ AI 对话功能未编译（需要 logic-chat feature）").await?;
-            Ok(HandlerResult::Handled(None))
+            #[cfg(feature = "runtime-pool")]
+            return Ok(HandlerResult::Handled(None));
+            #[cfg(not(feature = "runtime-pool"))]
+            return Ok(HandlerResult::Handled);
         }
     }
 }
@@ -544,7 +635,10 @@ impl AtBotHandler {
             Some(c) if c.tool_description().is_some() => c,
             _ => {
                 warn!("[tool-call] LLM 调用了未知或未注册为 tool 的命令: {command}");
+                #[cfg(feature = "runtime-pool")]
                 return Ok(HandlerResult::Handled(None));
+                #[cfg(not(feature = "runtime-pool"))]
+                return Ok(HandlerResult::Handled);
             }
         };
 
@@ -556,7 +650,10 @@ impl AtBotHandler {
 
         let cmd_ctx = build_command_ctx(ctx, Default::default());
         let record = execute_command(cmd, cmd_ctx).await?;
-        Ok(HandlerResult::Handled(Some(record)))
+        #[cfg(feature = "runtime-pool")]
+        return Ok(HandlerResult::Handled(Some(record)));
+        #[cfg(not(feature = "runtime-pool"))]
+        return Ok(HandlerResult::Handled);
     }
 }
 
@@ -596,6 +693,7 @@ fn build_command_ctx(
         ws: ctx.ws.clone(),
         cmd_prefix: ctx.cmd_prefix.to_string(),
         registry: ctx.registry.clone(),
+        #[cfg(feature = "runtime-pool")]
         pool: ctx.pool.clone(),
         access: ctx.access.clone(),
     }
@@ -622,19 +720,25 @@ async fn execute_command(
     match &result {
         Ok(()) => {
             info!("[{cmd_name}] tid={tid} 完成 {duration_ms}ms");
-            Ok(ProcessRecord {
+            #[cfg(feature = "runtime-pool")]
+            return Ok(ProcessRecord {
                 command: cmd_name,
                 duration_ms,
                 error: None,
-            })
+            });
+            #[cfg(not(feature = "runtime-pool"))]
+            return Ok(ProcessRecord);
         }
         Err(e) => {
             warn!("[{cmd_name}] tid={tid} 失败 {duration_ms}ms: {e:#}");
-            Ok(ProcessRecord {
+            #[cfg(feature = "runtime-pool")]
+            return Ok(ProcessRecord {
                 command: cmd_name,
                 duration_ms,
                 error: Some(format!("{e:#}")),
-            })
+            });
+            #[cfg(not(feature = "runtime-pool"))]
+            return Ok(ProcessRecord);
         }
     }
 }

@@ -3,6 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use tracing::warn;
 
 use crate::commands::{Command, CommandKind};
+
+#[cfg(feature = "runtime-pool")]
 use crate::runtime::pool::Pool;
 
 #[cfg(feature = "runtime-ws")]
@@ -33,7 +35,7 @@ impl CommandRegistry {
     /// 同时注册别名。
     ///
     /// 在注册时检查命令的依赖是否满足，不满足的命令会被跳过并记录警告。
-    #[cfg(feature = "runtime-ws")]
+    #[cfg(all(feature = "runtime-ws", feature = "runtime-pool"))]
     pub fn register(
         &mut self,
         cmd: Arc<dyn Command>,
@@ -66,7 +68,7 @@ impl CommandRegistry {
         }
     }
 
-    #[cfg(not(feature = "runtime-ws"))]
+    #[cfg(all(not(feature = "runtime-ws"), feature = "runtime-pool"))]
     pub fn register(
         &mut self,
         cmd: Arc<dyn Command>,
@@ -84,6 +86,58 @@ impl CommandRegistry {
             }
         }
 
+        let name = cmd.name().to_string();
+        let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+        let table = match cmd.kind() {
+            CommandKind::Simple   => &mut self.simple_cmds,
+            CommandKind::Advanced => &mut self.advanced_cmds,
+        };
+
+        table.insert(name, cmd.clone());
+        for alias in aliases {
+            table.insert(alias, cmd.clone());
+        }
+    }
+
+    #[cfg(all(feature = "runtime-ws", not(feature = "runtime-pool")))]
+    pub fn register(
+        &mut self,
+        cmd: Arc<dyn Command>,
+        ws: &Option<Arc<WsManager>>,
+    ) {
+        // 依赖检查
+        for dep in cmd.dependencies() {
+            if !dep.is_available(ws) {
+                warn!(
+                    "[registry] 跳过命令 {} - 缺少依赖: {}",
+                    cmd.name(),
+                    dep.description()
+                );
+                return;
+            }
+        }
+
+        let name = cmd.name().to_string();
+        let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+        let table = match cmd.kind() {
+            CommandKind::Simple   => &mut self.simple_cmds,
+            CommandKind::Advanced => &mut self.advanced_cmds,
+        };
+
+        table.insert(name, cmd.clone());
+        for alias in aliases {
+            table.insert(alias, cmd.clone());
+        }
+    }
+
+    #[cfg(all(not(feature = "runtime-ws"), not(feature = "runtime-pool")))]
+    pub fn register(
+        &mut self,
+        cmd: Arc<dyn Command>,
+    ) {
+        // 依赖检查：无依赖时所有命令都可注册
         let name = cmd.name().to_string();
         let aliases = cmd.aliases().iter().map(|s| s.to_string()).collect::<Vec<_>>();
 

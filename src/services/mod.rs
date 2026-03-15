@@ -30,12 +30,21 @@ pub fn register(app: &mut crate::kernel::app::App) -> ServicesSummary {
     let mut summary = ServicesSummary::default();
 
     // scheduler 服务（需要 api, permission, pool）
-    #[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
+    #[cfg(all(feature = "runtime-api", feature = "runtime-permission", feature = "runtime-pool"))]
     {
         app.spawn(scheduler::SchedulerService::new(
             app.api.clone().expect("runtime-api 未初始化"),
             app.access.clone().expect("runtime-permission 未初始化"),
             app.pool.clone(),
+        ).run());
+        summary.details.push("scheduler".to_string());
+    }
+
+    #[cfg(all(feature = "runtime-api", feature = "runtime-permission", not(feature = "runtime-pool")))]
+    {
+        app.spawn(scheduler::SchedulerService::new(
+            app.api.clone().expect("runtime-api 未初始化"),
+            app.access.clone().expect("runtime-permission 未初始化"),
         ).run());
         summary.details.push("scheduler".to_string());
     }

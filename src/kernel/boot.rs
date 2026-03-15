@@ -87,6 +87,7 @@ pub async fn run() -> anyhow::Result<()> {
         // 从 app 中获取已初始化的模块
         let api = app.api.clone().expect("runtime-api 未初始化");
         let access = app.access.clone().expect("runtime-permission 未初始化");
+        #[cfg(feature = "runtime-pool")]
         let pool = app.pool.clone();
 
         #[cfg(feature = "runtime-config")]
@@ -94,7 +95,7 @@ pub async fn run() -> anyhow::Result<()> {
         #[cfg(feature = "runtime-config")]
         let parser_cfg: ParserConfig = crate::runtime::config::section("parser");
 
-        #[cfg(all(feature = "runtime-config", feature = "runtime-ws"))]
+        #[cfg(all(feature = "runtime-config", feature = "runtime-ws", feature = "runtime-pool"))]
         let dispatcher = Arc::new(Dispatcher::new(
             bot_cfg.bot_id,
             bot_cfg.owner,
@@ -106,7 +107,7 @@ pub async fn run() -> anyhow::Result<()> {
             access,
         ));
 
-        #[cfg(all(feature = "runtime-config", not(feature = "runtime-ws")))]
+        #[cfg(all(feature = "runtime-config", not(feature = "runtime-ws"), feature = "runtime-pool"))]
         let dispatcher = Arc::new(Dispatcher::new(
             bot_cfg.bot_id,
             bot_cfg.owner,
@@ -114,6 +115,27 @@ pub async fn run() -> anyhow::Result<()> {
             api.clone(),
             registry,
             pool,
+            access,
+        ));
+
+        #[cfg(all(feature = "runtime-config", feature = "runtime-ws", not(feature = "runtime-pool")))]
+        let dispatcher = Arc::new(Dispatcher::new(
+            bot_cfg.bot_id,
+            bot_cfg.owner,
+            parser_cfg.cmd_prefix,
+            api.clone(),
+            app.ws.clone(),
+            registry,
+            access,
+        ));
+
+        #[cfg(all(feature = "runtime-config", not(feature = "runtime-ws"), not(feature = "runtime-pool")))]
+        let dispatcher = Arc::new(Dispatcher::new(
+            bot_cfg.bot_id,
+            bot_cfg.owner,
+            parser_cfg.cmd_prefix,
+            api.clone(),
+            registry,
             access,
         ));
 
@@ -186,6 +208,6 @@ async fn ws_handler(
     State(state): State<WsState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
-        state.ws.handle_connection(socket, &state.api).await;
+        state.ws.handle_socket(socket, state.api).await;
     })
 }

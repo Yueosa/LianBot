@@ -26,18 +26,28 @@ pub struct SchedulerService {
     api: Arc<ApiClient>,
     #[allow(dead_code)]
     access: Arc<AccessControl>,
+    #[cfg(feature = "runtime-pool")]
     #[allow(dead_code)]
     pool: Option<Arc<Pool>>,
 }
 
 #[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
 impl SchedulerService {
+    #[cfg(feature = "runtime-pool")]
     pub fn new(
         api: Arc<ApiClient>,
         access: Arc<AccessControl>,
         pool: Option<Arc<Pool>>,
     ) -> Self {
         Self { api, access, pool }
+    }
+
+    #[cfg(not(feature = "runtime-pool"))]
+    pub fn new(
+        api: Arc<ApiClient>,
+        access: Arc<AccessControl>,
+    ) -> Self {
+        Self { api, access }
     }
 }
 

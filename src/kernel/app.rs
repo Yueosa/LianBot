@@ -90,14 +90,24 @@ impl App {
 
     /// 注册一条命令到内部 registry。
     /// 在注册时检查依赖，不满足的命令会被跳过。
-    #[cfg(all(feature = "runtime-dispatcher", feature = "runtime-ws"))]
+    #[cfg(all(feature = "runtime-dispatcher", feature = "runtime-ws", feature = "runtime-pool"))]
     pub fn command(&mut self, cmd: Arc<dyn Command>) {
         self.registry.register(cmd, &self.pool, &self.ws);
     }
 
-    #[cfg(all(feature = "runtime-dispatcher", not(feature = "runtime-ws")))]
+    #[cfg(all(feature = "runtime-dispatcher", not(feature = "runtime-ws"), feature = "runtime-pool"))]
     pub fn command(&mut self, cmd: Arc<dyn Command>) {
         self.registry.register(cmd, &self.pool);
+    }
+
+    #[cfg(all(feature = "runtime-dispatcher", feature = "runtime-ws", not(feature = "runtime-pool")))]
+    pub fn command(&mut self, cmd: Arc<dyn Command>) {
+        self.registry.register(cmd, &self.ws);
+    }
+
+    #[cfg(all(feature = "runtime-dispatcher", not(feature = "runtime-ws"), not(feature = "runtime-pool")))]
+    pub fn command(&mut self, cmd: Arc<dyn Command>) {
+        self.registry.register(cmd);
     }
 
     /// 合并一个已绑定 State 的子路由（调用方先 `.with_state(...)` 再 merge）。
