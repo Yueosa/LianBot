@@ -488,36 +488,36 @@ impl MessageHandler for AtBotHandler {
         // Bot 昵称（如果 pool 里有 bot 的消息就能拿到，否则用默认）
         let bot_name = "小恋";
 
-        let pool = match ctx.pool {
-            Some(p) => p,
-            None => {
-                let target = MsgTarget::from(ctx.msg.scope);
-                ctx.api.send_msg(target, "⚠️ 消息池不可用，无法提供上下文").await?;
-                return Ok(HandlerResult::Handled(None));
-            }
-        };
-
         let target = MsgTarget::from(ctx.msg.scope);
 
         // 收集 tool 定义（由 registry 中声明了 tool_description 的命令提供）
         let tool_defs = ctx.registry.tool_definitions();
 
-        let outcome = crate::logic::chat::handle_chat(
-            ctx.api, pool, ctx.msg.scope, target,
-            ctx.bot_id, bot_name, ctx.owner_id,
-            &ctx.msg.user_name, ctx.msg.user_id, &question,
-            &tool_defs,
-        ).await?;
+        #[cfg(feature = "logic-chat")]
+        {
+            let outcome = crate::logic::chat::handle_chat(
+                ctx.api, &ctx.pool, ctx.msg.scope, target,
+                ctx.bot_id, bot_name, ctx.owner_id,
+                &ctx.msg.user_name, ctx.msg.user_id, &question,
+                &tool_defs,
+            ).await?;
 
-        // 处理 tool-call
-        match outcome {
-            crate::logic::chat::ChatOutcome::Replied => Ok(HandlerResult::Handled(None)),
-            crate::logic::chat::ChatOutcome::ToolCall { command, message } => {
-                if let Some(msg) = &message {
-                    ctx.api.send_msg(target, msg).await?;
+            // 处理 tool-call
+            match outcome {
+                crate::logic::chat::ChatOutcome::Replied => Ok(HandlerResult::Handled(None)),
+                crate::logic::chat::ChatOutcome::ToolCall { command, message } => {
+                    if let Some(msg) = &message {
+                        ctx.api.send_msg(target, msg).await?;
+                    }
+                    self.dispatch_tool_call(ctx, &command).await
                 }
-                self.dispatch_tool_call(ctx, &command).await
             }
+        }
+
+        #[cfg(not(feature = "logic-chat"))]
+        {
+            ctx.api.send_msg(target, "⚠️ AI 对话功能未编译（需要 logic-chat feature）").await?;
+            Ok(HandlerResult::Handled(None))
         }
     }
 }

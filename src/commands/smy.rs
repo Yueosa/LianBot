@@ -8,6 +8,8 @@ use crate::logic::config as logic_config;
 use crate::logic::smy;
 use crate::logic::smy::SmyPluginConfig;
 use crate::logic::smy::fetcher::{FetchSource, GapLevel};
+
+#[cfg(feature = "runtime-llm")]
 use crate::runtime::llm;
 
 pub struct SmyCommand;
@@ -38,8 +40,14 @@ impl Command for SmyCommand {
         let with_ai = ["-a", "--ai"].iter().any(|k| ctx.params.contains_key(*k));
 
         // 仅在启用 AI 时检查 LLM 配置
+        #[cfg(feature = "runtime-llm")]
         if with_ai && llm::get().is_none() {
             return ctx.reply("❌ 未配置 LLM，无法进行 AI 总结（可去掉 -a 使用纯统计模式）").await;
+        }
+
+        #[cfg(not(feature = "runtime-llm"))]
+        if with_ai {
+            return ctx.reply("❌ AI 总结功能未编译（需要 runtime-llm feature），可去掉 -a 使用纯统计模式").await;
         }
 
         let time_opt = ctx.get(&["-t", "--time"]);

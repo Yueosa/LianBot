@@ -92,11 +92,11 @@ runtime-dispatcher = [
 # ── Logic 层 features ───────────────────────────────────────────────────────
 logic-smy    = ["runtime-api", "runtime-typ"]              # 日报生成（可选 pool/llm）
 logic-chat   = [
-    "runtime-api", "runtime-typ", "runtime-pool",
+    "runtime-api", "runtime-typ",
     "runtime-llm", "runtime-permission"
-]  # AI 对话
-logic-yiban  = ["runtime-api", "runtime-typ", "core-webhook"]  # 易班签到
-logic-github = ["runtime-api", "runtime-typ", "core-webhook"]  # GitHub 通知
+]  # AI 对话（pool 可选，无 pool 时降级到 API）
+logic-yiban  = []  # 易班签到（纯业务逻辑，无 runtime 依赖）
+logic-github = []  # GitHub 通知（纯业务逻辑，无 runtime 依赖）
 
 # ── Commands 层 features ────────────────────────────────────────────────────
 cmd-ping   = ["runtime-dispatcher"]

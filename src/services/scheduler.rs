@@ -95,7 +95,13 @@ async fn run_smy_task(api: &ApiClient, access: &AccessControl, pool: &Option<Arc
 
     info!("[scheduler/smy] 触发每日日报");
     let cfg = logic_config::section::<SmyPluginConfig>("smy");
+
+    #[cfg(feature = "runtime-llm")]
     let with_ai = crate::runtime::llm::get().is_some();
+
+    #[cfg(not(feature = "runtime-llm"))]
+    let with_ai = false;
+
     if !with_ai {
         warn!("[scheduler/smy] [llm] 未配置，日报将使用纯统计模式");
     }
