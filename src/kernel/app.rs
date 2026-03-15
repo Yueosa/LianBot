@@ -25,47 +25,49 @@ pub struct App {
     router: Router,
     tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>>,
 
-    // ── 共享基础设施（注册函数可读取） ──────────────────────────────────────────
-    pub api: Arc<ApiClient>,
+    // ── 共享基础设施（由 runtime::init() 填充） ───────────────────────────────
+    pub api: Option<Arc<ApiClient>>,
     #[cfg(feature = "runtime-ws")]
     pub ws: Option<Arc<WsManager>>,
     pub pool: Option<Arc<Pool>>,
-    pub access: Arc<AccessControl>,
+    pub access: Option<Arc<AccessControl>>,
 }
 
 impl App {
-    #[cfg(feature = "runtime-ws")]
-    pub fn new(
-        api: Arc<ApiClient>,
-        ws: Option<Arc<WsManager>>,
-        pool: Option<Arc<Pool>>,
-        access: Arc<AccessControl>,
-    ) -> Self {
+    /// 创建空的 App 管理器。
+    /// runtime 模块由 `runtime::init()` 填充。
+    pub fn new() -> Self {
         Self {
             registry: CommandRegistry::new(),
             router: Router::new(),
             tasks: Vec::new(),
-            api,
-            ws,
-            pool,
-            access,
+            api: None,
+            #[cfg(feature = "runtime-ws")]
+            ws: None,
+            pool: None,
+            access: None,
         }
     }
 
-    #[cfg(not(feature = "runtime-ws"))]
-    pub fn new(
-        api: Arc<ApiClient>,
-        pool: Option<Arc<Pool>>,
-        access: Arc<AccessControl>,
-    ) -> Self {
-        Self {
-            registry: CommandRegistry::new(),
-            router: Router::new(),
-            tasks: Vec::new(),
-            api,
-            pool,
-            access,
-        }
+    /// 设置 API 客户端（由 runtime::init() 调用）
+    pub fn set_api(&mut self, api: Arc<ApiClient>) {
+        self.api = Some(api);
+    }
+
+    /// 设置 WebSocket 管理器（由 runtime::init() 调用）
+    #[cfg(feature = "runtime-ws")]
+    pub fn set_ws(&mut self, ws: Arc<WsManager>) {
+        self.ws = Some(ws);
+    }
+
+    /// 设置消息池（由 runtime::init() 调用）
+    pub fn set_pool(&mut self, pool: Arc<Pool>) {
+        self.pool = Some(pool);
+    }
+
+    /// 设置权限控制（由 runtime::init() 调用）
+    pub fn set_access(&mut self, access: Arc<AccessControl>) {
+        self.access = Some(access);
     }
 
     /// 注册一条命令到内部 registry。

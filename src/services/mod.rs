@@ -17,8 +17,8 @@ pub trait BotService: Send + 'static {
 /// 各 Service 按需从 App 中获取依赖，不再使用统一的 ServiceContext。
 pub fn register(app: &mut crate::kernel::app::App) {
     app.spawn(scheduler::SchedulerService::new(
-        app.api.clone(),
-        app.access.clone(),
+        app.api.clone().expect("runtime-api 未初始化"),
+        app.access.clone().expect("runtime-permission 未初始化"),
         app.pool.clone(),
     ).run());
 
