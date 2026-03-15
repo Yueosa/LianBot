@@ -569,12 +569,12 @@ impl MessageHandler for AtBotHandler {
         }
 
         // Bot 昵称（如果 pool 里有 bot 的消息就能拿到，否则用默认）
-        let bot_name = "小恋";
+        let _bot_name = "小恋";
 
         let target = MsgTarget::from(ctx.msg.scope);
 
         // 收集 tool 定义（由 registry 中声明了 tool_description 的命令提供）
-        let tool_defs = ctx.registry.tool_definitions();
+        let _tool_defs = ctx.registry.tool_definitions();
 
         #[cfg(feature = "logic-chat")]
         {
