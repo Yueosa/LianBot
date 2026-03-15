@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 #[cfg(feature = "core-ws")]
 use axum::{extract::WebSocketUpgrade, routing::get};

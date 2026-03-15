@@ -26,7 +26,7 @@ pub struct ServicesSummary {
 
 /// 向 App 构建器注册所有后台服务和相关路由。
 /// 各 Service 按需从 App 中获取依赖，不再使用统一的 ServiceContext。
-pub fn register(app: &mut crate::kernel::app::App) -> ServicesSummary {
+pub fn register(_app: &mut crate::kernel::app::App) -> ServicesSummary {
     let mut summary = ServicesSummary::default();
 
     // scheduler 服务（需要 api, permission, pool）

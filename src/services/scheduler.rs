@@ -1,4 +1,3 @@
-use std::sync::Arc;
 
 #[cfg(feature = "cmd-smy")]
 use std::time::Duration;
@@ -6,7 +5,6 @@ use std::time::Duration;
 #[cfg(feature = "cmd-smy")]
 use tracing::{info, warn};
 
-use super::BotService;
 
 #[cfg(feature = "runtime-api")]
 use crate::runtime::api::ApiClient;
