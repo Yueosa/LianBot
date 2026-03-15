@@ -24,7 +24,8 @@ find_latest_log() {
 if [[ -n "$log_dir" ]]; then
     [[ "$log_dir" != /* ]] && log_dir="$LIANBOT_DIR/$log_dir"
 
-    today=$(date -u +%Y-%m-%d)
+    # 使用本地时间而不是 UTC
+    today=$(date +%Y-%m-%d)
     log_file="${log_dir}/lianbot.log.${today}"
 
     if [[ ! -f "$log_file" ]]; then

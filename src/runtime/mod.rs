@@ -56,25 +56,9 @@ pub struct RuntimeInitSummary {
 
 /// Runtime 层模块初始化函数。
 /// 根据启用的 features 初始化对应的 runtime 模块，并注册到 App。
-/// 注意：runtime::config::init() 应该在调用此函数之前完成（在 boot.rs 中）。
+/// 注意：runtime::config::init(), time::init(), logger::init() 应该在调用此函数之前完成（在 boot.rs 中）。
 pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<RuntimeInitSummary> {
     let mut summary = RuntimeInitSummary::default();
-
-    #[cfg(all(feature = "runtime-time", feature = "runtime-config"))]
-    {
-        time::init();
-        let offset = time::offset_hours();
-        summary.modules.push("time".to_string());
-        summary.details.insert("time".to_string(), format!("UTC{:+}", offset));
-    }
-
-    // ── 日志系统 ──────────────────────────────────────────────────────────
-    #[cfg(all(feature = "runtime-logger", feature = "runtime-config"))]
-    {
-        let log_cfg: logger::LogConfig = config::section("log");
-        let _log_guard = logger::init(&log_cfg);
-        summary.modules.push("logger".to_string());
-    }
 
     // ── LLM 客户端 ────────────────────────────────────────────────────────
     #[cfg(all(feature = "runtime-llm", feature = "runtime-config"))]

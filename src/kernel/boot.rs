@@ -27,18 +27,29 @@ use crate::runtime::ws::WsManager;
 use crate::runtime::api::ApiClient;
 
 pub async fn run() -> anyhow::Result<()> {
-    // ── 启动横幅 ──────────────────────────────────────────────────────────
-    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    info!("🤖 LianBot v{} 正在启动...", env!("CARGO_PKG_VERSION"));
-    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
     // ── 配置加载 ──────────────────────────────────────────────────────────
-    info!("┌─ 配置加载");
+    // 必须最先加载配置，因为 logger 和其他模块都依赖配置
     crate::kernel::config::init()?;
     crate::logic::config::init()?;
     #[cfg(feature = "runtime-config")]
     crate::runtime::config::init()?;
 
+    // ── 初始化时间和日志系统 ──────────────────────────────────────────────
+    #[cfg(all(feature = "runtime-time", feature = "runtime-config"))]
+    crate::runtime::time::init();
+
+    #[cfg(all(feature = "runtime-logger", feature = "runtime-config"))]
+    let _log_guard = {
+        let log_cfg: crate::runtime::logger::LogConfig = crate::runtime::config::section("log");
+        crate::runtime::logger::init(&log_cfg)
+    };
+
+    // ── 启动横幅 ──────────────────────────────────────────────────────────
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    info!("🤖 LianBot v{} 正在启动...", env!("CARGO_PKG_VERSION"));
+    info!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+    info!("┌─ 配置加载");
     let kcfg = crate::kernel::config::KernelConfig::global();
     info!("│  服务监听: {}:{}", kcfg.host, kcfg.port);
 
