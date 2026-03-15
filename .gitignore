@@ -9,3 +9,4 @@
 *.log
 # 本地编译模块选择（由 setup.sh 生成，不提交）
 .build_features
+REFACTOR_PLAN.md.deprecated
