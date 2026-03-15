@@ -68,7 +68,12 @@ pub fn register(app: &mut crate::kernel::app::App) {
 
     let (tx, rx) = mpsc::channel::<YiBanReport>(16);
     let secret = cfg.secret.clone();
-    app.spawn(YiBanService::new(rx, app.api.clone(), cfg, pending).run());
+    app.spawn(YiBanService::new(
+        rx,
+        app.api.clone().expect("runtime-api 未初始化"),
+        cfg,
+        pending
+    ).run());
 
     app.merge(
         Router::new()

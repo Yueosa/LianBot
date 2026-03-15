@@ -40,7 +40,11 @@ pub fn register(app: &mut crate::kernel::app::App) {
 
     let (tx, rx) = mpsc::channel::<GitHubEvent>(64);
     let secret = gh_cfg.secret.clone();
-    app.spawn(GitHubService::new(rx, app.api.clone(), gh_cfg).run());
+    app.spawn(GitHubService::new(
+        rx,
+        app.api.clone().expect("runtime-api 未初始化"),
+        gh_cfg
+    ).run());
 
     app.merge(
         Router::new()
