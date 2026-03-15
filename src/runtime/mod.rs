@@ -1,14 +1,37 @@
-pub mod api;
+#[cfg(feature = "runtime-config")]
 pub mod config;
-pub mod dispatcher;
-pub mod llm;
-pub mod logger;
-pub mod time;
-pub mod parser;
-pub mod permission;
-pub mod pool;
-pub mod registry;
+
+#[cfg(feature = "runtime-api")]
+pub mod api;
+
+#[cfg(feature = "runtime-typ")]
 pub mod typ;
+
+#[cfg(feature = "runtime-dispatcher")]
+pub mod dispatcher;
+
+#[cfg(feature = "runtime-llm")]
+pub mod llm;
+
+#[cfg(feature = "runtime-logger")]
+pub mod logger;
+
+#[cfg(feature = "runtime-time")]
+pub mod time;
+
+#[cfg(feature = "runtime-parser")]
+pub mod parser;
+
+#[cfg(feature = "runtime-permission")]
+pub mod permission;
+
+#[cfg(feature = "runtime-pool")]
+pub mod pool;
+
+#[cfg(feature = "runtime-registry")]
+pub mod registry;
+
+#[cfg(feature = "runtime-ws")]
 pub mod ws;
 
 #[cfg(feature = "core-webhook")]
