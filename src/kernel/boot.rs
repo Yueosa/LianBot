@@ -36,6 +36,8 @@ pub async fn run() -> anyhow::Result<()> {
     info!("┌─ 配置加载");
     crate::kernel::config::init()?;
     crate::logic::config::init()?;
+    #[cfg(feature = "runtime-config")]
+    crate::runtime::config::init()?;
 
     let kcfg = crate::kernel::config::KernelConfig::global();
     info!("│  服务监听: {}:{}", kcfg.host, kcfg.port);
