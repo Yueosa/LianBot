@@ -49,7 +49,7 @@ if [[ -n "$log_dir" ]]; then
 
     # 初始展示最近 100 行
     _tail_preview=$(tail -n 100 "$log_file" 2>/dev/null || true)
-    _boot_line=$(printf '%s\n' "$_tail_preview" | grep -n '配置加载成功' | tail -1 | cut -d: -f1 || true)
+    _boot_line=$(printf '%s\n' "$_tail_preview" | grep -n '🤖 LianBot v[0-9]\+\.[0-9]\+\.[0-9]\+ 正在启动' | tail -1 | cut -d: -f1 || true)
     if [[ -n "$_boot_line" ]]; then
         printf '%s\n' "$_tail_preview" | tail -n +"$_boot_line"
     else
