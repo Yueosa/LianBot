@@ -1,6 +1,9 @@
 mod kernel;
 mod runtime;
+
+#[cfg(feature = "runtime-dispatcher")]
 mod commands;
+
 mod logic;
 mod services;
 

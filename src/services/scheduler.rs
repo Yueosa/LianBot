@@ -1,8 +1,17 @@
 use std::sync::Arc;
 
 use super::BotService;
-use crate::runtime::{api::ApiClient, permission::AccessControl, pool::Pool};
 
+#[cfg(feature = "runtime-api")]
+use crate::runtime::api::ApiClient;
+
+#[cfg(feature = "runtime-permission")]
+use crate::runtime::permission::AccessControl;
+
+#[cfg(feature = "runtime-pool")]
+use crate::runtime::pool::Pool;
+
+#[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
 pub struct SchedulerService {
     #[allow(dead_code)]
     api: Arc<ApiClient>,
@@ -12,6 +21,7 @@ pub struct SchedulerService {
     pool: Option<Arc<Pool>>,
 }
 
+#[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
 impl SchedulerService {
     pub fn new(
         api: Arc<ApiClient>,
@@ -24,6 +34,7 @@ impl SchedulerService {
 
 /// 返回距下一个配置时区指定小时（hh:00:00）的秒数。
 /// 若当前已过该时间则返回距明天该时间的秒数。
+#[cfg(feature = "runtime-time")]
 #[allow(dead_code)]
 fn secs_until_hour(hour: u32) -> u64 {
     use chrono::Timelike;
@@ -37,6 +48,7 @@ fn secs_until_hour(hour: u32) -> u64 {
     }
 }
 
+#[cfg(all(feature = "runtime-api", feature = "runtime-permission"))]
 impl BotService for SchedulerService {
     fn name(&self) -> &'static str {
         "scheduler"

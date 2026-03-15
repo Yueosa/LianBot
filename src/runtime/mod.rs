@@ -43,6 +43,7 @@ pub mod db;
 // ── Runtime 层模块初始化 ──────────────────────────────────────────────────────
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Runtime 初始化摘要
 #[derive(Default)]
@@ -56,7 +57,7 @@ pub struct RuntimeInitSummary {
 /// Runtime 层模块初始化函数。
 /// 根据启用的 features 初始化对应的 runtime 模块，并注册到 App。
 pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<RuntimeInitSummary> {
-    use std::sync::Arc;
+
 
     let mut summary = RuntimeInitSummary::default();
 

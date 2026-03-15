@@ -26,6 +26,7 @@ pub fn global() -> &'static LayerConfig {
 }
 
 /// 便捷函数：提取 logic 层指定 section。
+#[allow(dead_code)]
 pub fn section<T: DeserializeOwned + Default>(key: &str) -> T {
     global().section(key)
 }

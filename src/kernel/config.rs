@@ -90,6 +90,7 @@ impl LayerConfig {
 
     /// 读取指定 section，反序列化为 `T`。
     /// section 缺失或格式错误时返回 `T::default()`。
+    #[allow(dead_code)]
     pub fn section<T: DeserializeOwned + Default>(&self, key: &str) -> T {
         self.raw
             .get(key)
@@ -108,6 +109,7 @@ impl LayerConfig {
     /// 用环境变量覆盖指定 section 下的某个字段。
     /// 若环境变量存在，则写入 `raw[section][field] = Value::String(val)`。
     /// section 不存在时自动创建。
+    #[allow(dead_code)]
     pub fn env_override(&mut self, section: &str, field: &str, env_var: &str) {
         if let Ok(val) = std::env::var(env_var) {
             let table = self.raw

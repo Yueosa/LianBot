@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
-use axum::{
-    Json, Router,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-};
 #[cfg(feature = "core-ws")]
 use axum::{extract::WebSocketUpgrade, routing::get};
+
+#[cfg(feature = "runtime-dispatcher")]
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::post};
+
 use tracing::info;
 
 use crate::kernel::app::App;
@@ -66,10 +63,13 @@ pub async fn run() -> anyhow::Result<()> {
     info!("└─ ✓ Runtime 初始化完成 ({} 个模块)", runtime_summary.modules.len());
 
     // ── Commands 层注册 ───────────────────────────────────────────────────
-    info!("┌─ 命令注册");
-    let cmd_summary = crate::commands::register(&mut app);
-    info!("│  ✓ {}", cmd_summary.names.join(", "));
-    info!("└─ ✓ 已注册 {} 个命令", cmd_summary.count);
+    #[cfg(feature = "runtime-dispatcher")]
+    {
+        info!("┌─ 命令注册");
+        let cmd_summary = crate::commands::register(&mut app);
+        info!("│  ✓ {}", cmd_summary.names.join(", "));
+        info!("└─ ✓ 已注册 {} 个命令", cmd_summary.count);
+    }
 
     // ── Services 层注册 ───────────────────────────────────────────────────
     info!("┌─ 服务注册");

@@ -2,14 +2,23 @@ use std::{collections::HashMap, hash::{BuildHasher, Hasher, RandomState}, sync::
 
 use anyhow::Result;
 
+#[cfg(feature = "runtime-permission")]
 use crate::runtime::permission::{AccessControl, BotUser, Scope};
-use crate::runtime::{
-    api::{ApiClient, MsgTarget},
-    parser::ParamValue,
-    pool::Pool,
-    registry::CommandRegistry,
-    typ::MessageSegment,
-};
+
+#[cfg(feature = "runtime-api")]
+use crate::runtime::api::{ApiClient, MsgTarget};
+
+#[cfg(feature = "runtime-parser")]
+use crate::runtime::parser::ParamValue;
+
+#[cfg(feature = "runtime-pool")]
+use crate::runtime::pool::Pool;
+
+#[cfg(feature = "runtime-registry")]
+use crate::runtime::registry::CommandRegistry;
+
+#[cfg(feature = "runtime-typ")]
+use crate::runtime::typ::MessageSegment;
 
 #[cfg(feature = "runtime-ws")]
 use crate::runtime::ws::WsManager;
