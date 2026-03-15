@@ -17,6 +17,7 @@ LG="logic.toml"
 # ── [smy] ─────────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[smy]${C_NC}  群聊日报插件"
 ask SMY_WIDTH "截图宽度（像素）" "$(toml_section_val "$LG" smy screenshot_width '1200')"
+ask SMY_CONCURRENT "定时日报最大并发数" "$(toml_section_val "$LG" smy max_concurrent '3')"
 echo ""
 
 # ── [github] ──────────────────────────────────────────────────────────────────
@@ -240,7 +241,8 @@ echo ""
 CONTENT="# LianBot 业务逻辑配置 (logic 层)
 
 [smy]
-screenshot_width = $SMY_WIDTH"
+screenshot_width = $SMY_WIDTH
+max_concurrent = $SMY_CONCURRENT"
 
 CONTENT+="
 

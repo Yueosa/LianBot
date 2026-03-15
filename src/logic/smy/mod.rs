@@ -23,16 +23,22 @@ pub struct SmyPluginConfig {
     /// 截图宽度（像素）
     #[serde(default = "SmyPluginConfig::default_screenshot_width")]
     pub screenshot_width: u32,
+
+    /// 定时日报最大并发数（默认 3）
+    #[serde(default = "SmyPluginConfig::default_max_concurrent")]
+    pub max_concurrent: usize,
 }
 
 impl SmyPluginConfig {
     fn default_screenshot_width() -> u32 { 1200 }
+    fn default_max_concurrent() -> usize { 3 }
 }
 
 impl Default for SmyPluginConfig {
     fn default() -> Self {
         Self {
             screenshot_width: SmyPluginConfig::default_screenshot_width(),
+            max_concurrent: SmyPluginConfig::default_max_concurrent(),
         }
     }
 }

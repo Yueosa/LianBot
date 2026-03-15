@@ -1,9 +1,18 @@
 use std::sync::Arc;
 
+#[cfg(feature = "cmd-smy")]
+use std::time::Duration;
+
+#[cfg(feature = "cmd-smy")]
+use tracing::{info, warn};
+
 use super::BotService;
 
 #[cfg(feature = "runtime-api")]
 use crate::runtime::api::ApiClient;
+
+#[cfg(all(feature = "runtime-api", feature = "cmd-smy"))]
+use crate::runtime::api::MsgTarget;
 
 #[cfg(feature = "runtime-permission")]
 use crate::runtime::permission::AccessControl;
@@ -99,6 +108,8 @@ impl BotService for SchedulerService {
 #[cfg(feature = "cmd-smy")]
 async fn run_smy_task(api: &ApiClient, access: &AccessControl, pool: &Option<Arc<Pool>>) {
     use crate::{logic::smy::SmyPluginConfig, logic::config as logic_config};
+    use futures::stream::{FuturesUnordered, StreamExt};
+    use tokio::sync::Semaphore;
 
     info!("[scheduler/smy] 触发每日日报");
     let cfg = logic_config::section::<SmyPluginConfig>("smy");
@@ -116,13 +127,51 @@ async fn run_smy_task(api: &ApiClient, access: &AccessControl, pool: &Option<Arc
     let groups = access.enabled_groups();
     info!("[scheduler/smy] 共 {} 个群需要生成日报 (ai={})", groups.len(), with_ai);
 
+    // 并发控制：使用配置的最大并发数
+    let semaphore = Arc::new(Semaphore::new(cfg.max_concurrent));
+    let mut tasks = FuturesUnordered::new();
+
     for group_id in groups {
-        match run_smy_for_group(api, pool, group_id, with_ai, cfg.screenshot_width).await {
-            Ok(()) => info!("[scheduler/smy] 群 {group_id} 日报完成"),
-            Err(e) => warn!("[scheduler/smy] 群 {group_id} 日报失败: {e:#}"),
+        let api = api.clone();
+        let pool = pool.clone();
+        let sem = semaphore.clone();
+        let screenshot_width = cfg.screenshot_width;
+
+        tasks.push(tokio::spawn(async move {
+            // 获取信号量许可（限制并发数）
+            let _permit = sem.acquire().await.expect("Semaphore 已关闭");
+
+            info!("[scheduler/smy] 开始生成群 {group_id} 日报");
+            let result = run_smy_for_group(&api, &pool, group_id, with_ai, screenshot_width).await;
+            (group_id, result)
+        }));
+    }
+
+    // 等待所有任务完成
+    let mut success_count = 0;
+    let mut fail_count = 0;
+
+    while let Some(task_result) = tasks.next().await {
+        match task_result {
+            Ok((group_id, Ok(()))) => {
+                info!("[scheduler/smy] 群 {group_id} 日报完成");
+                success_count += 1;
+            }
+            Ok((group_id, Err(e))) => {
+                warn!("[scheduler/smy] 群 {group_id} 日报失败: {e:#}");
+                fail_count += 1;
+            }
+            Err(e) => {
+                warn!("[scheduler/smy] 任务 panic: {e:#}");
+                fail_count += 1;
+            }
         }
     }
-    info!("[scheduler/smy] 本轮结束");
+
+    info!(
+        "[scheduler/smy] 本轮结束 (成功: {}, 失败: {})",
+        success_count, fail_count
+    );
 }
 
 #[cfg(feature = "cmd-smy")]

@@ -7,6 +7,9 @@
 # 截图宽度（像素），默认 1200
 # screenshot_width = 1200
 #
+# 定时日报最大并发数（默认 3，建议 3-5）
+# max_concurrent = 3
+#
 # LLM 配置已迁至 runtime.toml [llm] 段，详见 runtime.example.toml
 
 # ── GitHub Webhook ─────────────────────────────────────────────────────────────
