@@ -17,6 +17,7 @@ pub struct BotConfig {
     pub owner: i64,
     /// 权限数据库文件路径，默认 "permissions.db"
     #[serde(default = "default_db_path")]
+    #[allow(dead_code)]
     pub db_path: String,
     /// 启动时导入 DB 的初始群列表（已有记录则跳过，不会覆盖）
     #[serde(default)]

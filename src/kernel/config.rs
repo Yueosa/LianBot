@@ -98,6 +98,7 @@ impl LayerConfig {
     }
 
     /// 读取指定 section，section 缺失时返回 None。
+    #[allow(dead_code)]
     pub fn section_opt<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         self.raw
             .get(key)

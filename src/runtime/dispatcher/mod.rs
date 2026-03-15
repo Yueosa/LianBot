@@ -37,8 +37,10 @@ pub struct MessageContext {
     /// 完整文本（包含 @段）
     pub full_text: String,
     /// 用户昵称
+    #[allow(dead_code)]
     pub user_name: String,
     /// 用户 ID
+    #[allow(dead_code)]
     pub user_id: i64,
 }
 
@@ -52,6 +54,7 @@ pub struct HandlerContext<'a> {
     pub pool: &'a Option<Arc<Pool>>,
     pub access: &'a Arc<AccessControl>,
     pub bot_id: i64,
+    #[allow(dead_code)]
     pub owner_id: i64,
     pub cmd_prefix: &'a str,
 }
@@ -486,12 +489,12 @@ impl MessageHandler for AtBotHandler {
         }
 
         // Bot 昵称（如果 pool 里有 bot 的消息就能拿到，否则用默认）
-        let bot_name = "小恋";
+        let _bot_name = "小恋";
 
         let target = MsgTarget::from(ctx.msg.scope);
 
         // 收集 tool 定义（由 registry 中声明了 tool_description 的命令提供）
-        let tool_defs = ctx.registry.tool_definitions();
+        let _tool_defs = ctx.registry.tool_definitions();
 
         #[cfg(feature = "logic-chat")]
         {
@@ -525,6 +528,7 @@ impl MessageHandler for AtBotHandler {
 impl AtBotHandler {
     /// LLM tool-call 调用的命令路由。
     /// 仅匹配声明了 `tool_description()` 的命令，权限检查和依赖预检与普通命令一致。
+    #[allow(dead_code)]
     async fn dispatch_tool_call(
         &self,
         ctx: HandlerContext<'_>,

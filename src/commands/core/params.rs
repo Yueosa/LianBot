@@ -2,8 +2,10 @@
 #[derive(Debug, Clone, Copy)]
 pub enum ValueConstraint {
     /// 任意字符串，不校验
+    #[allow(dead_code)]
     Any,
     /// 整数范围，`min`/`max` 为 `None` 表示无限制
+    #[allow(dead_code)]
     Integer { min: Option<i64>, max: Option<i64> },
     /// 枚举值，输入必须是其中之一（当前暂无命令使用，保留供未来扩展）
     #[allow(dead_code)]
@@ -14,8 +16,10 @@ pub enum ValueConstraint {
 #[derive(Debug, Clone, Copy)]
 pub enum ParamKind {
     /// 纯 flag，`--ai`，无值
+    #[allow(dead_code)]
     Flag,
     /// 携带值，并附带约束条件
+    #[allow(dead_code)]
     Value(ValueConstraint),
 }
 

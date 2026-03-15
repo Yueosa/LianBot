@@ -19,6 +19,7 @@ pub struct CommandContext {
     pub trace_id: String,
     /// 触发消息的 message_id（预留字段，用于未来可能的消息引用功能如撤回、回复等）
     /// 注：当前版本暂未使用，但保留以便后续扩展
+    #[allow(dead_code)]
     pub message_id: Option<i64>,
     /// 发送者的虚拟用户对象（包含 user_id、scope、role）
     pub bot_user: BotUser,
@@ -36,6 +37,7 @@ pub struct CommandContext {
     /// 命令注册表（供 /help 等命令枚举全部命令）
     pub registry: Arc<CommandRegistry>,
     /// 消息池（per-scope 内存缓冲，可选）
+    #[allow(dead_code)]
     pub pool: Option<Arc<Pool>>,
     /// 准入控制（block/unblock、enable/disable 等管理操作）
     pub access: Arc<AccessControl>,
@@ -50,6 +52,7 @@ impl CommandContext {
     }
 
     /// 若当前 scope 是群聊，返回 group_id；否则 None。
+    #[allow(dead_code)]
     pub fn group_id(&self) -> Option<i64> {
         match self.bot_user.scope {
             Scope::Group(gid) => Some(gid),
@@ -65,11 +68,13 @@ impl CommandContext {
     }
 
     /// 向当前交互域发送图片。
+    #[allow(dead_code)]
     pub async fn reply_image(&self, file: &str) -> Result<()> {
         self.api.send_image_to(self.target(), file).await
     }
 
     /// 向当前交互域发送文字 + 图片（同一条消息）。
+    #[allow(dead_code)]
     pub async fn reply_text_image(&self, text: &str, file: &str) -> Result<()> {
         self.api.send_segments(self.target(), vec![
             MessageSegment::text(text),
@@ -78,12 +83,14 @@ impl CommandContext {
     }
 
     /// 向当前交互域发送任意消息段组合（text+image+text 等混合消息）。
+    #[allow(dead_code)]
     pub async fn reply_segments(&self, segments: Vec<MessageSegment>) -> Result<()> {
         self.api.send_segments(self.target(), segments).await
     }
 
     /// 向当前交互域发送合并转发消息。
     /// `nodes` 由 `MessageSegment::node(...)` 构成。
+    #[allow(dead_code)]
     pub async fn reply_forward(
         &self,
         nodes: Vec<MessageSegment>,

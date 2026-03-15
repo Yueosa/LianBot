@@ -104,6 +104,7 @@ impl MemoryPool {
     ///
     /// internal-only：不保证时间连续性，仅供测试使用
     #[doc(hidden)]
+    #[allow(dead_code)]
     pub async fn recent_internal(&self, scope: &Scope, n: usize) -> Vec<PoolMessage> {
         let guard = self.scopes.read().await;
         let Some(deque) = guard.get(scope) else { return vec![] };
@@ -117,6 +118,7 @@ impl MemoryPool {
     }
 
     /// 读取指定 scope 在 [since, until] 时间范围内的消息（秒级时间戳）
+    #[allow(dead_code)]
     pub async fn range(&self, scope: &Scope, since: i64, until: i64) -> Vec<PoolMessage> {
         let guard = self.scopes.read().await;
         let Some(deque) = guard.get(scope) else { return vec![] };
@@ -131,6 +133,7 @@ impl MemoryPool {
     ///
     /// 用于判断 pool 是否覆盖了某个时间窗口：若 oldest <= cutoff，则覆盖完整。
     /// 无任何消息时返回 None。
+    #[allow(dead_code)]
     pub async fn oldest_timestamp(&self, scope: &Scope) -> Option<i64> {
         let guard = self.scopes.read().await;
         guard.get(scope)?.front().map(|m| m.timestamp)

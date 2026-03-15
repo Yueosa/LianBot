@@ -11,6 +11,7 @@ pub enum CommandKind {
     /// `!!ping`、`!!alive` — 由可配置前缀（`cmd_prefix`）开头触发
     Simple,
     /// `<smy>` — 由 `<>` 包裹触发，接受参数
+    #[allow(dead_code)]
     Advanced,
 }
 
@@ -19,11 +20,13 @@ pub enum CommandKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dependency {
     /// 需要 `logic.toml` 中的配置段（如 LLM）
+    #[allow(dead_code)]
     Config,
     /// 需要 `WsManager`（WebSocket 客户端已连接）
     #[cfg(feature = "runtime-ws")]
     Ws,
     /// 需要消息池
+    #[allow(dead_code)]
     Pool,
 }
 

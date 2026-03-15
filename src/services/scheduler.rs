@@ -1,14 +1,16 @@
 use std::sync::Arc;
-use std::time::Duration;
 
-use tracing::{info, warn};
+use tracing::info;
 
 use super::BotService;
-use crate::runtime::{api::{ApiClient, MsgTarget}, permission::AccessControl, pool::Pool};
+use crate::runtime::{api::ApiClient, permission::AccessControl, pool::Pool};
 
 pub struct SchedulerService {
+    #[allow(dead_code)]
     api: Arc<ApiClient>,
+    #[allow(dead_code)]
     access: Arc<AccessControl>,
+    #[allow(dead_code)]
     pool: Option<Arc<Pool>>,
 }
 
@@ -24,6 +26,7 @@ impl SchedulerService {
 
 /// 返回距下一个配置时区指定小时（hh:00:00）的秒数。
 /// 若当前已过该时间则返回距明天该时间的秒数。
+#[allow(dead_code)]
 fn secs_until_hour(hour: u32) -> u64 {
     use chrono::Timelike;
     let now = crate::runtime::time::now();
@@ -44,16 +47,12 @@ impl BotService for SchedulerService {
     async fn run(self) -> anyhow::Result<()> {
         info!("[{}] 已启动", self.name());
 
-        let api = self.api.clone();
-        let access = self.access.clone();
-        let pool = self.pool.clone();
-
         // ── 任务 1：smy 日报（午夜触发） ─────────────────────────────────────
         #[cfg(feature = "cmd-smy")]
         {
-            let api = api.clone();
-            let access = access.clone();
-            let pool = pool.clone();
+            let api = self.api.clone();
+            let access = self.access.clone();
+            let pool = self.pool.clone();
             tokio::spawn(async move {
                 let secs = secs_until_hour(0);
                 info!(
@@ -75,7 +74,7 @@ impl BotService for SchedulerService {
         // ── 任务 2：易班定时签到 ─────────────────────────────────────────────
         #[cfg(feature = "svc-yiban")]
         {
-            let api = api.clone();
+            let api = self.api.clone();
             tokio::spawn(async move {
                 run_yiban_auto_sign_loop(&api).await;
             });

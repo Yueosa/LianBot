@@ -26,6 +26,7 @@ pub enum Role {
 #[derive(Debug, Clone)]
 pub struct BotUser {
     /// QQ 号，全局唯一真实标识
+    #[allow(dead_code)]
     pub user_id: i64,
     /// 消息上下文（群聊 or 私聊）
     pub scope: Scope,
@@ -35,6 +36,7 @@ pub struct BotUser {
 
 impl BotUser {
     /// 是否是 Bot 主人。
+    #[allow(dead_code)]
     pub fn is_owner(&self) -> bool {
         self.role == Role::Owner
     }

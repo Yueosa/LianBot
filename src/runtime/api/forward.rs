@@ -127,6 +127,7 @@ impl ApiClient {
     ///
     /// `nodes` 是 `MessageSegment::node(...)` 构成的数组。
     /// 可选参数：`source`（来源标题）、`summary`（底部摘要）、`prompt`（外显文本）。
+    #[allow(dead_code)]
     pub async fn send_forward_msg(
         &self,
         target: MsgTarget,

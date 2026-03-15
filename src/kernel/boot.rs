@@ -138,6 +138,7 @@ async fn onebot_handler(
 #[derive(Clone)]
 struct WsState {
     ws: Arc<WsManager>,
+    api: Arc<ApiClient>,
 }
 
 #[cfg(feature = "core-ws")]
@@ -145,9 +146,7 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<WsState>,
 ) -> impl IntoResponse {
-    // 从 app 获取 api（这里简化处理，实际应该从 state 传入）
-    // TODO: 需要在 WsState 中添加 api 字段
     ws.on_upgrade(move |socket| async move {
-        tracing::warn!("WebSocket handler 需要 api 实例，当前实现不完整");
+        state.ws.handle_connection(socket, &state.api).await;
     })
 }

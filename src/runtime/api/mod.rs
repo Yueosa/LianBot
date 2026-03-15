@@ -13,7 +13,6 @@ mod send_msg;
 mod history;
 mod forward;
 
-pub use forward::ForwardNode;
 
 use anyhow::{Context, Result};
 use reqwest::Client;
@@ -107,6 +106,7 @@ pub struct ApiClient {
 
 impl ApiClient {
     /// 创建客户端。`base_url` 例如 `"http://127.0.0.1:3000"`
+    #[allow(dead_code)]
     pub fn new(base_url: impl Into<String>, token: Option<String>) -> Self {
         Self::with_config(base_url, token, 30, 120)
     }

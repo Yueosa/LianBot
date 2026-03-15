@@ -33,6 +33,7 @@ impl ApiClient {
     }
 
     /// 发送图片到任意目标（file 可为 URL 或 `base64://...`）
+    #[allow(dead_code)]
     pub async fn send_image_to(&self, target: MsgTarget, file: &str) -> Result<()> {
         self.send_segments(target, vec![MessageSegment::image(file)]).await
     }

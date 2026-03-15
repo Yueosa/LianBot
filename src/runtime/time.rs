@@ -40,21 +40,25 @@ pub fn offset_hours() -> i32 {
 }
 
 /// 构造 `chrono::FixedOffset`。
+#[allow(dead_code)]
 pub fn fixed_offset() -> FixedOffset {
     FixedOffset::east_opt(offset_hours() * 3600).expect("无效时区偏移")
 }
 
 /// 配置时区的当前时间。
+#[allow(dead_code)]
 pub fn now() -> DateTime<FixedOffset> {
     chrono::Utc::now().with_timezone(&fixed_offset())
 }
 
 /// 将 Unix 时间戳转为配置时区的 `DateTime`。
+#[allow(dead_code)]
 pub fn from_timestamp(ts: i64) -> Option<DateTime<FixedOffset>> {
     fixed_offset().timestamp_opt(ts, 0).single()
 }
 
 /// 将 Unix 时间戳提取为配置时区的小时 (0–23)。
+#[allow(dead_code)]
 pub fn hour_of_day(ts: i64) -> u32 {
     from_timestamp(ts).map(|dt| dt.hour()).unwrap_or(0)
 }

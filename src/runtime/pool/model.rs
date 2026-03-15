@@ -41,17 +41,23 @@ pub struct PoolMessage {
     /// OneBot message_id（接近 i32::MAX，使用 i64）
     pub msg_id: i64,
     pub scope: Scope,
+    #[allow(dead_code)]
     pub user_id: i64,
     /// sender.card（群名片）|| sender.nickname，已提取
+    #[allow(dead_code)]
     pub nickname: String,
     /// 秒级 Unix 时间戳
     pub timestamp: i64,
+    #[allow(dead_code)]
     pub kind: MsgKind,
     /// 所有 text segment 拼接，无文字则 None
+    #[allow(dead_code)]
     pub text: Option<String>,
     /// 消息段——直接复用 typ::MessageSegment，不重新定义
+    #[allow(dead_code)]
     pub segments: Vec<MessageSegment>,
     /// 是否为 Bot 自身发送的消息
+    #[allow(dead_code)]
     pub is_bot: bool,
     /// 处理状态（新消息默认 Pending，dispatcher 在命令执行后更新）
     pub status: MsgStatus,
@@ -82,6 +88,7 @@ pub enum MsgStatus {
     /// 命令执行成功
     Done,
     /// 命令执行失败
+    #[allow(dead_code)]
     Error,
 }
 
@@ -89,10 +96,13 @@ pub enum MsgStatus {
 #[derive(Debug, Clone)]
 pub struct ProcessRecord {
     /// 哪个命令处理的（纯名字，如 "acg"）
+    #[allow(dead_code)]
     pub command: String,
     /// 执行耗时（毫秒）
+    #[allow(dead_code)]
     pub duration_ms: u64,
     /// 失败原因（Done 时为 None）
+    #[allow(dead_code)]
     pub error: Option<String>,
 }
 
