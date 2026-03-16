@@ -1,6 +1,9 @@
 #[cfg(feature = "runtime-config")]
 pub mod config;
 
+#[cfg(feature = "runtime-http")]
+pub mod http;
+
 #[cfg(feature = "runtime-api")]
 pub mod api;
 
@@ -59,6 +62,15 @@ pub struct RuntimeInitSummary {
 /// 注意：runtime::config::init(), time::init(), logger::init() 应该在调用此函数之前完成（在 boot.rs 中）。
 pub async fn init(app: &mut crate::kernel::app::App) -> anyhow::Result<RuntimeInitSummary> {
     let mut summary = RuntimeInitSummary::default();
+
+    // ── HTTP 客户端 ───────────────────────────────────────────────────────
+    #[cfg(all(feature = "runtime-http", feature = "runtime-config"))]
+    {
+        let http_cfg: http::HttpConfig = config::section("http");
+        http::init(http_cfg);
+        summary.modules.push("http".to_string());
+        summary.details.insert("http".to_string(), "已初始化".to_string());
+    }
 
     // ── LLM 客户端 ────────────────────────────────────────────────────────
     #[cfg(all(feature = "runtime-llm", feature = "runtime-config"))]
