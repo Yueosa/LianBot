@@ -41,7 +41,7 @@ pub struct MessageContext {
     pub bot_user: BotUser,
     /// 消息段（原始）
     pub segments: Vec<MessageSegment>,
-    /// 完整文本（包含 @段）
+    /// 完整文本（纯文本内容，用于命令解析和 AI 对话）
     pub full_text: String,
     /// 用户昵称
     #[allow(dead_code)]
@@ -49,6 +49,16 @@ pub struct MessageContext {
     /// 用户 ID
     #[allow(dead_code)]
     pub user_id: i64,
+
+    // ── 消息结构信息（用于命令和 handler 判断消息类型） ──
+    /// 是否包含回复段
+    pub has_reply: bool,
+    /// 回复的消息 ID（如果有）
+    pub reply_to: Option<i64>,
+    /// 是否包含图片
+    pub has_image: bool,
+    /// @的用户列表（用于 smy 等命令分析）
+    pub at_targets: Vec<i64>,
 }
 
 /// Handler 上下文：包装 MessageContext 并提供共享资源访问。
@@ -341,6 +351,19 @@ impl Dispatcher {
             .unwrap_or("未知")
             .to_string();
 
+        // 7. 解析消息结构（用于命令和 handler 判断消息类型）
+        let has_reply = event.message.iter().any(|s| s.is_reply());
+        let reply_to = event.message.iter()
+            .find(|s| s.is_reply())
+            .and_then(|s| s.reply_id());
+
+        let has_image = event.message.iter().any(|s| s.is_image());
+
+        let at_targets: Vec<i64> = event.message.iter()
+            .filter(|s| s.is_at())
+            .filter_map(|s| s.at_qq_id())
+            .collect();
+
         Ok(Some(MessageContext {
             scope,
             message_id: event.message_id,
@@ -349,6 +372,10 @@ impl Dispatcher {
             full_text,
             user_name,
             user_id: event.user_id,
+            has_reply,
+            reply_to,
+            has_image,
+            at_targets,
         }))
     }
 
