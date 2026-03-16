@@ -179,9 +179,30 @@ class Handler(BaseHTTPRequestHandler):
         print(f"\n[DEBUG] 收到 POST 请求: {self.path}")
 
         cl = self.headers.get('Content-Length')
-        raw = self.rfile.read(int(cl)) if cl else b''
+        te = (self.headers.get('Transfer-Encoding') or '').lower()
 
-        print(f"[DEBUG] Content-Length: {cl}, 读取字节数: {len(raw)}")
+        print(f"[DEBUG] Content-Length: {cl}, Transfer-Encoding: {te}")
+
+        # 处理不同的传输方式
+        if cl:
+            raw = self.rfile.read(int(cl))
+        elif 'chunked' in te:
+            print(f"[DEBUG] 使用 chunked 传输")
+            chunks = []
+            while True:
+                size_line = self.rfile.readline().strip()
+                if not size_line:
+                    break
+                size = int(size_line, 16)
+                if size == 0:
+                    break
+                chunks.append(self.rfile.read(size))
+                self.rfile.read(2)  # 读取 \r\n
+            raw = b''.join(chunks)
+        else:
+            raw = self.rfile.read(65536)
+
+        print(f"[DEBUG] 读取字节数: {len(raw)}")
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
