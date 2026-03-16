@@ -25,6 +25,19 @@ initial_groups = [123456789, 987654321]
 
 # 私聊黑名单（QQ 号列表），Bot 忽略这些用户的私聊消息
 # private_blacklist = []
+
+# ── HTTP 客户端 ───────────────────────────────────────────────────────────────
+# [http]
+# 请求保底超时（秒），默认 30
+# 各模块可在请求时覆盖此超时（如 LLM 使用 120s，commands 使用 10s）
+# timeout_secs = 30
+# 连接池空闲超时（秒），默认 30
+# pool_idle_timeout_secs = 30
+# 每个 host 的最大空闲连接数，默认 6
+# pool_max_idle_per_host = 6
+# TCP keepalive 间隔（秒），默认 60
+# tcp_keepalive_secs = 60
+
 # ── NapCat / go-cqhttp HTTP API ────────────────────────────────────────────────
 [napcat]
 url   = "http://127.0.0.1:3000"    # NapCat 监听地址
