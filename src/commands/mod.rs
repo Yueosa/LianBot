@@ -17,7 +17,7 @@ use std::sync::Arc;
 // ── 共享 HTTP 客户端 ──────────────────────────────────────────────────────────
 
 /// 命令层共享的 reqwest::Client（OnceLock 惰性初始化，进程内唯一）。
-/// 配置：跟随最多 10 次重定向、10 秒超时。
+/// 配置：跟随最多 10 次重定向、10 秒超时、30 秒连接池 idle 超时。
 /// acg / alive / world 等外部 API 命令统一使用，避免每次调用新建 Client。
 pub fn http_client() -> &'static reqwest::Client {
     use std::sync::OnceLock;
@@ -26,6 +26,9 @@ pub fn http_client() -> &'static reqwest::Client {
         reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::limited(10))
             .timeout(std::time::Duration::from_secs(10))
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .tcp_keepalive(std::time::Duration::from_secs(60))
             .build()
             .expect("reqwest::Client 初始化失败")
     })
