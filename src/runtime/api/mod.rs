@@ -93,13 +93,14 @@ impl From<crate::runtime::permission::Scope> for MsgTarget {
 // ── API 客户端 ─────────────────────────────────────────────────────────────────
 //
 // 封装所有对 NapCat/go-cqhttp HTTP API 的调用。
-// 内部持有 reqwest::Client（异步、连接池复用）。
+// 使用 runtime::http 提供的全局 HTTP 客户端，共享连接池。
 
 #[derive(Clone)]
 pub struct ApiClient {
-    client: Client,
     base_url: String,
     token: Option<String>,
+    /// 普通请求超时时长
+    timeout: std::time::Duration,
     /// 历史消息拉取等慢请求的超时时长
     history_timeout: std::time::Duration,
 }
@@ -117,14 +118,10 @@ impl ApiClient {
         timeout_secs: u64,
         history_timeout_secs: u64,
     ) -> Self {
-        let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(timeout_secs))
-            .build()
-            .expect("构建 HTTP 客户端失败");
         Self {
-            client,
             base_url: base_url.into().trim_end_matches('/').to_string(),
             token,
+            timeout: std::time::Duration::from_secs(timeout_secs),
             history_timeout: std::time::Duration::from_secs(history_timeout_secs),
         }
     }
@@ -149,13 +146,27 @@ impl ApiClient {
         let url = format!("{}/{}", self.base_url, endpoint.trim_start_matches('/'));
         debug!("API POST {url}");
 
-        let mut req = self.client.post(&url).json(payload);
+        #[cfg(feature = "runtime-http")]
+        let client = crate::runtime::http::client();
+        #[cfg(not(feature = "runtime-http"))]
+        let client = {
+            static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+            CLIENT.get_or_init(|| {
+                reqwest::Client::builder()
+                    .timeout(self.timeout)
+                    .build()
+                    .expect("构建 HTTP 客户端失败")
+            })
+        };
+
+        let mut req = client.post(&url).json(payload);
         if let Some(token) = &self.token {
             req = req.header("Authorization", format!("Bearer {token}"));
         }
-        if let Some(t) = timeout {
-            req = req.timeout(t);
-        }
+
+        // 设置超时：优先使用传入的超时，否则使用配置的超时
+        let timeout = timeout.unwrap_or(self.timeout);
+        req = req.timeout(timeout);
 
         let resp = req
             .send()
