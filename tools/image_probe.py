@@ -7,8 +7,10 @@
     2. 在私聊中给机器人发送一张图片
     3. 脚本自动抓取图片信息并测试各个 API
 
-监听端口: 0.0.0.0:18889
+监听端口: 0.0.0.0:18888
 输出目录: /tmp/image_probe/
+
+注意：使用前请先停止 napcat_probe.py（占用同一端口）
 """
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
@@ -230,10 +232,9 @@ if DEEPSEEK_KEY:
 else:
     print(f"[!] 未找到 DeepSeek API Key，将跳过 Vision 测试")
 
-print(f"[*] 监听 0.0.0.0:18889")
+print(f"[*] 监听 0.0.0.0:18888")
 print(f"[*] 输出目录: {OUT}/")
-print(f"[*] 请在 NapCat 配置中添加反向 HTTP 上报: http://127.0.0.1:18889")
-print(f"[*] 然后在私聊中发送图片...")
+print(f"[*] 请先停止 napcat_probe.py，然后发送图片...")
 print()
 
-HTTPServer(('0.0.0.0', 18889), Handler).serve_forever()
+HTTPServer(('0.0.0.0', 18888), Handler).serve_forever()
