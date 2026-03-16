@@ -46,6 +46,7 @@ def napcat_api(endpoint, payload):
 def test_get_image(file_id):
     """测试 get_image"""
     print(f"\n[1] 测试 get_image API")
+    print(f"    file_id: {file_id}")
     result = napcat_api("get_image", {"file": file_id})
     if result and result.get("data"):
         data = result["data"]
@@ -152,41 +153,74 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             data = json.loads(raw)
-        except:
+        except Exception as e:
+            print(f"[!] JSON 解析失败: {e}")
             return
 
-        # 只处理消息事件
-        if data.get("post_type") != "message":
+        # 保存原始消息用于调试
+        ts = datetime.now().strftime('%H%M%S_%f')
+        with open(f"{OUT}/{ts}_raw.json", 'w') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        # 根据 OneBot v11 协议解析
+        # post_type 可能是 "message" 或 "message_sent"
+        post_type = data.get("post_type", "")
+        if post_type not in ["message", "message_sent"]:
+            print(f"[*] 跳过非消息事件: post_type={post_type}")
             return
 
+        # 提取 message 数组（MessageSegment 列表）
         message = data.get("message", [])
+        if not isinstance(message, list):
+            print(f"[!] message 字段不是数组: {type(message)}")
+            return
 
-        # 查找图片段
+        user_id = data.get("user_id", "?")
+        message_type = data.get("message_type", "?")
+
+        print(f"\n[*] 收到消息: {message_type} from {user_id}")
+
+        # 遍历消息段，查找图片
+        found_image = False
         for seg in message:
-            if seg.get("type") == "image":
-                seg_data = seg.get("data", {})
+            if not isinstance(seg, dict):
+                continue
+
+            seg_type = seg.get("type", "")
+            seg_data = seg.get("data", {})
+
+            if seg_type == "image":
+                found_image = True
+
+                # 提取 file 和 url 字段（对应 MessageSegment::image_file 和 image_url）
                 file_id = seg_data.get("file", "")
                 url = seg_data.get("url", "")
 
                 print("\n" + "="*60)
-                print(f"[图片消息] 来自 {data.get('user_id', '?')}")
-                print(f"  file: {file_id}")
-                print(f"  url: {url}")
+                print(f"[图片段] type=image")
+                print(f"  data.file: {file_id}")
+                print(f"  data.url: {url}")
                 print("="*60)
 
                 # 测试各个 API
-                img_info = test_get_image(file_id)
-                image_b64 = test_download_stream(file_id)
+                if file_id:
+                    img_info = test_get_image(file_id)
+                    image_b64 = test_download_stream(file_id)
 
-                if url:
-                    test_ocr(url)
+                    if url:
+                        test_ocr(url)
 
-                if image_b64:
-                    test_deepseek_vision(image_b64)
+                    if image_b64:
+                        test_deepseek_vision(image_b64)
 
-                print("\n" + "="*60)
-                print("测试完成")
-                print("="*60)
+                    print("\n" + "="*60)
+                    print("测试完成")
+                    print("="*60)
+                else:
+                    print("[!] file 字段为空，无法测试")
+
+        if not found_image:
+            print("[*] 消息中无图片段")
 
     def log_message(self, *a):
         pass
