@@ -276,11 +276,33 @@ class Handler(BaseHTTPRequestHandler):
                     img_info = test_get_image(file_id)
                     image_b64 = test_download_stream(file_id)
 
+                    # 如果 download_file_image_stream 失败，尝试直接下载 URL
+                    if not image_b64 and img_info and img_info.get('url'):
+                        print(f"\n[*] download_file_image_stream 失败，尝试直接下载 URL")
+                        try:
+                            resp = requests.get(img_info['url'], timeout=30)
+                            if resp.status_code == 200:
+                                image_b64 = base64.b64encode(resp.content).decode()
+                                print(f"    ✓ 直接下载成功，大小: {len(resp.content)} bytes")
+
+                                # 保存图片
+                                ts = datetime.now().strftime('%H%M%S')
+                                path = f"{OUT}/{ts}.jpg"
+                                with open(path, 'wb') as f:
+                                    f.write(resp.content)
+                                print(f"    ✓ 已保存: {path}")
+                            else:
+                                print(f"    ✗ HTTP {resp.status_code}")
+                        except Exception as e:
+                            print(f"    ✗ 下载失败: {e}")
+
                     if url:
                         test_ocr(url)
 
                     if image_b64:
                         test_deepseek_vision(image_b64)
+                    else:
+                        print(f"\n[!] 未获取到图片数据，跳过 DeepSeek 测试")
 
                     print("\n" + "="*60)
                     print("测试完成")
