@@ -22,24 +22,58 @@ from datetime import datetime
 OUT = "/tmp/image_probe"
 os.makedirs(OUT, exist_ok=True)
 
+# 配置：修改为 NapCat 实际地址
 NAPCAT_URL = "http://127.0.0.1:3000"
+NAPCAT_TOKEN = None
 DEEPSEEK_KEY = None
 
-# 从 runtime.toml 读取 API Key
+# 从 runtime.toml 读取配置
 try:
     with open("runtime.toml") as f:
+        in_napcat = False
+        in_llm = False
         for line in f:
-            if "api_key" in line and "=" in line:
-                DEEPSEEK_KEY = line.split("=", 1)[1].strip().strip('"').strip("'")
-                break
+            line = line.strip()
+
+            # 检测段
+            if line == "[napcat]":
+                in_napcat = True
+                in_llm = False
+                continue
+            elif line == "[llm]":
+                in_llm = True
+                in_napcat = False
+                continue
+            elif line.startswith("["):
+                in_napcat = False
+                in_llm = False
+                continue
+
+            # 解析字段
+            if "=" in line and not line.startswith("#"):
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+
+                if in_napcat:
+                    if key == "url":
+                        NAPCAT_URL = value
+                    elif key == "token":
+                        NAPCAT_TOKEN = value if value else None
+                elif in_llm:
+                    if key == "api_key":
+                        DEEPSEEK_KEY = value
 except:
     pass
 
 def napcat_api(endpoint, payload):
     """调用 NapCat API"""
     url = f"{NAPCAT_URL}/{endpoint.lstrip('/')}"
+    headers = {}
+    if NAPCAT_TOKEN:
+        headers["Authorization"] = f"Bearer {NAPCAT_TOKEN}"
     try:
-        resp = requests.post(url, json=payload, timeout=30)
+        resp = requests.post(url, json=payload, headers=headers, timeout=30)
         return resp.json()
     except Exception as e:
         print(f"[!] NapCat API 失败: {e}")
