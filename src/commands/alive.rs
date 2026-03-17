@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::{debug, warn};
 
-use crate::commands::{Command, CommandContext, CommandKind, http_client};
+use crate::commands::{Command, CommandContext, CommandKind};
 use crate::logic::config as logic_config;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ impl Command for AliveCommand {
             return ctx.reply("❌ alive 未配置 api_url，请在 logic.toml [alive] 中设置").await;
         }
         debug!("[alive] 请求设备状态, url={}", cfg.api_url);
-        let resp = match http_client()
+        let resp = match crate::runtime::http::client()
             .get(&cfg.api_url)
             .timeout(std::time::Duration::from_secs(cfg.timeout_secs))
             .send()

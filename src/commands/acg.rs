@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::debug;
 
-use crate::commands::{Command, CommandContext, CommandKind, http_client};
+use crate::commands::{Command, CommandContext, CommandKind};
 use crate::logic::config as logic_config;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
@@ -26,7 +26,12 @@ pub struct AcgCommand;
 
 /// 跟随 302 重定向，拿到落地图片 URL
 async fn resolve_final_url(url: &str) -> Option<String> {
-    let resp = http_client().get(url).send().await.ok()?;
+    let resp = crate::runtime::http::client()
+        .get(url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .ok()?;
     let final_url = resp.url().to_string();
     if final_url != url { Some(final_url) } else { None }
 }

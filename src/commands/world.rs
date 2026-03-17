@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use tracing::{debug, warn};
 
-use crate::commands::{Command, CommandContext, CommandKind, http_client};
+use crate::commands::{Command, CommandContext, CommandKind};
 use crate::logic::config as logic_config;
 
 // ── 插件配置 ──────────────────────────────────────────────────────────────────────
@@ -40,8 +40,9 @@ impl Command for WorldCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let cfg = logic_config::section::<WorldPluginConfig>("world");
-        let resp = match http_client()
+        let resp = match crate::runtime::http::client()
             .get(&cfg.api_url)
+            .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
         {
