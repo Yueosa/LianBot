@@ -63,8 +63,9 @@ runtime-typ        = []                                    # OneBot 协议类型
 runtime-logger     = ["runtime-time"]                      # 日志系统
 
 # Runtime 第 2 层：核心模块
-runtime-api        = ["runtime-config"]                    # HTTP 客户端
-runtime-llm        = ["runtime-config"]                    # LLM 客户端
+runtime-http       = ["runtime-config"]                    # 统一 HTTP 客户端
+runtime-api        = ["runtime-config", "runtime-http"]    # HTTP 客户端
+runtime-llm        = ["runtime-config", "runtime-http"]    # LLM 客户端
 runtime-ws         = []                                    # WebSocket 管理
 
 # Runtime 第 3 层：高级功能
@@ -92,12 +93,12 @@ logic-github = []  # GitHub 通知（纯业务逻辑，无 runtime 依赖）
 # ── Commands 层 features ────────────────────────────────────────────────────
 cmd-ping   = ["runtime-dispatcher"]
 cmd-help   = ["runtime-dispatcher"]
-cmd-alive  = ["runtime-dispatcher"]
-cmd-acg    = ["runtime-dispatcher"]
-cmd-world  = ["runtime-dispatcher"]
+cmd-alive  = ["runtime-dispatcher", "runtime-http"]
+cmd-acg    = ["runtime-dispatcher", "runtime-http"]
+cmd-world  = ["runtime-dispatcher", "runtime-http"]
 cmd-stalk  = ["runtime-dispatcher", "runtime-ws", "core-ws"]
 cmd-smy    = ["runtime-dispatcher", "logic-smy", "dep:base64", "dep:tempfile"]
-cmd-dress  = ["runtime-dispatcher", "dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]
+cmd-dress  = ["runtime-dispatcher", "runtime-http", "dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]
 cmd-sign   = ["runtime-dispatcher", "logic-yiban"]
 
 # ── Services 层 features ────────────────────────────────────────────────────
