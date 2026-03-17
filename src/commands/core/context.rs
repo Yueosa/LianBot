@@ -75,6 +75,14 @@ impl CommandContext {
         MsgTarget::from(self.bot_user.scope)
     }
 
+    /// 获取当前交互域（Scope）。
+    ///
+    /// **注意：** 优先使用 `group_id()` 等专用方法。
+    /// 只有在确实需要完整 `Scope` 对象时才使用此方法（如传递给其他模块）。
+    pub fn scope(&self) -> Scope {
+        self.bot_user.scope
+    }
+
     /// 若当前 scope 是群聊，返回 group_id；否则 None。
     #[allow(dead_code)]
     pub fn group_id(&self) -> Option<i64> {
