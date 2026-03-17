@@ -5,22 +5,20 @@ use serde_json::Value;
 
 use super::LlmConfig;
 
-/// 全局 LLM 客户端，持有连接配置和 HTTP Client。
+/// 全局 LLM 客户端，持有连接配置。
 ///
 /// 职责：底层 HTTP 通信、鉴权、超时。
 /// 业务逻辑（prompt 构造、response 解析）由调用方负责。
+/// 使用 runtime::http 提供的全局 HTTP 客户端，共享连接池。
 pub struct LlmClient {
-    client: reqwest::Client,
     config: LlmConfig,
+    timeout: Duration,
 }
 
 impl LlmClient {
     pub fn new(config: LlmConfig) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(config.timeout_secs))
-            .build()
-            .expect("构建 LLM HTTP 客户端失败");
-        Self { client, config }
+        let timeout = Duration::from_secs(config.timeout_secs);
+        Self { config, timeout }
     }
 
     /// 模型名称（调用方可能需要写入 request body）
@@ -75,9 +73,22 @@ impl LlmClient {
             body["response_format"] = serde_json::json!({ "type": "json_object" });
         }
 
-        let resp = self
-            .client
+        #[cfg(feature = "runtime-http")]
+        let client = crate::runtime::http::client();
+        #[cfg(not(feature = "runtime-http"))]
+        let client = {
+            static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+            CLIENT.get_or_init(|| {
+                reqwest::Client::builder()
+                    .timeout(self.timeout)
+                    .build()
+                    .expect("构建 LLM HTTP 客户端失败")
+            })
+        };
+
+        let resp = client
             .post(&url)
+            .timeout(self.timeout)
             .header("Authorization", format!("Bearer {}", self.config.api_key))
             .header("Content-Type", "application/json")
             .json(&body)
