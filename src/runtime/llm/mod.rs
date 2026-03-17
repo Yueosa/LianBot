@@ -1,10 +1,12 @@
 pub mod client;
+pub mod gemini;
 
 use std::sync::OnceLock;
 
 use serde::Deserialize;
 
 pub use client::LlmClient;
+pub use gemini::GeminiClient;
 
 static LLM_CLIENT: OnceLock<LlmClient> = OnceLock::new();
 
@@ -17,11 +19,19 @@ pub fn init() {
     if let Some(cfg) = cfg {
         LLM_CLIENT.get_or_init(|| LlmClient::new(cfg));
     }
+
+    // 初始化 Gemini 客户端
+    gemini::init();
 }
 
 /// 获取全局 LLM 客户端（未配置时返回 None）。
 pub fn get() -> Option<&'static LlmClient> {
     LLM_CLIENT.get()
+}
+
+/// 获取全局 Gemini 客户端（未配置时返回 None）。
+pub fn gemini() -> Option<&'static GeminiClient> {
+    gemini::get()
 }
 
 // ── LLM 配置 ──────────────────────────────────────────────────────────────────
