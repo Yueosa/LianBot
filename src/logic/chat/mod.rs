@@ -5,10 +5,12 @@ use serde::Deserialize;
 
 use crate::runtime::{
     api::{ApiClient, MsgTarget},
-    permission::Scope,
+    permission::{BotUser, Scope, AccessControl},
     pool::{Pool, PoolMessage},
     time,
     typ::MessageSegment,
+    parser::ParamValue,
+    registry::CommandRegistry,
 };
 
 #[cfg(feature = "runtime-llm")]
@@ -17,6 +19,8 @@ use anyhow::Context as _;
 use tracing::{debug, warn};
 #[cfg(feature = "runtime-llm")]
 use crate::runtime::llm;
+
+use crate::commands::{gen_trace_id, CommandContext, Invocation};
 
 mod splitter;
 pub mod tools;
@@ -305,7 +309,7 @@ pub async fn handle_chat(
 }
 
 /// 将回复文本分段发送给用户。
-async fn send_chat_reply(
+pub async fn send_chat_reply(
     api: &ApiClient,
     target: MsgTarget,
     bot_id: i64,
@@ -416,4 +420,244 @@ async fn fetch_messages_from_api(
     );
 
     Ok(all_messages)
+}
+
+// ── 多轮推理系统 ───────────────────────────────────────────────────────────────
+
+/// 处理带 Tool Call 的多轮推理对话
+#[cfg(feature = "runtime-llm")]
+pub async fn handle_chat_with_tools(
+    api: &ApiClient,
+    pool: &Option<Arc<Pool>>,
+    registry: &Arc<CommandRegistry>,
+    scope: Scope,
+    target: MsgTarget,
+    bot_id: i64,
+    bot_name: &str,
+    owner_id: i64,
+    user_name: &str,
+    user_id: i64,
+    question: &str,
+    bot_user: BotUser,
+    segments: Vec<MessageSegment>,
+    cmd_prefix: String,
+    access: Arc<AccessControl>,
+) -> Result<()> {
+    let cfg: ChatConfig = crate::logic::config::section("chat");
+
+    // 获取 LLM 客户端
+    let client = match llm::get() {
+        Some(c) => c,
+        None => {
+            api.send_msg(target, "⚠️ AI 对话未配置（runtime.toml [llm] 段缺失）").await?;
+            return Ok(());
+        }
+    };
+
+    // 从 Pool 或 API 取上下文
+    let now = crate::runtime::time::unix_timestamp();
+    let since = now - cfg.context_window;
+
+    let mut pool_messages = if let Some(pool) = pool {
+        pool.range(&scope, since, now).await
+    } else {
+        fetch_messages_from_api(api, scope, since, now).await?
+    };
+
+    if pool_messages.len() > cfg.context_size {
+        let drain_count = pool_messages.len() - cfg.context_size;
+        pool_messages.drain(..drain_count);
+    }
+
+    let recent_text = format_pool_messages(&pool_messages);
+    debug!(
+        "[chat] 多轮推理模式, 上下文 {} 条 / {}B",
+        pool_messages.len(),
+        recent_text.len()
+    );
+
+    // 收集 tool 定义
+    let tool_defs: Vec<(&str, &str)> = registry
+        .all_commands()
+        .iter()
+        .filter_map(|cmd| {
+            cmd.tool_description().map(|desc| (cmd.name(), desc))
+        })
+        .collect();
+
+    const MAX_ROUNDS: usize = 10;
+
+    // 构建初始对话历史
+    let tools_prompt = build_tools_prompt(&tool_defs, 1, MAX_ROUNDS);
+    let system = build_system_prompt(&cfg, bot_name, owner_id, &recent_text, &tools_prompt);
+    let user_content = format!("{user_name}（QQ: {user_id}）对你说：{question}");
+
+    let mut messages = vec![
+        serde_json::json!({"role": "system", "content": system}),
+        serde_json::json!({"role": "user", "content": user_content}),
+    ];
+
+    // 多轮循环
+    for round in 1..=MAX_ROUNDS {
+        debug!("[chat] 第 {}/{} 轮推理", round, MAX_ROUNDS);
+
+        // 调用 LLM
+        let reply = client
+            .chat(&messages, cfg.temperature, cfg.max_tokens)
+            .await
+            .context("LLM 调用失败")?;
+
+        if reply.trim().is_empty() {
+            warn!("[chat] LLM 返回空回复");
+            api.send_msg(target, "……喵？（小恋暂时想不到该说什么）").await?;
+            return Ok(());
+        }
+
+        // 解析响应
+        match parse_response(&reply) {
+            Ok(ParsedResponse::EndText(text)) => {
+                debug!("[chat] LLM 选择直接回答，结束推理");
+                send_chat_reply(api, target, bot_id, bot_name, &cfg, &text).await?;
+                return Ok(());
+            }
+
+            Ok(ParsedResponse::ToolCallEnd { command, params }) => {
+                debug!("[chat] LLM 调用命令并结束: {}", command);
+                let cmd_ctx = build_command_context_for_tool(
+                    bot_user.clone(),
+                    segments.clone(),
+                    params,
+                    api.clone(),
+                    cmd_prefix.clone(),
+                    registry.clone(),
+                    pool.clone(),
+                    access.clone(),
+                    Invocation::User,
+                );
+
+                if let Err(e) = execute_tool_command(registry, &command, cmd_ctx).await {
+                    warn!("[chat] 命令执行失败: {}", e);
+                    api.send_msg(target, &format!("⚠️ 命令执行失败: {}", e)).await?;
+                }
+                return Ok(());
+            }
+
+            Ok(ParsedResponse::ToolCall { command, params }) => {
+                debug!("[chat] LLM 调用命令继续推理: {}", command);
+                let cmd_ctx = build_command_context_for_tool(
+                    bot_user.clone(),
+                    segments.clone(),
+                    params,
+                    api.clone(),
+                    cmd_prefix.clone(),
+                    registry.clone(),
+                    pool.clone(),
+                    access.clone(),
+                    Invocation::ToolCall,
+                );
+
+                let result = match execute_tool_command(registry, &command, cmd_ctx.clone()).await {
+                    Ok(_) => {
+                        cmd_ctx.captured_output.lock().await
+                            .take()
+                            .unwrap_or_else(|| "命令执行成功，无返回值".to_string())
+                    }
+                    Err(e) => {
+                        format!("命令执行失败: {}", e)
+                    }
+                };
+
+                debug!("[chat] 命令 {} 返回: {}", command, &result[..result.len().min(100)]);
+
+                // 追加到对话历史
+                messages.push(serde_json::json!({
+                    "role": "assistant",
+                    "content": reply
+                }));
+                messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": format!("命令 {} 返回: {}", command, result)
+                }));
+
+                // 更新 system prompt 的轮数
+                let tools_prompt = build_tools_prompt(&tool_defs, round + 1, MAX_ROUNDS);
+                let system = build_system_prompt(&cfg, bot_name, owner_id, &recent_text, &tools_prompt);
+                messages[0] = serde_json::json!({"role": "system", "content": system});
+
+                // 继续下一轮
+                continue;
+            }
+
+            Err(e) => {
+                warn!("[chat] 解析 LLM 响应失败: {}", e);
+                api.send_msg(target, "⚠️ 小恋理解出错了...").await?;
+                return Ok(());
+            }
+        }
+    }
+
+    // 超过最大轮数
+    warn!("[chat] 推理超过最大轮数 {}", MAX_ROUNDS);
+    api.send_msg(target, "⚠️ 推理超时，请稍后再试").await?;
+    Ok(())
+}
+
+/// 为 tool call 构建 CommandContext
+#[cfg(feature = "runtime-llm")]
+fn build_command_context_for_tool(
+    bot_user: BotUser,
+    segments: Vec<MessageSegment>,
+    params: std::collections::HashMap<String, String>,
+    api: Arc<ApiClient>,
+    cmd_prefix: String,
+    registry: Arc<CommandRegistry>,
+    pool: Option<Arc<Pool>>,
+    access: Arc<AccessControl>,
+    invocation: Invocation,
+) -> CommandContext {
+    let param_values: std::collections::HashMap<String, ParamValue> = params
+        .into_iter()
+        .map(|(k, v)| (k, ParamValue::Value(v)))
+        .collect();
+
+    CommandContext {
+        trace_id: gen_trace_id(),
+        message_id: None,
+        bot_user,
+        segments,
+        params: param_values,
+        api,
+        #[cfg(feature = "runtime-ws")]
+        ws: None,
+        cmd_prefix,
+        registry,
+        #[cfg(feature = "runtime-pool")]
+        pool,
+        access,
+        invocation,
+        captured_output: Arc::new(tokio::sync::Mutex::new(None)),
+    }
+}
+
+/// 执行 tool call 命令
+#[cfg(feature = "runtime-llm")]
+async fn execute_tool_command(
+    registry: &Arc<CommandRegistry>,
+    command: &str,
+    cmd_ctx: CommandContext,
+) -> Result<()> {
+    let cmd = registry.get_simple(command)
+        .or_else(|| registry.get_advanced(command));
+
+    let cmd = match cmd {
+        Some(c) if c.tool_description().is_some() => c,
+        _ => anyhow::bail!("未知或未注册为 tool 的命令: {}", command),
+    };
+
+    // 权限检查
+    if cmd_ctx.bot_user.role < cmd.required_role() {
+        anyhow::bail!("权限不足");
+    }
+
+    cmd.execute(cmd_ctx).await
 }
