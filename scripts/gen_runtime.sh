@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gen_runtime.sh — 生成 runtime.toml（运行时层）
-# 覆盖字段：time / bot / napcat / parser / pool / log
+# 覆盖字段：time / bot / napcat / parser / pool / log / llm / http / gemini
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 require_project_root
@@ -90,6 +90,37 @@ if [[ "${_llm_confirm,,}" == "y" ]] || [[ -z "$_llm_confirm" && -n "$_llm_key" ]
 fi
 echo ""
 
+# ── [http] ────────────────────────────────────────────────────────────────────
+echo "  ${C_BOLD}[http]${C_NC}  HTTP 客户端（可选配置）"
+_http_timeout=$(toml_section_val "$RT" http timeout_secs "")
+_http_hint="N"
+[[ -n "$_http_timeout" ]] && _http_hint="Y（已配置）"
+read -rp "  是否自定义 HTTP 配置？(y/N) [${_http_hint}]: " _http_confirm
+ENABLE_HTTP_CONFIG=0 HTTP_TIMEOUT="" HTTP_POOL_IDLE="" HTTP_POOL_MAX="" HTTP_KEEPALIVE=""
+if [[ "${_http_confirm,,}" == "y" ]] || [[ -z "$_http_confirm" && -n "$_http_timeout" ]]; then
+    ENABLE_HTTP_CONFIG=1
+    ask HTTP_TIMEOUT    "请求保底超时（秒）"       "$(toml_section_val "$RT" http timeout_secs '30')"
+    ask HTTP_POOL_IDLE  "连接池空闲超时（秒）"     "$(toml_section_val "$RT" http pool_idle_timeout_secs '30')"
+    ask HTTP_POOL_MAX   "每 host 最大空闲连接数"  "$(toml_section_val "$RT" http pool_max_idle_per_host '10')"
+    ask HTTP_KEEPALIVE  "TCP keepalive 间隔（秒）" "$(toml_section_val "$RT" http tcp_keepalive_secs '60')"
+fi
+echo ""
+
+# ── [gemini] ──────────────────────────────────────────────────────────────────
+echo "  ${C_BOLD}[gemini]${C_NC}  Gemini API（图片识别，可选）"
+_gemini_key=$(toml_section_val "$RT" gemini api_key "")
+_gemini_hint="N"
+[[ -n "$_gemini_key" ]] && _gemini_hint="Y（已配置）"
+read -rp "  是否启用 Gemini 图片识别？(y/N) [${_gemini_hint}]: " _gemini_confirm
+ENABLE_GEMINI=0 GEMINI_KEY="" GEMINI_MODEL="" GEMINI_TIMEOUT=""
+if [[ "${_gemini_confirm,,}" == "y" ]] || [[ -z "$_gemini_confirm" && -n "$_gemini_key" ]]; then
+    ENABLE_GEMINI=1
+    ask GEMINI_KEY     "Gemini API Key"  "$(toml_section_val "$RT" gemini api_key '')"
+    ask GEMINI_MODEL   "模型名称"         "$(toml_section_val "$RT" gemini model 'gemini-2.5-flash')"
+    ask GEMINI_TIMEOUT "请求超时（秒）"   "$(toml_section_val "$RT" gemini timeout_secs '60')"
+fi
+echo ""
+
 # ── [log] ─────────────────────────────────────────────────────────────────────
 echo "  ${C_BOLD}[log]${C_NC}  日志"
 ask LOG_LEVEL "日志级别（trace/debug/info/warn/error）" "$(toml_section_val "$RT" log level 'info')"
@@ -154,6 +185,36 @@ else
     CONTENT+=$'\n'"# api_key      = \"sk-xxx\""
     CONTENT+=$'\n'"# model        = \"deepseek-chat\""
     CONTENT+=$'\n'"# timeout_secs = 120"
+fi
+
+if [[ $ENABLE_HTTP_CONFIG -eq 1 ]]; then
+    CONTENT+="
+
+[http]
+timeout_secs           = $HTTP_TIMEOUT
+pool_idle_timeout_secs = $HTTP_POOL_IDLE
+pool_max_idle_per_host = $HTTP_POOL_MAX
+tcp_keepalive_secs     = $HTTP_KEEPALIVE"
+else
+    CONTENT+=$'\n'"# [http]  HTTP 客户端配置（可选，使用默认值）"
+    CONTENT+=$'\n'"# timeout_secs           = 30"
+    CONTENT+=$'\n'"# pool_idle_timeout_secs = 30"
+    CONTENT+=$'\n'"# pool_max_idle_per_host = 10"
+    CONTENT+=$'\n'"# tcp_keepalive_secs     = 60"
+fi
+
+if [[ $ENABLE_GEMINI -eq 1 ]]; then
+    CONTENT+="
+
+[gemini]
+api_key      = \"$GEMINI_KEY\"
+model        = \"$GEMINI_MODEL\"
+timeout_secs = $GEMINI_TIMEOUT"
+else
+    CONTENT+=$'\n'"# [gemini]  Gemini API 图片识别（可选）"
+    CONTENT+=$'\n'"# api_key      = \"AIzaSy...\""
+    CONTENT+=$'\n'"# model        = \"gemini-2.5-flash\""
+    CONTENT+=$'\n'"# timeout_secs = 60"
 fi
 
 echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
