@@ -246,7 +246,7 @@ pub async fn handle_chat(
         // 构造 prompt
         let use_tools = cfg.enable_tools && !tool_defs.is_empty();
         let tools_prompt = if use_tools {
-            build_tools_prompt(tool_defs)
+            build_tools_prompt(tool_defs, 1, 10)  // 当前是第 1 轮，最多 10 轮
         } else {
             String::new()
         };
@@ -280,12 +280,22 @@ pub async fn handle_chat(
         // 解析 tool-call
         if use_tools {
             match parse_response(&reply) {
-                ParsedResponse::ToolCall { command, message } => {
-                    return Ok(ChatOutcome::ToolCall { command, message });
+                Ok(ParsedResponse::ToolCall { command, params }) => {
+                    // 暂时保留旧的 message 字段兼容
+                    return Ok(ChatOutcome::ToolCall { command, message: None });
                 }
-                ParsedResponse::Chat(text) => {
-                    // 继续下方的分段发送流程
+                Ok(ParsedResponse::ToolCallEnd { .. }) => {
+                    warn!("[chat] 收到 tool_call_end，但多轮循环尚未实现");
+                    api.send_msg(target, "⚠️ 多轮推理功能开发中...").await?;
+                    return Ok(ChatOutcome::Replied);
+                }
+                Ok(ParsedResponse::EndText(text)) => {
                     return send_chat_reply(api, target, bot_id, bot_name, &cfg, &text).await;
+                }
+                Err(e) => {
+                    warn!("[chat] 解析 LLM 响应失败: {}", e);
+                    api.send_msg(target, "⚠️ 小恋理解出错了...").await?;
+                    return Ok(ChatOutcome::Replied);
                 }
             }
         }
