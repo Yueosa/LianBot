@@ -34,6 +34,7 @@ pub enum ParsedCommand {
     Advanced {
         name: String,
         params: HashMap<String, ParamValue>,
+        positional: Vec<String>,  // 裸参数列表（不以 - 开头的参数）
     },
 }
 
@@ -111,8 +112,8 @@ impl CommandParser {
             return None;
         }
         let rest = &s[close + 1..];
-        let params = Self::parse_params(rest);
-        Some(ParsedCommand::Advanced { name, params })
+        let (params, positional) = Self::parse_params_with_positional(rest);
+        Some(ParsedCommand::Advanced { name, params, positional })
     }
 
     /// 解析参数段，支持：
@@ -123,8 +124,16 @@ impl CommandParser {
     /// - `-x=val`      → `{"-x": Value("val")}`
     /// - `--flag`      → `{"--flag": Flag}`
     pub fn parse_params(input: &str) -> HashMap<String, ParamValue> {
+        let (params, _positional) = Self::parse_params_with_positional(input);
+        params
+    }
+
+    /// 解析参数段，同时收集裸参数（不以 - 开头的参数）
+    /// 返回：(params, positional)
+    pub fn parse_params_with_positional(input: &str) -> (HashMap<String, ParamValue>, Vec<String>) {
         let tokens = shell_split(input);
         let mut params: HashMap<String, ParamValue> = HashMap::new();
+        let mut positional: Vec<String> = Vec::new();
         let mut i = 0;
 
         while i < tokens.len() {
@@ -179,13 +188,14 @@ impl CommandParser {
                     i += 1;
                 }
 
-            // ⑥ 其他裸字符串（忽略）
+            // ⑥ 裸参数（新增：收集而不是忽略）
             } else {
+                positional.push(token.clone());
                 i += 1;
             }
         }
 
-        params
+        (params, positional)
     }
 }
 
@@ -248,9 +258,10 @@ mod tests {
     fn test_advanced_basic() {
         let r = CommandParser::parse("<img> -u https://example.com/a.png", "!!").unwrap();
         match r {
-            ParsedCommand::Advanced { name, params } => {
+            ParsedCommand::Advanced { name, params, positional } => {
                 assert_eq!(name, "img");
                 assert_eq!(params["-u"], ParamValue::Value("https://example.com/a.png".into()));
+                assert!(positional.is_empty());
             }
             _ => panic!("Wrong variant"),
         }
@@ -260,9 +271,10 @@ mod tests {
     fn test_advanced_long_eq() {
         let r = CommandParser::parse("<smy> --count=50", "!!").unwrap();
         match r {
-            ParsedCommand::Advanced { name, params } => {
+            ParsedCommand::Advanced { name, params, positional } => {
                 assert_eq!(name, "smy");
                 assert_eq!(params["--count"], ParamValue::Value("50".into()));
+                assert!(positional.is_empty());
             }
             _ => panic!("Wrong variant"),
         }
