@@ -65,6 +65,7 @@ secret = ""
 #                          # - 主动调用命令：如 alive/world/acg 等
 #                          # - 智能识图：自动调用 vision 命令识别图片（需配置 Gemini）
 #                          # 注意：启用后会增加 LLM 调用次数和费用
+# max_rounds = 10          # Tool-Call 最大推理轮数（默认 10）
 
 # ── 易班签到 Webhook (yiban) ──────────────────────────────────────────────────
 # [yiban]

@@ -84,6 +84,10 @@ pub struct ChatConfig {
     /// 是否启用 LLM Tool-Call（允许 LLM 调用 Bot 命令）
     #[serde(default)]
     pub enable_tools: bool,
+
+    /// Tool-Call 最大推理轮数（默认 10）
+    #[serde(default = "ChatConfig::default_max_rounds")]
+    pub max_rounds: usize,
 }
 
 impl ChatConfig {
@@ -101,6 +105,7 @@ impl ChatConfig {
     fn default_merge_min_chars() -> usize { 20 }
     fn default_forward_threshold() -> usize { 5 }
     fn default_send_delay_ms() -> u64 { 600 }
+    fn default_max_rounds() -> usize { 10 }
 }
 
 impl Default for ChatConfig {
@@ -116,6 +121,7 @@ impl Default for ChatConfig {
             forward_threshold: Self::default_forward_threshold(),
             send_delay_ms: Self::default_send_delay_ms(),
             enable_tools: false,
+            max_rounds: Self::default_max_rounds(),
         }
     }
 }
@@ -250,7 +256,7 @@ pub async fn handle_chat(
         // 构造 prompt
         let use_tools = cfg.enable_tools && !tool_defs.is_empty();
         let tools_prompt = if use_tools {
-            build_tools_prompt(tool_defs, 1, 10)  // 当前是第 1 轮，最多 10 轮
+            build_tools_prompt(tool_defs, 1, cfg.max_rounds)
         } else {
             String::new()
         };
@@ -485,10 +491,10 @@ pub async fn handle_chat_with_tools(
         })
         .collect();
 
-    const MAX_ROUNDS: usize = 10;
+    let max_rounds = cfg.max_rounds;
 
     // 构建初始对话历史
-    let tools_prompt = build_tools_prompt(&tool_defs, 1, MAX_ROUNDS);
+    let tools_prompt = build_tools_prompt(&tool_defs, 1, max_rounds);
     let system = build_system_prompt(&cfg, bot_name, owner_id, &recent_text, &tools_prompt);
     let user_content = format!("{user_name}（QQ: {user_id}）对你说：{question}");
 
@@ -498,8 +504,8 @@ pub async fn handle_chat_with_tools(
     ];
 
     // 多轮循环
-    for round in 1..=MAX_ROUNDS {
-        debug!("[chat] 第 {}/{} 轮推理", round, MAX_ROUNDS);
+    for round in 1..=max_rounds {
+        debug!("[chat] 第 {}/{} 轮推理", round, max_rounds);
 
         // 调用 LLM
         let reply = client
@@ -580,7 +586,7 @@ pub async fn handle_chat_with_tools(
                 }));
 
                 // 更新 system prompt 的轮数
-                let tools_prompt = build_tools_prompt(&tool_defs, round + 1, MAX_ROUNDS);
+                let tools_prompt = build_tools_prompt(&tool_defs, round + 1, max_rounds);
                 let system = build_system_prompt(&cfg, bot_name, owner_id, &recent_text, &tools_prompt);
                 messages[0] = serde_json::json!({"role": "system", "content": system});
 
@@ -597,7 +603,7 @@ pub async fn handle_chat_with_tools(
     }
 
     // 超过最大轮数
-    warn!("[chat] 推理超过最大轮数 {}", MAX_ROUNDS);
+    warn!("[chat] 推理超过最大轮数 {}", max_rounds);
     api.send_msg(target, "⚠️ 推理超时，请稍后再试").await?;
     Ok(())
 }

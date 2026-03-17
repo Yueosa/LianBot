@@ -240,6 +240,7 @@ echo "    - 主动调用命令：如 alive/world/acg 等"
 echo "    - 智能识图：自动调用 vision 命令识别图片（需配置 Gemini）"
 echo "  ${C_YELLOW}注意：启用后会增加 LLM 调用次数和费用${C_NC}"
 ask CHAT_TOOLS      "启用 Tool-Call（true/false）" "$(toml_section_val "$LG" chat enable_tools 'false')"
+ask CHAT_MAX_ROUNDS "最大推理轮数" "$(toml_section_val "$LG" chat max_rounds '10')"
 echo "  人格设定（persona）请直接编辑 logic.toml [chat] 段修改"
 echo ""
 
@@ -296,7 +297,8 @@ context_size   = $CHAT_CTX_SIZE
 context_window = $CHAT_CTX_WINDOW
 temperature    = $CHAT_TEMP
 max_tokens     = $CHAT_MAX_TOKENS
-enable_tools   = $CHAT_TOOLS"
+enable_tools   = $CHAT_TOOLS
+max_rounds     = $CHAT_MAX_ROUNDS"
 
 echo ""; sep; echo ""; echo "$CONTENT"; echo ""; sep; echo ""
 [[ -f "$LG" ]] && warn "logic.toml 已存在，将被覆盖。"
