@@ -30,7 +30,6 @@ impl Command for AdminCommand {
 
     async fn execute(&self, ctx: CommandContext) -> Result<()> {
         let sub = ctx.get(&["_args"]).unwrap_or("").to_string();
-        let scope = ctx.bot_user.scope;
 
         match sub.as_str() {
             "block" => {
@@ -62,9 +61,10 @@ impl Command for AdminCommand {
                 }
             }
             "enable" => {
-                let gid = match scope {
-                    Scope::Group(gid) => gid,
-                    Scope::Private(_) => return ctx.reply("❌ 该命令仅在群聊中可用").await,
+                // 使用公开方法 group_id() 而不是直接访问 scope
+                let gid = match ctx.group_id() {
+                    Some(gid) => gid,
+                    None => return ctx.reply("❌ 该命令仅在群聊中可用").await,
                 };
                 if let Err(e) = ctx.access.enable_group(gid).await {
                     return ctx.reply(&format!("❌ 启用群失败: {e}")).await;
@@ -73,9 +73,10 @@ impl Command for AdminCommand {
                 ctx.reply(&format!("✅ 已启用群 {gid}")).await
             }
             "disable" => {
-                let gid = match scope {
-                    Scope::Group(gid) => gid,
-                    Scope::Private(_) => return ctx.reply("❌ 该命令仅在群聊中可用").await,
+                // 使用公开方法 group_id() 而不是直接访问 scope
+                let gid = match ctx.group_id() {
+                    Some(gid) => gid,
+                    None => return ctx.reply("❌ 该命令仅在群聊中可用").await,
                 };
                 if let Err(e) = ctx.access.disable_group(gid).await {
                     return ctx.reply(&format!("❌ 禁用群失败: {e}")).await;
