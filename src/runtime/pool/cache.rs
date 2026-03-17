@@ -157,6 +157,39 @@ impl MemoryPool {
             }
         }
     }
+
+    /// 更新消息的 description 字段（用于缓存图片识别结果）
+    ///
+    /// 在对应 scope 的队列中通过索引查找 msg_id 并更新 description（O(1) 查找）
+    pub async fn update_description(&self, msg_id: i64, scope: &Scope, description: String) {
+        let mut guard = self.scopes.write().await;
+        let index_guard = self.msg_id_index.read().await;
+
+        let Some(deque) = guard.get_mut(scope) else { return };
+        let Some(index) = index_guard.get(scope) else { return };
+
+        // O(1) 查找：通过索引直接定位消息
+        if let Some(&idx) = index.get(&msg_id) {
+            if let Some(msg) = deque.get_mut(idx) {
+                msg.description = Some(description);
+            }
+        }
+    }
+
+    /// 根据 msg_id 获取消息（用于检查是否已有 description）
+    ///
+    /// 在对应 scope 的队列中通过索引查找 msg_id（O(1) 查找）
+    pub async fn get_message(&self, msg_id: i64, scope: &Scope) -> Option<PoolMessage> {
+        let guard = self.scopes.read().await;
+        let index_guard = self.msg_id_index.read().await;
+
+        let deque = guard.get(scope)?;
+        let index = index_guard.get(scope)?;
+
+        // O(1) 查找：通过索引直接定位消息
+        let idx = *index.get(&msg_id)?;
+        deque.get(idx).cloned()
+    }
 }
 
 // ── 测试 ──────────────────────────────────────────────────────────────────────
@@ -183,6 +216,7 @@ mod tests {
             status: MsgStatus::Pending,
             process: None,
             is_bot: false,
+            description: None,
         }
     }
 

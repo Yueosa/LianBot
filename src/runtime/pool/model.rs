@@ -63,6 +63,12 @@ pub struct PoolMessage {
     pub status: MsgStatus,
     /// 命令处理记录（仅当 status != Pending 时有值）
     pub process: Option<ProcessRecord>,
+    /// 通用内容描述字段
+    /// - 图片消息：存储图片内容描述（Gemini 识别结果）
+    /// - 语音消息：存储语音转文字（未来扩展）
+    /// - 视频消息：存储视频内容描述（未来扩展）
+    /// - 纯文本消息：None
+    pub description: Option<String>,
 }
 
 /// 消息类型分类
@@ -127,6 +133,7 @@ impl PoolMessage {
             kind, text, segments, is_bot,
             status: MsgStatus::Pending,
             process: None,
+            description: None,
         })
     }
 
@@ -158,6 +165,7 @@ impl PoolMessage {
             kind, text, segments, is_bot,
             status: MsgStatus::Pending,
             process: None,
+            description: None,
         })
     }
 }
