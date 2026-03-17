@@ -101,6 +101,8 @@ cmd-smy    = ["runtime-dispatcher", "logic-smy", "dep:base64", "dep:tempfile"]
 cmd-dress  = ["runtime-dispatcher", "runtime-http", "dep:rand", "dep:regex", "dep:urlencoding", "dep:base64"]
 cmd-sign   = ["runtime-dispatcher", "logic-yiban"]
 cmd-send   = ["runtime-dispatcher"]
+cmd-msg    = ["runtime-dispatcher", "runtime-api"]
+cmd-img    = ["runtime-dispatcher", "runtime-api", "runtime-http", "dep:base64"]
 
 # ── Services 层 features ────────────────────────────────────────────────────
 svc-github = ["logic-github"]              # GitHub Webhook 通知

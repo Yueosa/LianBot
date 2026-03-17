@@ -8,6 +8,8 @@
 #[cfg(feature = "cmd-dress")] pub mod dress;
 #[cfg(feature = "cmd-sign")] pub mod sign;
 #[cfg(feature = "cmd-send")] pub mod send;
+#[cfg(feature = "cmd-msg")]  pub mod msg;
+#[cfg(feature = "cmd-img")]  pub mod img;
 pub mod admin;
 
 mod core;
@@ -91,6 +93,18 @@ pub fn register(app: &mut crate::kernel::app::App) -> CommandsSummary {
     {
         app.command(Arc::new(send::SendCommand));
         summary.names.push("send".to_string());
+    }
+
+    #[cfg(feature = "cmd-msg")]
+    {
+        app.command(Arc::new(msg::MsgCommand));
+        summary.names.push("msg".to_string());
+    }
+
+    #[cfg(feature = "cmd-img")]
+    {
+        app.command(Arc::new(img::ImgCommand));
+        summary.names.push("img".to_string());
     }
 
     summary.count = summary.names.len();
