@@ -7,7 +7,7 @@ use anyhow::Result;
 use tracing::{debug, info, info_span, warn, Instrument};
 
 use crate::{
-    commands::{gen_trace_id, Command, CommandContext},
+    commands::{gen_trace_id, Command, CommandContext, Invocation},
     runtime::{
         permission::{AccessControl, BotUser, Role, Scope},
         api::{ApiClient, MsgTarget},
@@ -723,6 +723,8 @@ fn build_command_ctx(
         #[cfg(feature = "runtime-pool")]
         pool: ctx.pool.clone(),
         access: ctx.access.clone(),
+        invocation: Invocation::User,
+        captured_output: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
     }
 }
 
