@@ -150,7 +150,7 @@ impl Command for DressCommand {
         ctx.reply_segments(vec![
             MessageSegment::text(&format!("作者: {author}\n")),
             MessageSegment::image(&image_uri),
-            MessageSegment::text(&format!("\n源仓库: {REPO_URL}\n开源协议: {LICENSE}")),
+            MessageSegment::text(&format!("源仓库: {REPO_URL}\n开源协议: {LICENSE}")),
         ])
         .await
     }
