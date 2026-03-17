@@ -59,7 +59,12 @@ secret = ""
 # forward_threshold = 5    # 超过此段数用合并转发
 # send_delay_ms = 600      # 多条消息之间的发送间隔（毫秒）
 #
-# enable_tools = false     # 启用 LLM Tool-Call（允许 AI 自动调用 Bot 命令，如 alive/stalk/world）
+# enable_tools = false     # 启用 LLM Tool-Call（允许 AI 自动调用 Bot 命令）
+#                          # 启用后 AI 可以：
+#                          # - 多轮推理：连续调用多个命令收集信息后综合回答
+#                          # - 主动调用命令：如 alive/world/acg 等
+#                          # - 智能识图：自动调用 vision 命令识别图片（需配置 Gemini）
+#                          # 注意：启用后会增加 LLM 调用次数和费用
 
 # ── 易班签到 Webhook (yiban) ──────────────────────────────────────────────────
 # [yiban]
