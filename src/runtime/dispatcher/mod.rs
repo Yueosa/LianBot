@@ -605,29 +605,62 @@ impl MessageHandler for AtBotHandler {
 
         #[cfg(feature = "logic-chat")]
         {
-            let outcome = crate::logic::chat::handle_chat(
-                ctx.api,
-                #[cfg(feature = "runtime-pool")]
-                &ctx.pool,
-                ctx.msg.scope, target,
-                ctx.bot_id, bot_name, ctx.owner_id,
-                &ctx.msg.user_name, ctx.msg.user_id, &question,
-                &tool_defs,
-            ).await?;
+            // 检查是否启用多轮推理
+            let cfg: crate::logic::chat::ChatConfig = crate::logic::config::section("chat");
 
-            // 处理 tool-call
-            match outcome {
-                crate::logic::chat::ChatOutcome::Replied => {
+            if cfg.enable_tools && !tool_defs.is_empty() {
+                // 多轮推理模式：委托给 logic 层
+                debug!("[dispatcher] 启用多轮推理模式");
+                crate::logic::chat::handle_chat_with_tools(
+                    ctx.api,
                     #[cfg(feature = "runtime-pool")]
-                    return Ok(HandlerResult::Handled(None));
-                    #[cfg(not(feature = "runtime-pool"))]
-                    return Ok(HandlerResult::Handled);
-                }
-                crate::logic::chat::ChatOutcome::ToolCall { command, message } => {
-                    if let Some(msg) = &message {
-                        ctx.api.send_msg(target, msg).await?;
+                    ctx.pool,
+                    ctx.registry,
+                    ctx.msg.scope,
+                    target,
+                    ctx.bot_id,
+                    bot_name,
+                    ctx.owner_id,
+                    &ctx.msg.user_name,
+                    ctx.msg.user_id,
+                    &question,
+                    ctx.msg.bot_user.clone(),
+                    ctx.msg.segments.clone(),
+                    ctx.cmd_prefix.to_string(),
+                    ctx.access.clone(),
+                ).await?;
+
+                #[cfg(feature = "runtime-pool")]
+                return Ok(HandlerResult::Handled(None));
+                #[cfg(not(feature = "runtime-pool"))]
+                return Ok(HandlerResult::Handled);
+            } else {
+                // 单轮对话模式：原有逻辑
+                debug!("[dispatcher] 使用单轮对话模式");
+                let outcome = crate::logic::chat::handle_chat(
+                    ctx.api,
+                    #[cfg(feature = "runtime-pool")]
+                    &ctx.pool,
+                    ctx.msg.scope, target,
+                    ctx.bot_id, bot_name, ctx.owner_id,
+                    &ctx.msg.user_name, ctx.msg.user_id, &question,
+                    &tool_defs,
+                ).await?;
+
+                // 处理 tool-call
+                match outcome {
+                    crate::logic::chat::ChatOutcome::Replied => {
+                        #[cfg(feature = "runtime-pool")]
+                        return Ok(HandlerResult::Handled(None));
+                        #[cfg(not(feature = "runtime-pool"))]
+                        return Ok(HandlerResult::Handled);
                     }
-                    self.dispatch_tool_call(ctx, &command).await
+                    crate::logic::chat::ChatOutcome::ToolCall { command, message } => {
+                        if let Some(msg) = &message {
+                            ctx.api.send_msg(target, msg).await?;
+                        }
+                        self.dispatch_tool_call(ctx, &command).await
+                    }
                 }
             }
         }
