@@ -7,6 +7,7 @@
 #[cfg(feature = "cmd-world")] pub mod world;
 #[cfg(feature = "cmd-dress")] pub mod dress;
 #[cfg(feature = "cmd-sign")] pub mod sign;
+#[cfg(feature = "cmd-send")] pub mod send;
 pub mod admin;
 
 mod core;
@@ -84,6 +85,12 @@ pub fn register(app: &mut crate::kernel::app::App) -> CommandsSummary {
     {
         app.command(Arc::new(sign::SignCommand));
         summary.names.push("sign".to_string());
+    }
+
+    #[cfg(feature = "cmd-send")]
+    {
+        app.command(Arc::new(send::SendCommand));
+        summary.names.push("send".to_string());
     }
 
     summary.count = summary.names.len();

@@ -16,7 +16,7 @@ declare -A FEATURE_DEPS
 # Runtime 基础模块
 FEATURES[runtime-api]="api - HTTP 客户端"
 FEATURE_DEFAULT[runtime-api]=1
-FEATURE_DEPS[runtime-api]="runtime-config"
+FEATURE_DEPS[runtime-api]="runtime-config runtime-http"
 
 FEATURES[runtime-typ]="typ - OneBot 协议类型"
 FEATURE_DEFAULT[runtime-typ]=1
@@ -83,6 +83,10 @@ FEATURE_DEPS[cmd-dress]="runtime-dispatcher"
 FEATURES[cmd-sign]="sign - 易班签到"
 FEATURE_DEFAULT[cmd-sign]=0
 FEATURE_DEPS[cmd-sign]="runtime-dispatcher logic-yiban"
+
+FEATURES[cmd-send]="send - 图文混合消息（LLM 专用）"
+FEATURE_DEFAULT[cmd-send]=0
+FEATURE_DEPS[cmd-send]="runtime-dispatcher"
 
 # 服务模块
 FEATURES[svc-github]="github - GitHub Webhook"
@@ -239,7 +243,7 @@ show_feature_menu() {
     echo ""
 
     echo "  ${C_BOLD}命令模块${C_NC}"
-    for feat in cmd-ping cmd-help cmd-alive cmd-smy cmd-stalk cmd-acg cmd-world cmd-dress cmd-sign; do
+    for feat in cmd-ping cmd-help cmd-alive cmd-smy cmd-stalk cmd-acg cmd-world cmd-dress cmd-sign cmd-send; do
         [[ -z "${FEATURES[$feat]}" ]] && continue
         local mark=$([[ ${SELECTED[$feat]} -eq 1 ]] && echo "√" || echo " ")
         printf "    [%2d] [%s] %s\n" $idx "$mark" "${FEATURES[$feat]}"
