@@ -1,6 +1,7 @@
 use std::{collections::HashMap, hash::{BuildHasher, Hasher, RandomState}, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use tokio::sync::Mutex;
 
 #[cfg(feature = "runtime-permission")]
 use crate::runtime::permission::{AccessControl, BotUser, Scope};
@@ -22,6 +23,15 @@ use crate::runtime::typ::MessageSegment;
 
 #[cfg(feature = "runtime-ws")]
 use crate::runtime::ws::WsManager;
+
+/// 命令调用来源
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Invocation {
+    /// 用户直接调用：需要友好提示，输出给用户
+    User,
+    /// LLM Tool Call：返回结构化数据，不输出给用户
+    ToolCall,
+}
 
 pub struct CommandContext {
     /// 本次命令执行的追踪标识（8 字符 hex），用于关联并发日志
@@ -51,6 +61,10 @@ pub struct CommandContext {
     pub pool: Option<Arc<Pool>>,
     /// 准入控制（block/unblock、enable/disable 等管理操作）
     pub access: Arc<AccessControl>,
+    /// 调用来源
+    pub invocation: Invocation,
+    /// 捕获的输出（ToolCall 模式下使用）
+    pub(crate) captured_output: Arc<Mutex<Option<String>>>,
 }
 
 impl CommandContext {
@@ -74,7 +88,17 @@ impl CommandContext {
 
     /// 向当前交互域发送纯文字回复。
     pub async fn reply(&self, text: &str) -> Result<()> {
-        self.api.send_msg(self.target(), text).await
+        match self.invocation {
+            Invocation::User => {
+                // 直接发送给用户
+                self.api.send_msg(self.target(), text).await
+            }
+            Invocation::ToolCall => {
+                // 捕获到 buffer，返回给 LLM
+                *self.captured_output.lock().await = Some(text.to_string());
+                Ok(())
+            }
+        }
     }
 
     /// 向当前交互域发送图片。
@@ -124,6 +148,19 @@ impl CommandContext {
             }
         }
         None
+    }
+
+    /// 解析 JSON 参数
+    pub fn get_json<T: serde::de::DeserializeOwned>(&self, keys: &[&str]) -> Result<T> {
+        for &key in keys {
+            if let Some(v) = self.params.get(key) {
+                if let Some(s) = v.as_str() {
+                    return serde_json::from_str(s)
+                        .with_context(|| format!("解析参数 {} 为 JSON 失败", key));
+                }
+            }
+        }
+        anyhow::bail!("未找到参数: {:?}", keys)
     }
 }
 
