@@ -55,7 +55,7 @@ impl Command for SignCommand {
         // 主命令：触发签到
         // 设置 pending origin，Webhook 回调时额外推送到触发来源
         if let Some(bridge) = crate::services::yiban::bridge() {
-            bridge.set_origin(ctx.bot_user.scope);
+            bridge.set_origin(ctx.scope());
         }
 
         let name = if args.is_empty() { None } else { Some(args) };

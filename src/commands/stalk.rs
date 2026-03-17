@@ -36,7 +36,7 @@ impl Command for StalkCommand {
 
             // 广播截图请求到所有已连接的客户端
             debug!("[stalk] 广播截图请求");
-            let scope = ctx.bot_user.scope;
+            let scope = ctx.scope();
             let payload = match scope {
                 crate::runtime::permission::Scope::Group(gid) => format!("stalk:{gid}"),
                 crate::runtime::permission::Scope::Private(uid) => format!("stalk:private:{uid}"),
